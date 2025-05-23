@@ -8,52 +8,32 @@ export function useChat() {
   const [isTyping, setIsTyping] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, workflowContext?: any) => {
     const userMessage: ChatMessage = {
       id: uuidv4(),
       role: 'user',
-      type: 'text',
       content,
-      timestamp: Date.now(),
-      status: 'sending',
+      timestamp: new Date()
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    setMessages(prev => [...prev, userMessage])
     setIsTyping(true)
     setError(null)
 
     try {
-      const response = await sendMessageToAI([...messages, userMessage])
-
-      if (response.error) {
-        throw new Error(response.error)
-      }
-
+      const response = await sendMessageToAI([...messages, userMessage], workflowContext)
+      
       const assistantMessage: ChatMessage = {
         id: uuidv4(),
         role: 'assistant',
-        type: 'text',
         content: response.message,
-        timestamp: Date.now(),
+        timestamp: new Date(),
+        actions: response.actions || []
       }
 
-      setMessages((prev) => [
-        ...prev.map((msg) =>
-          msg.id === userMessage.id
-            ? { ...msg, status: 'sent' as const }
-            : msg
-        ),
-        assistantMessage,
-      ])
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to send message')
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === userMessage.id
-            ? { ...msg, status: 'error' as const }
-            : msg
-        )
-      )
+      setMessages(prev => [...prev, assistantMessage])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send message')
     } finally {
       setIsTyping(false)
     }

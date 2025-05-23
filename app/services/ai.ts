@@ -2,11 +2,21 @@ import type { ChatMessage } from '../types/chat'
 
 export interface AIResponse {
   message: string
+  actions?: Array<{
+    type: 'CREATE_NODE' | 'CONNECT_NODES'
+    nodeType?: string
+    name?: string
+    instructions?: string
+    model?: string
+    sourceId?: string
+    targetId?: string
+  }>
   error?: string
 }
 
 export async function sendMessageToAI(
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  workflowContext?: any
 ): Promise<AIResponse> {
   try {
     const response = await fetch('/api/chat', {
@@ -16,6 +26,7 @@ export async function sendMessageToAI(
       },
       body: JSON.stringify({
         messages: messages.map(({ role, content }) => ({ role, content })),
+        workflowContext
       }),
     })
 
@@ -24,7 +35,10 @@ export async function sendMessageToAI(
     }
 
     const data = await response.json()
-    return { message: data.message }
+    return { 
+      message: data.message,
+      actions: data.actions || []
+    }
   } catch (error) {
     console.error('Error sending message to AI:', error)
     return {

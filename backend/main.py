@@ -11,6 +11,7 @@ Provides endpoints for:
 """
 
 import asyncio
+import concurrent.futures
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -21,9 +22,15 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Add the parent directory to Python path to access any_agent
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("📄 Loaded environment variables from .env file")
+except ImportError:
+    print("💡 Install python-dotenv to load .env files: pip install python-dotenv")
 
+# Import any-agent framework
 from any_agent import AgentConfig, AgentFramework, AnyAgent
 from any_agent.tools import search_web
 
@@ -79,15 +86,34 @@ class WorkflowExecutor:
             # Parse workflow into any-agent configuration
             agent_config = self._workflow_to_agent_config(request.workflow)
             
-            # Create agent using any-agent
-            framework = AgentFramework.from_string(request.framework)
-            agent = AnyAgent.create(
-                agent_framework=framework,
-                agent_config=agent_config
-            )
+            # Run agent execution in thread pool to avoid event loop conflict
+            def run_agent():
+                # Create new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                try:
+                    # Create agent using any-agent
+                    framework = AgentFramework.from_string(request.framework.upper())
+                    agent = AnyAgent.create(
+                        agent_framework=framework,
+                        agent_config=agent_config
+                    )
+                    
+                    # Execute the agent
+                    agent_trace = agent.run(prompt=request.input_data)
+                    
+                    # Clean up agent resources
+                    agent.exit()
+                    
+                    return agent_trace
+                finally:
+                    loop.close()
             
-            # Execute the agent
-            agent_trace = agent.run(prompt=request.input_data)
+            # Execute in thread pool
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_agent)
+                agent_trace = future.result(timeout=30)  # 30 second timeout
             
             # Store execution details
             self.executions[execution_id] = {
@@ -95,9 +121,6 @@ class WorkflowExecutor:
                 "trace": agent_trace,
                 "workflow": request.workflow
             }
-            
-            # Clean up agent resources
-            agent.exit()
             
             return ExecutionResponse(
                 execution_id=execution_id,
@@ -197,8 +220,8 @@ async def root():
 async def list_frameworks():
     """List available agent frameworks"""
     return {
-        "frameworks": [framework.value for framework in AgentFramework],
-        "default": AgentFramework.OPENAI.value
+        "frameworks": [framework.name for framework in AgentFramework],
+        "default": AgentFramework.OPENAI.name
     }
 
 
@@ -241,10 +264,12 @@ if __name__ == "__main__":
     # Check for required environment variables
     if not os.getenv("OPENAI_API_KEY"):
         print("⚠️  Warning: OPENAI_API_KEY not set. OpenAI agents will not work.")
+        print("🔧 Please set your OpenAI API key: export OPENAI_API_KEY='your_key_here'")
     
     print("🔥 Starting any-agent Workflow Composer Backend...")
     print("📡 Backend will be available at: http://localhost:8000")
     print("📖 API docs will be available at: http://localhost:8000/docs")
+    print("🤖 Using REAL any-agent framework integration!")
     
     uvicorn.run(
         "main:app",

@@ -7,8 +7,17 @@ export interface ChatMessage {
   role: MessageRole
   type: MessageType
   content: string
-  timestamp: number
+  timestamp: Date
   status?: 'sending' | 'sent' | 'error'
+  actions?: Array<{
+    type: 'CREATE_NODE' | 'CONNECT_NODES'
+    nodeType?: string
+    name?: string
+    instructions?: string
+    model?: string
+    sourceId?: string
+    targetId?: string
+  }>
 }
 
 export interface ChatState {
