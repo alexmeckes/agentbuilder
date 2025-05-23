@@ -1,0 +1,69 @@
+site_name: Any Agent
+
+repo_url: https://github.com/mozilla-ai/any-agent
+repo_name: any-agent
+
+nav:
+  - Intro: index.md
+  - Agents: agents.md
+  - Frameworks:
+    - Agno: frameworks/agno.md
+    - Google ADK: frameworks/google_adk.md
+    - Langchain: frameworks/langchain.md
+    - LlamaIndex: frameworks/llama_index.md
+    - OpenAI Agents SDK: frameworks/openai.md
+    - smolagents: frameworks/smolagents.md
+    - TinyAgent: frameworks/tinyagent.md
+  - Instructions: instructions.md
+  - Tools: tools.md
+  - Tracing: tracing.md
+  - Evaluation: evaluation.md
+  - Serving (A2A): serving.md
+  - API Reference:
+    - Agent: api/agent.md
+    - Config: api/config.md
+    - Tools: api/tools.md
+    - Tracing: api/tracing.md
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: black
+      toggle:
+        icon: material/lightbulb
+        name: Switch to dark mode
+    - scheme: slate
+      primary: grey
+      toggle:
+        icon: material/lightbulb-outline
+        name: Switch to light mode
+  logo: images/mozilla.ai_white.png
+  favicon: images/mozilla.ai_black.png
+  extra_css:
+    - assets/custom.css
+  features:
+    - content.code.copy
+    - content.tabs.link
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+- search
+- include-markdown
+- mkdocstrings:
+    handlers:
+      python:
+        options:
+          show_root_heading: true
+          heading_level: 3
