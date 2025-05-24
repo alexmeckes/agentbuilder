@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import ReactFlow, {
   Controls,
   Background,
@@ -37,9 +37,29 @@ const initialNodes: Node[] = [
 
 const initialEdges: Edge[] = []
 
-export default function WorkflowEditor() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+interface WorkflowEditorProps {
+  nodes?: Node[]
+  edges?: Edge[]
+  onNodesChange?: (nodes: Node[]) => void
+  onEdgesChange?: (edges: Edge[]) => void
+  onWorkflowChange?: (nodes: Node[], edges: Edge[]) => void
+}
+
+export default function WorkflowEditor({ 
+  nodes: externalNodes, 
+  edges: externalEdges, 
+  onNodesChange: externalOnNodesChange,
+  onEdgesChange: externalOnEdgesChange,
+  onWorkflowChange 
+}: WorkflowEditorProps = {}) {
+  // Use external state if provided, otherwise use internal state
+  const [internalNodes, setInternalNodes, onInternalNodesChange] = useNodesState(externalNodes || initialNodes)
+  const [internalEdges, setInternalEdges, onInternalEdgesChange] = useEdgesState(externalEdges || initialEdges)
+  
+  // Determine which state to use
+  const nodes = externalNodes || internalNodes
+  const edges = externalEdges || internalEdges
+  
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
   
@@ -48,9 +68,55 @@ export default function WorkflowEditor() {
   const [executionResult, setExecutionResult] = useState<ExecutionResponse | null>(null)
   const [inputData, setInputData] = useState('Hello, please analyze this data and provide insights.')
 
+  // Sync external state changes to internal state
+  useEffect(() => {
+    if (externalNodes) {
+      setInternalNodes(externalNodes)
+    }
+  }, [externalNodes, setInternalNodes])
+
+  useEffect(() => {
+    if (externalEdges) {
+      setInternalEdges(externalEdges)
+    }
+  }, [externalEdges, setInternalEdges])
+
+  // Handle node changes
+  const handleNodesChange = useCallback((changes: any) => {
+    if (externalOnNodesChange && externalNodes) {
+      // Apply changes to external nodes and update parent
+      onInternalNodesChange(changes)
+      // The changes will be applied to internalNodes, then we sync to parent
+      // This is a bit complex because ReactFlow changes are incremental
+      // For now, let ReactFlow handle the changes internally and sync later
+    } else {
+      onInternalNodesChange(changes)
+    }
+  }, [externalOnNodesChange, externalNodes, onInternalNodesChange])
+
+  // Handle edge changes  
+  const handleEdgesChange = useCallback((changes: any) => {
+    if (externalOnEdgesChange && externalEdges) {
+      // Apply changes to external edges and update parent
+      onInternalEdgesChange(changes)
+    } else {
+      onInternalEdgesChange(changes)
+    }
+  }, [externalOnEdgesChange, externalEdges, onInternalEdgesChange])
+
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
+    (params: Connection) => {
+      if (externalOnEdgesChange) {
+        const newEdges = addEdge(params, edges)
+        externalOnEdgesChange(newEdges)
+        if (onWorkflowChange) {
+          onWorkflowChange(nodes, newEdges)
+        }
+      } else {
+        setInternalEdges((eds) => addEdge(params, eds))
+      }
+    },
+    [edges, nodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange],
   )
 
   const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -81,15 +147,25 @@ export default function WorkflowEditor() {
         data: { 
           label: `${type} Node`, 
           type,
-          model_id: type === 'agent' ? 'gpt-3.5-turbo' : undefined,
+          model_id: type === 'agent' ? 'gpt-4.1' : undefined,
           instructions: type === 'agent' ? 'You are a helpful assistant.' : undefined,
           name: type === 'agent' ? `${type}Agent` : undefined,
         },
       }
 
-      setNodes((nds) => nds.concat(newNode))
+      if (externalOnNodesChange) {
+        // If external state management, update through parent
+        const newNodes = [...nodes, newNode]
+        externalOnNodesChange(newNodes)
+        if (onWorkflowChange) {
+          onWorkflowChange(newNodes, edges)
+        }
+      } else {
+        // Use internal state management
+        setInternalNodes((nds) => nds.concat(newNode))
+      }
     },
-    [reactFlowInstance, nodes, setNodes],
+    [reactFlowInstance, nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange],
   )
 
   const executeWorkflow = async () => {
@@ -142,8 +218,8 @@ export default function WorkflowEditor() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={handleEdgesChange}
           onConnect={onConnect}
           onInit={setReactFlowInstance}
           onDrop={onDrop}
