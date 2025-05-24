@@ -23,8 +23,11 @@ export default function Home() {
     const newNodes: Node[] = []
     const newEdges: Edge[] = []
     let yPosition = 100
+    
+    // Keep track of node mappings for connections
+    const nodeIdMap = new Map<string, string>() // original name -> actual ID
 
-    // Process CREATE_NODE actions
+    // Process CREATE_NODE actions first
     actions.forEach((action, index) => {
       if (action.type === 'CREATE_NODE') {
         const nodeId = `${action.nodeType}-${Date.now()}-${index}`
@@ -42,20 +45,58 @@ export default function Home() {
           }
         }
         newNodes.push(newNode)
+        
+        // Map the original name to the actual node ID for connections
+        if (action.name) {
+          nodeIdMap.set(action.name, nodeId)
+        }
+        // Also map the nodeType for fallback
+        nodeIdMap.set(`${action.nodeType}-${index}`, nodeId)
       }
     })
 
-    // Process CONNECT_NODES actions  
+    // Process CONNECT_NODES actions after all nodes are created
     actions.forEach((action) => {
       if (action.type === 'CONNECT_NODES' && action.sourceId && action.targetId) {
-        const edgeId = `edge-${action.sourceId}-${action.targetId}`
+        // Try to resolve the actual node IDs
+        let sourceNodeId = action.sourceId
+        let targetNodeId = action.targetId
+        
+        // Check if these are node names that need to be mapped to actual IDs
+        if (nodeIdMap.has(action.sourceId)) {
+          sourceNodeId = nodeIdMap.get(action.sourceId)!
+        } else {
+          // Check existing nodes for a match
+          const existingSourceNode = [...nodes, ...newNodes].find(n => 
+            n.data.name === action.sourceId || n.id === action.sourceId
+          )
+          if (existingSourceNode) {
+            sourceNodeId = existingSourceNode.id
+          }
+        }
+        
+        if (nodeIdMap.has(action.targetId)) {
+          targetNodeId = nodeIdMap.get(action.targetId)!
+        } else {
+          // Check existing nodes for a match
+          const existingTargetNode = [...nodes, ...newNodes].find(n => 
+            n.data.name === action.targetId || n.id === action.targetId
+          )
+          if (existingTargetNode) {
+            targetNodeId = existingTargetNode.id
+          }
+        }
+        
+        const edgeId = `edge-${sourceNodeId}-${targetNodeId}`
         const newEdge: Edge = {
           id: edgeId,
-          source: action.sourceId,
-          target: action.targetId,
+          source: sourceNodeId,
+          target: targetNodeId,
           type: 'default'
         }
         newEdges.push(newEdge)
+        
+        console.log('Created edge:', newEdge)
       }
     })
 
@@ -70,9 +111,11 @@ export default function Home() {
 
     // Show success notification
     if (newNodes.length > 0 || newEdges.length > 0) {
+      console.log('Created nodes:', newNodes)
+      console.log('Created edges:', newEdges)
       alert(`✅ Created ${newNodes.length} nodes and ${newEdges.length} connections!`)
     }
-  }, [])
+  }, [nodes])
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col">

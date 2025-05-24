@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { Message } from './chat/Message'
 import { ChatInput } from './chat/ChatInput'
 import { useChat } from '../hooks/useChat'
-import { AlertCircle, Bot, Workflow } from 'lucide-react'
+import { AlertCircle, Bot, Workflow, RotateCcw } from 'lucide-react'
 
 interface ChatInterfaceProps {
   workflowContext?: any
@@ -12,7 +12,7 @@ interface ChatInterfaceProps {
 }
 
 export default function ChatInterface({ workflowContext, onExecuteActions }: ChatInterfaceProps) {
-  const { messages, isTyping, error, sendMessage } = useChat()
+  const { messages, isTyping, error, sendMessage, clearMessages } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -23,71 +23,85 @@ export default function ChatInterface({ workflowContext, onExecuteActions }: Cha
     scrollToBottom()
   }, [messages])
 
-  const handleSendMessage = (content: string) => {
-    sendMessage(content, workflowContext)
+  const handleSendMessage = (message: string) => {
+    sendMessage(message, workflowContext)
   }
 
-  const handleExecuteActions = (actions: any[]) => {
-    if (onExecuteActions) {
-      onExecuteActions(actions)
-    }
+  const handleClearChat = () => {
+    clearMessages()
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Workflow Assistant Header */}
-      <div className="border-b bg-muted/30 px-4 py-3">
+    <div className="flex flex-col h-full bg-white">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-slate-50">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Bot className="h-4 w-4" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-sm">Workflow Building Assistant</h3>
-            <p className="text-xs text-muted-foreground">Ask me about creating agents, connecting nodes, and optimizing workflows</p>
-          </div>
-          <Workflow className="ml-auto h-5 w-5 text-muted-foreground" />
+          <Bot className="h-5 w-5 text-blue-600" />
+          <h2 className="text-lg font-semibold text-gray-900">AI Workflow Assistant</h2>
         </div>
+        <button
+          onClick={handleClearChat}
+          className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+          title="Clear chat history"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Clear
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-            <Bot className="h-12 w-12 mb-4 opacity-50" />
-            <h3 className="font-medium mb-2">Welcome to your Workflow Assistant!</h3>
-            <p className="text-sm mb-4 max-w-sm">
-              I'm here to help you build amazing AI workflows. Ask me about:
+          <div className="text-center py-8">
+            <Workflow className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Welcome to Workflow Composer!</h3>
+            <p className="text-gray-600 mb-4">
+              I can help you design and build AI agent workflows. Try asking me about:
             </p>
-            <div className="text-xs space-y-1 max-w-sm">
-              <div>• How to configure agent nodes</div>
-              <div>• Best practices for workflow design</div>
-              <div>• Connecting nodes and data flow</div>
-              <div>• Troubleshooting and optimization</div>
-              <div>• <strong>Creating nodes automatically!</strong></div>
+            <div className="space-y-2 text-sm text-left max-w-md mx-auto">
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                💡 "Create a workflow for data analysis"
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded p-3">
+                🔗 "Build a multi-step research pipeline"
+              </div>
+              <div className="bg-purple-50 border border-purple-200 rounded p-3">
+                ⚡ "Design a content generation workflow"
+              </div>
             </div>
           </div>
         )}
+        
         {messages.map((message) => (
           <Message 
             key={message.id} 
             message={message} 
-            onExecuteActions={handleExecuteActions}
+            onExecuteActions={onExecuteActions}
           />
         ))}
+        
         {isTyping && (
-          <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-            <div className="h-2 w-2 animate-bounce rounded-full bg-primary"></div>
-            <div className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:0.2s]"></div>
-            <div className="h-2 w-2 animate-bounce rounded-full bg-primary [animation-delay:0.4s]"></div>
+          <div className="flex items-center gap-2 text-gray-500">
+            <Bot className="h-4 w-4" />
+            <div className="flex gap-1">
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
+              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
+            </div>
           </div>
         )}
+        
         {error && (
-          <div className="flex items-center gap-2 p-4 text-sm text-destructive">
+          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800">
             <AlertCircle className="h-4 w-4" />
-            <span>{error}</span>
+            <span className="text-sm">{error}</span>
           </div>
         )}
+        
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Input Area */}
       <ChatInput onSend={handleSendMessage} disabled={isTyping} />
     </div>
   )
