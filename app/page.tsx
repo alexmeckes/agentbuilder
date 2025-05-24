@@ -11,11 +11,20 @@ export default function Home() {
   const [edges, setEdges] = useState<Edge[]>([])
   const [activeTab, setActiveTab] = useState<'design' | 'chat'>('chat')
   const [isExecuting, setIsExecuting] = useState(false)
+  const [workflowExecutionInput, setWorkflowExecutionInput] = useState('Hello, please analyze this data and provide insights.')
 
   const handleWorkflowChange = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     setNodes(newNodes)
     setEdges(newEdges)
   }, [])
+
+  const handleSuggestionToWorkflow = useCallback((suggestion: string) => {
+    setWorkflowExecutionInput(suggestion)
+    // Switch to design tab to show the updated input
+    if (nodes.length > 0) {
+      setActiveTab('design')
+    }
+  }, [nodes.length])
 
   const handleExecuteActions = useCallback((actions: any[]) => {
     console.log('Executing actions:', actions)
@@ -198,6 +207,7 @@ export default function Home() {
             <ChatInterface 
               workflowContext={{ nodes, edges }} 
               onExecuteActions={handleExecuteActions}
+              onSuggestionToWorkflow={handleSuggestionToWorkflow}
             />
           </div>
         ) : (
@@ -228,6 +238,8 @@ export default function Home() {
                 onNodesChange={setNodes}
                 onEdgesChange={setEdges}
                 onWorkflowChange={handleWorkflowChange}
+                executionInput={workflowExecutionInput}
+                onExecutionInputChange={setWorkflowExecutionInput}
               />
             )}
           </div>

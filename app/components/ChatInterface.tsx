@@ -1,19 +1,23 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Message } from './chat/Message'
 import { ChatInput } from './chat/ChatInput'
 import { useChat } from '../hooks/useChat'
+import { extractWorkflowContext } from '../lib/workflowExtractor'
 import { AlertCircle, Bot, Workflow, RotateCcw } from 'lucide-react'
 
 interface ChatInterfaceProps {
   workflowContext?: any
   onExecuteActions?: (actions: any[]) => void
+  onSuggestionToWorkflow?: (suggestion: string) => void
 }
 
-export default function ChatInterface({ workflowContext, onExecuteActions }: ChatInterfaceProps) {
+export default function ChatInterface({ workflowContext, onExecuteActions, onSuggestionToWorkflow }: ChatInterfaceProps) {
   const { messages, isTyping, error, sendMessage, clearMessages } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [currentSuggestion, setCurrentSuggestion] = useState<string>('')
+  const [currentWorkflowType, setCurrentWorkflowType] = useState<string>('')
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -23,12 +27,29 @@ export default function ChatInterface({ workflowContext, onExecuteActions }: Cha
     scrollToBottom()
   }, [messages])
 
+  // Extract workflow context from the latest assistant message
+  useEffect(() => {
+    const lastAssistantMessage = messages
+      .filter(msg => msg.role === 'assistant')
+      .slice(-1)[0]
+
+    if (lastAssistantMessage?.content) {
+      const workflowCtx = extractWorkflowContext(lastAssistantMessage.content)
+      if (workflowCtx) {
+        setCurrentSuggestion(workflowCtx.suggestion)
+        setCurrentWorkflowType(workflowCtx.workflowType || '')
+      }
+    }
+  }, [messages])
+
   const handleSendMessage = (message: string) => {
     sendMessage(message, workflowContext)
   }
 
   const handleClearChat = () => {
     clearMessages()
+    setCurrentSuggestion('')
+    setCurrentWorkflowType('')
   }
 
   return (
@@ -38,6 +59,11 @@ export default function ChatInterface({ workflowContext, onExecuteActions }: Cha
         <div className="flex items-center gap-2">
           <Bot className="h-5 w-5 text-blue-600" />
           <h2 className="text-lg font-semibold text-gray-900">AI Workflow Assistant</h2>
+          {currentWorkflowType && (
+            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+              {currentWorkflowType.replace('-', ' ')}
+            </span>
+          )}
         </div>
         <button
           onClick={handleClearChat}
@@ -102,7 +128,13 @@ export default function ChatInterface({ workflowContext, onExecuteActions }: Cha
       </div>
 
       {/* Input Area */}
-      <ChatInput onSend={handleSendMessage} disabled={isTyping} />
+      <ChatInput 
+        onSend={handleSendMessage} 
+        disabled={isTyping}
+        suggestion={currentSuggestion}
+        workflowContext={currentWorkflowType}
+        onSuggestionToWorkflow={onSuggestionToWorkflow}
+      />
     </div>
   )
 } 

@@ -43,6 +43,8 @@ interface WorkflowEditorProps {
   onNodesChange?: (nodes: Node[]) => void
   onEdgesChange?: (edges: Edge[]) => void
   onWorkflowChange?: (nodes: Node[], edges: Edge[]) => void
+  executionInput?: string
+  onExecutionInputChange?: (input: string) => void
 }
 
 export default function WorkflowEditor({ 
@@ -50,7 +52,9 @@ export default function WorkflowEditor({
   edges: externalEdges, 
   onNodesChange: externalOnNodesChange,
   onEdgesChange: externalOnEdgesChange,
-  onWorkflowChange 
+  onWorkflowChange,
+  executionInput: externalExecutionInput,
+  onExecutionInputChange
 }: WorkflowEditorProps = {}) {
   // Use external state if provided, otherwise use internal state
   const [internalNodes, setInternalNodes, onInternalNodesChange] = useNodesState(externalNodes || initialNodes)
@@ -66,9 +70,23 @@ export default function WorkflowEditor({
   // Execution state
   const [isExecuting, setIsExecuting] = useState(false)
   const [executionResult, setExecutionResult] = useState<ExecutionResponse | null>(null)
-  const [inputData, setInputData] = useState('Hello, please analyze this data and provide insights.')
+  const [internalInputData, setInternalInputData] = useState('Hello, please analyze this data and provide insights.')
   const [showFullResults, setShowFullResults] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+
+  // Use external input data if provided, otherwise use internal
+  const inputData = externalExecutionInput !== undefined ? externalExecutionInput : internalInputData
+  const setInputData = onExecutionInputChange || setInternalInputData
+  const [inputHighlight, setInputHighlight] = useState(false)
+
+  // Highlight input when it changes from external source
+  useEffect(() => {
+    if (externalExecutionInput !== undefined && externalExecutionInput !== internalInputData) {
+      setInputHighlight(true)
+      const timer = setTimeout(() => setInputHighlight(false), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [externalExecutionInput, internalInputData])
 
   // Sync external state changes to internal state
   useEffect(() => {
@@ -268,11 +286,21 @@ export default function WorkflowEditor({
                 <textarea
                   value={inputData}
                   onChange={(e) => setInputData(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm resize-none bg-white/80 focus:bg-white focus:border-blue-300 transition-colors"
+                  className={`w-full px-3 py-2 border rounded-lg text-sm resize-none bg-white/80 focus:bg-white transition-all ${
+                    inputHighlight 
+                      ? 'border-blue-400 bg-blue-50/50 shadow-sm' 
+                      : 'border-slate-200 focus:border-blue-300'
+                  }`}
                   rows={2}
                   placeholder="Enter your workflow input..."
                   disabled={isExecuting}
                 />
+                {inputHighlight && (
+                  <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <span className="w-1 h-1 bg-blue-400 rounded-full"></span>
+                    Updated from AI suggestion
+                  </p>
+                )}
               </div>
 
               {/* Execution Button */}
