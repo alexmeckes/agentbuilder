@@ -21,19 +21,21 @@ from typing import Any, Dict, List, Optional
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 # Load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    print("📄 Loaded environment variables from .env file")
-except ImportError:
-    print("💡 Install python-dotenv to load .env files: pip install python-dotenv")
+from setup_env import setup_environment
+
+# Setup environment and get configuration
+config = setup_environment()
 
 # Import any-agent framework
 from any_agent import AgentConfig, AgentFramework, AnyAgent
 from any_agent.tools import search_web
+
+# Import our NEW visual-to-anyagent translator (replacing custom workflow engine)
+from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent
 
 
 class WorkflowNode(BaseModel):
@@ -74,13 +76,13 @@ class ExecutionResponse(BaseModel):
 
 
 class WorkflowExecutor:
-    """Handles workflow execution using any-agent"""
+    """Execute workflows using any-agent's native multi-agent orchestration"""
     
     def __init__(self):
         self.executions: Dict[str, Dict[str, Any]] = {}
-    
+
     async def execute_workflow(self, request: ExecutionRequest) -> ExecutionResponse:
-        """Execute a workflow definition using any-agent"""
+        """Execute a workflow definition using any-agent's native multi-agent capabilities"""
         execution_id = f"exec_{len(self.executions) + 1}"
         start_time = time.time()
         
@@ -94,55 +96,81 @@ class WorkflowExecutor:
                 "framework": request.framework
             }
             
-            # Parse workflow into any-agent configuration
-            agent_config = self._workflow_to_agent_config(request.workflow)
+            # Convert workflow to format expected by translator
+            nodes = [
+                {
+                    "id": node.id,
+                    "type": node.type,
+                    "data": node.data,
+                    "position": node.position
+                }
+                for node in request.workflow.nodes
+            ]
             
-            # Run agent execution in thread pool to avoid event loop conflict
-            def run_agent():
-                # Create new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-                try:
-                    # Create agent using any-agent
-                    framework = AgentFramework.from_string(request.framework.upper())
-                    agent = AnyAgent.create(
-                        agent_framework=framework,
-                        agent_config=agent_config
-                    )
-                    
-                    # Execute the agent
-                    agent_trace = agent.run(prompt=request.input_data)
-                    
-                    # Clean up agent resources
-                    agent.exit()
-                    
-                    return agent_trace
-                finally:
-                    loop.close()
+            edges = [
+                {
+                    "id": edge.id,
+                    "source": edge.source,
+                    "target": edge.target
+                }
+                for edge in request.workflow.edges
+            ]
             
-            # Execute in thread pool
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_agent)
-                agent_trace = future.result(timeout=30)  # 30 second timeout
+            # Execute using any-agent's native multi-agent orchestration
+            workflow_result = await execute_visual_workflow_with_anyagent(
+                nodes=nodes,
+                edges=edges,
+                input_data=request.input_data,
+                framework=request.framework
+            )
             
             # Store execution details with completion timestamp
             completion_time = time.time()
-            trace_dict = self._trace_to_dict(agent_trace)
             
+            # Check if there was an error
+            if "error" in workflow_result:
+                self.executions[execution_id].update({
+                    "status": "failed",
+                    "result": workflow_result["final_output"],
+                    "error": workflow_result["error"],
+                    "completed_at": completion_time,
+                    "execution_time": completion_time - start_time,
+                    "trace": {
+                        "error": workflow_result["error"],
+                        "framework_used": request.framework
+                    }
+                })
+                
+                return ExecutionResponse(
+                    execution_id=execution_id,
+                    status="failed",
+                    error=workflow_result["error"],
+                    trace=self.executions[execution_id]["trace"]
+                )
+            
+            # Success case
             self.executions[execution_id].update({
                 "status": "completed",
-                "result": str(agent_trace.final_output) if hasattr(agent_trace, 'final_output') else str(agent_trace),
-                "trace": trace_dict,
+                "result": workflow_result["final_output"],
                 "completed_at": completion_time,
-                "execution_duration_ms": (completion_time - start_time) * 1000
+                "execution_time": completion_time - start_time,
+                "trace": {
+                    "final_output": workflow_result["final_output"],
+                    "execution_pattern": workflow_result["execution_pattern"],
+                    "main_agent": workflow_result["main_agent"],
+                    "managed_agents": workflow_result["managed_agents"],
+                    "framework_used": workflow_result["framework_used"],
+                    "agent_trace": self._serialize_agent_trace(workflow_result.get("agent_trace")),
+                    "execution_time": completion_time - start_time,
+                    "cost_info": self._extract_cost_info(workflow_result.get("agent_trace"))
+                }
             })
             
             return ExecutionResponse(
                 execution_id=execution_id,
                 status="completed",
-                result=str(agent_trace.final_output) if hasattr(agent_trace, 'final_output') else str(agent_trace),
-                trace=trace_dict
+                result=workflow_result["final_output"],
+                trace=self.executions[execution_id]["trace"]
             )
             
         except Exception as e:
@@ -151,7 +179,7 @@ class WorkflowExecutor:
                 "status": "failed",
                 "error": str(e),
                 "completed_at": completion_time,
-                "execution_duration_ms": (completion_time - start_time) * 1000
+                "execution_time": completion_time - start_time
             })
             
             return ExecutionResponse(
@@ -160,77 +188,54 @@ class WorkflowExecutor:
                 error=str(e)
             )
     
-    def _workflow_to_agent_config(self, workflow: WorkflowDefinition) -> AgentConfig:
-        """Convert visual workflow to any-agent AgentConfig"""
+    def _serialize_agent_trace(self, agent_trace) -> Dict[str, Any]:
+        """Serialize any-agent's AgentTrace object for storage/transmission"""
+        if not agent_trace:
+            return {}
         
-        # Find the main agent node
-        agent_nodes = [node for node in workflow.nodes if node.type == "agent"]
-        if not agent_nodes:
-            raise ValueError("Workflow must contain at least one agent node")
-        
-        main_agent = agent_nodes[0]  # Use first agent as main
-        
-        # Collect tools from tool nodes
-        tools = []
-        tool_nodes = [node for node in workflow.nodes if node.type == "tool"]
-        for tool_node in tool_nodes:
-            tool_name = tool_node.data.get("label", "").lower()
-            if "search" in tool_name or "web" in tool_name:
-                tools.append(search_web)
-        
-        # Create agent configuration
-        return AgentConfig(
-            model_id=main_agent.data.get("model_id", "gpt-3.5-turbo"),
-            instructions=main_agent.data.get("instructions", "You are a helpful assistant."),
-            name=main_agent.data.get("name", "WorkflowAgent"),
-            tools=tools
-        )
-    
-    def _trace_to_dict(self, trace) -> Dict[str, Any]:
-        """Convert agent trace to dictionary for JSON serialization"""
         try:
-            # Enhanced trace serialization with detailed span information
-            trace_dict = {
-                "final_output": str(getattr(trace, 'final_output', trace)),
-                "spans": [],
-                "metadata": getattr(trace, 'metadata', {}),
-                "performance": {}
+            return {
+                "final_output": getattr(agent_trace, 'final_output', ''),
+                "spans": [self._serialize_span(span) for span in getattr(agent_trace, 'spans', [])],
+                "cost_info": self._extract_cost_info(agent_trace),
+                "metadata": {
+                    "total_spans": len(getattr(agent_trace, 'spans', [])),
+                    "has_cost_info": hasattr(agent_trace, 'get_total_cost')
+                }
             }
-            
-            # Process spans if available
-            if hasattr(trace, 'spans') and trace.spans:
-                for span in trace.spans:
-                    span_dict = {
-                        "name": span.name,
-                        "span_id": span.context.span_id if hasattr(span, 'context') else None,
-                        "trace_id": span.context.trace_id if hasattr(span, 'context') else None,
-                        "start_time": span.start_time,
-                        "end_time": span.end_time,
-                        "duration_ms": (span.end_time - span.start_time) / 1_000_000 if (span.start_time and span.end_time) else None,
-                        "status": getattr(span, 'status', None),
-                        "attributes": dict(span.attributes) if hasattr(span, 'attributes') else {},
-                        "events": getattr(span, 'events', []),
-                        "kind": str(getattr(span, 'kind', 'unknown'))
-                    }
-                    trace_dict["spans"].append(span_dict)
-                
-                # Calculate performance metrics
-                if hasattr(trace, 'get_total_cost'):
-                    cost_info = trace.get_total_cost()
-                    trace_dict["performance"] = {
-                        "total_cost": cost_info.total_cost,
-                        "total_tokens": cost_info.total_tokens,
-                        "total_token_count_prompt": cost_info.total_token_count_prompt,
-                        "total_token_count_completion": cost_info.total_token_count_completion,
-                        "total_cost_prompt": cost_info.total_cost_prompt,
-                        "total_cost_completion": cost_info.total_cost_completion,
-                        "total_duration_ms": sum(s["duration_ms"] for s in trace_dict["spans"] if s["duration_ms"]) if trace_dict["spans"] else 0
-                    }
-            
-            return trace_dict
         except Exception as e:
-            print(f"Error serializing trace: {e}")
-            return {"raw_trace": str(trace), "error": str(e)}
+            return {"serialization_error": str(e)}
+    
+    def _serialize_span(self, span) -> Dict[str, Any]:
+        """Serialize individual span from any-agent trace"""
+        try:
+            return {
+                "name": getattr(span, 'name', ''),
+                "kind": str(getattr(span, 'kind', '')),
+                "start_time": getattr(span, 'start_time', 0),
+                "end_time": getattr(span, 'end_time', 0),
+                "attributes": dict(getattr(span, 'attributes', {})),
+                "status": str(getattr(span, 'status', '')),
+                "events": [str(event) for event in getattr(span, 'events', [])]
+            }
+        except Exception as e:
+            return {"span_error": str(e)}
+    
+    def _extract_cost_info(self, agent_trace) -> Dict[str, Any]:
+        """Extract cost information from any-agent trace"""
+        if not agent_trace or not hasattr(agent_trace, 'get_total_cost'):
+            return {}
+        
+        try:
+            cost_info = agent_trace.get_total_cost()
+            return {
+                "total_cost": getattr(cost_info, 'total_cost', 0),
+                "total_tokens": getattr(cost_info, 'total_tokens', 0),
+                "input_tokens": getattr(cost_info, 'input_tokens', 0),
+                "output_tokens": getattr(cost_info, 'output_tokens', 0)
+            }
+        except Exception as e:
+            return {"cost_extraction_error": str(e)}
 
 
 # Global executor instance
@@ -447,7 +452,17 @@ if __name__ == "__main__":
     print("🔥 Starting any-agent Workflow Composer Backend...")
     print("📡 Backend will be available at: http://localhost:8000")
     print("📖 API docs will be available at: http://localhost:8000/docs")
-    print("🤖 Using REAL any-agent framework integration!")
+    
+    execution_mode = os.getenv("USE_MOCK_EXECUTION", "false").lower()
+    if execution_mode == "true":
+        print("📝 Running in WORKFLOW SUGGESTION MODE")
+        print("   - Provides intelligent workflow building guidance") 
+        print("   - No asyncio conflicts")
+    else:
+        print("🤖 Running in REAL EXECUTION MODE with AsyncIO Conflict Resolution")
+        print("   - Process isolation: ✅ any-agent runs in separate processes")
+        print("   - Thread fallback: ✅ isolated event loops as backup")
+        print("   - Suggestion fallback: ✅ graceful degradation if needed")
     
     uvicorn.run(
         "main:app",

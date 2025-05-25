@@ -7,63 +7,48 @@ This script helps you set up the .env file with your OpenAI API key.
 
 import os
 import sys
+from dotenv import load_dotenv
 
-def setup_env_file():
-    """Create or update .env file with OpenAI API key"""
+def setup_environment():
+    """Setup environment variables and configurations"""
     
-    print("🔧 OpenAI API Key Setup")
-    print("=" * 50)
+    # Load .env file if it exists
+    if os.path.exists('.env'):
+        load_dotenv()
+        print("📄 Loaded environment variables from .env file")
     
-    # Check if .env already exists
-    env_file = ".env"
-    existing_content = ""
-    if os.path.exists(env_file):
-        with open(env_file, 'r') as f:
-            existing_content = f.read()
-        print(f"📄 Found existing {env_file} file")
+    # Set default execution mode if not specified
+    if not os.getenv("USE_MOCK_EXECUTION"):
+        os.environ["USE_MOCK_EXECUTION"] = "false"  # Default to real execution
+        print("🔧 Set USE_MOCK_EXECUTION=false (real any-agent execution)")
+    
+    execution_mode = os.getenv("USE_MOCK_EXECUTION", "false").lower()
+    
+    if execution_mode == "true":
+        print("📝 Running in WORKFLOW SUGGESTION MODE (Mock execution)")
+        print("   - Provides intelligent workflow building guidance")
+        print("   - No asyncio conflicts")
+        print("   - Set USE_MOCK_EXECUTION=false for real any-agent execution")
     else:
-        print(f"📄 Creating new {env_file} file")
+        print("🤖 Running in REAL EXECUTION MODE")
+        print("   - Uses any-agent multi-agent orchestration")  
+        print("   - Asyncio conflicts resolved with process/thread isolation")
+        print("   - Set USE_MOCK_EXECUTION=true for suggestion mode only")
     
-    # Get API key from user
-    print("\n🔑 Please enter your OpenAI API key:")
-    print("   (You can get one from: https://platform.openai.com/api-keys)")
-    print("   (Press Enter to skip if you want to set it manually later)")
+    # Check for API keys
+    if not os.getenv("OPENAI_API_KEY"):
+        print("⚠️  Warning: OPENAI_API_KEY not set. OpenAI agents will not work.")
+        print("🔧 Please set your OpenAI API key: export OPENAI_API_KEY='your_key_here'")
     
-    api_key = input("OpenAI API Key: ").strip()
-    
-    if not api_key:
-        print("\n⚠️  No API key provided. Creating template .env file...")
-        api_key = "sk-your-actual-openai-api-key-here"
-    
-    # Create .env content
-    env_content = f"""# OpenAI API Configuration
-OPENAI_API_KEY={api_key}
-
-# Other optional environment variables
-# OPENAI_BASE_URL=https://api.openai.com/v1
-# OPENAI_MODEL=gpt-3.5-turbo
-# OPENAI_TEMPERATURE=0.7
-
-# any-agent framework settings
-# DEBUG=true
-"""
-    
-    # Write .env file
-    with open(env_file, 'w') as f:
-        f.write(env_content)
-    
-    print(f"\n✅ Created {env_file} file successfully!")
-    
-    if api_key == "sk-your-actual-openai-api-key-here":
-        print(f"\n⚠️  Remember to edit {env_file} and replace the placeholder with your real API key")
-        print(f"   File location: {os.path.abspath(env_file)}")
-    else:
-        print(f"\n🎉 API key configured! You can now start the backend.")
-    
-    print(f"\n📖 To start the backend:")
-    print(f"   cd {os.path.dirname(os.path.abspath(__file__))}")
-    print(f"   source venv/bin/activate")
-    print(f"   python main.py")
+    return {
+        "execution_mode": execution_mode,
+        "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
+        "environment": "development" if os.getenv("DEBUG", "false").lower() == "true" else "production"
+    }
 
 if __name__ == "__main__":
-    setup_env_file() 
+    config = setup_environment()
+    print(f"\n🎯 Configuration Summary:")
+    print(f"   - Execution Mode: {'Suggestions' if config['execution_mode'] == 'true' else 'Real any-agent'}")
+    print(f"   - OpenAI Configured: {config['openai_configured']}")
+    print(f"   - Environment: {config['environment']}") 
