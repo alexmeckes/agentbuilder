@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { Send, Lightbulb, Play, CheckCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'

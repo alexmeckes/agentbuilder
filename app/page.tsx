@@ -3,15 +3,18 @@
 import { useState, useCallback } from 'react'
 import WorkflowEditor from './components/WorkflowEditor'
 import ChatInterface from './components/ChatInterface'
+import { TraceViewer } from './components/TraceViewer'
+import { AnalyticsDashboard } from './components/AnalyticsDashboard'
 import type { Node, Edge } from 'reactflow'
-import { Workflow, MessageSquare, Settings, Play } from 'lucide-react'
+import { Workflow, MessageSquare, Settings, Play, BarChart3 } from 'lucide-react'
 
 export default function Home() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
-  const [activeTab, setActiveTab] = useState<'design' | 'chat'>('chat')
+  const [activeTab, setActiveTab] = useState<'design' | 'chat' | 'trace' | 'analytics'>('chat')
   const [isExecuting, setIsExecuting] = useState(false)
   const [workflowExecutionInput, setWorkflowExecutionInput] = useState('Hello, please analyze this data and provide insights.')
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
 
   const handleWorkflowChange = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     setNodes(newNodes)
@@ -171,6 +174,28 @@ export default function Home() {
                   </span>
                 )}
               </button>
+              <button
+                onClick={() => setActiveTab('trace')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'trace' 
+                    ? 'bg-white text-slate-900 shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Play className="w-4 h-4" />
+                Trace Viewer
+              </button>
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'analytics' 
+                    ? 'bg-white text-slate-900 shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Analytics
+              </button>
             </div>
 
             {/* Quick Stats */}
@@ -208,6 +233,25 @@ export default function Home() {
               workflowContext={{ nodes, edges }} 
               onExecuteActions={handleExecuteActions}
               onSuggestionToWorkflow={handleSuggestionToWorkflow}
+            />
+          </div>
+        ) : activeTab === 'trace' ? (
+          <div className="h-full">
+            <TraceViewer 
+              executionId={selectedExecutionId}
+              onClose={() => {
+                setSelectedExecutionId(null)
+                setActiveTab('analytics')
+              }}
+            />
+          </div>
+        ) : activeTab === 'analytics' ? (
+          <div className="h-full">
+            <AnalyticsDashboard 
+              onExecutionSelect={(executionId) => {
+                setSelectedExecutionId(executionId)
+                setActiveTab('trace')
+              }}
             />
           </div>
         ) : (

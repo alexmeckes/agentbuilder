@@ -14,6 +14,7 @@ import asyncio
 import concurrent.futures
 import os
 import sys
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
@@ -81,8 +82,18 @@ class WorkflowExecutor:
     async def execute_workflow(self, request: ExecutionRequest) -> ExecutionResponse:
         """Execute a workflow definition using any-agent"""
         execution_id = f"exec_{len(self.executions) + 1}"
+        start_time = time.time()
         
         try:
+            # Initialize execution record with timestamp
+            self.executions[execution_id] = {
+                "status": "running",
+                "input": request.input_data,
+                "created_at": start_time,
+                "workflow": request.workflow,
+                "framework": request.framework
+            }
+            
             # Parse workflow into any-agent configuration
             agent_config = self._workflow_to_agent_config(request.workflow)
             
@@ -115,26 +126,33 @@ class WorkflowExecutor:
                 future = executor.submit(run_agent)
                 agent_trace = future.result(timeout=30)  # 30 second timeout
             
-            # Store execution details
-            self.executions[execution_id] = {
+            # Store execution details with completion timestamp
+            completion_time = time.time()
+            trace_dict = self._trace_to_dict(agent_trace)
+            
+            self.executions[execution_id].update({
                 "status": "completed",
-                "trace": agent_trace,
-                "workflow": request.workflow
-            }
+                "result": str(agent_trace.final_output) if hasattr(agent_trace, 'final_output') else str(agent_trace),
+                "trace": trace_dict,
+                "completed_at": completion_time,
+                "execution_duration_ms": (completion_time - start_time) * 1000
+            })
             
             return ExecutionResponse(
                 execution_id=execution_id,
                 status="completed",
                 result=str(agent_trace.final_output) if hasattr(agent_trace, 'final_output') else str(agent_trace),
-                trace=self._trace_to_dict(agent_trace)
+                trace=trace_dict
             )
             
         except Exception as e:
-            self.executions[execution_id] = {
+            completion_time = time.time()
+            self.executions[execution_id].update({
                 "status": "failed",
                 "error": str(e),
-                "workflow": request.workflow
-            }
+                "completed_at": completion_time,
+                "execution_duration_ms": (completion_time - start_time) * 1000
+            })
             
             return ExecutionResponse(
                 execution_id=execution_id,
@@ -171,13 +189,48 @@ class WorkflowExecutor:
     def _trace_to_dict(self, trace) -> Dict[str, Any]:
         """Convert agent trace to dictionary for JSON serialization"""
         try:
-            return {
+            # Enhanced trace serialization with detailed span information
+            trace_dict = {
                 "final_output": str(getattr(trace, 'final_output', trace)),
-                "steps": getattr(trace, 'steps', []),
-                "metadata": getattr(trace, 'metadata', {})
+                "spans": [],
+                "metadata": getattr(trace, 'metadata', {}),
+                "performance": {}
             }
-        except:
-            return {"raw_trace": str(trace)}
+            
+            # Process spans if available
+            if hasattr(trace, 'spans') and trace.spans:
+                for span in trace.spans:
+                    span_dict = {
+                        "name": span.name,
+                        "span_id": span.context.span_id if hasattr(span, 'context') else None,
+                        "trace_id": span.context.trace_id if hasattr(span, 'context') else None,
+                        "start_time": span.start_time,
+                        "end_time": span.end_time,
+                        "duration_ms": (span.end_time - span.start_time) / 1_000_000 if (span.start_time and span.end_time) else None,
+                        "status": getattr(span, 'status', None),
+                        "attributes": dict(span.attributes) if hasattr(span, 'attributes') else {},
+                        "events": getattr(span, 'events', []),
+                        "kind": str(getattr(span, 'kind', 'unknown'))
+                    }
+                    trace_dict["spans"].append(span_dict)
+                
+                # Calculate performance metrics
+                if hasattr(trace, 'get_total_cost'):
+                    cost_info = trace.get_total_cost()
+                    trace_dict["performance"] = {
+                        "total_cost": cost_info.total_cost,
+                        "total_tokens": cost_info.total_tokens,
+                        "total_token_count_prompt": cost_info.total_token_count_prompt,
+                        "total_token_count_completion": cost_info.total_token_count_completion,
+                        "total_cost_prompt": cost_info.total_cost_prompt,
+                        "total_cost_completion": cost_info.total_cost_completion,
+                        "total_duration_ms": sum(s["duration_ms"] for s in trace_dict["spans"] if s["duration_ms"]) if trace_dict["spans"] else 0
+                    }
+            
+            return trace_dict
+        except Exception as e:
+            print(f"Error serializing trace: {e}")
+            return {"raw_trace": str(trace), "error": str(e)}
 
 
 # Global executor instance
@@ -238,6 +291,131 @@ async def get_execution(execution_id: str):
         raise HTTPException(status_code=404, detail="Execution not found")
     
     return executor.executions[execution_id]
+
+
+@app.get("/executions/{execution_id}/trace")
+async def get_execution_trace(execution_id: str):
+    """Get detailed trace information for an execution"""
+    if execution_id not in executor.executions:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    execution = executor.executions[execution_id]
+    if "trace" not in execution:
+        raise HTTPException(status_code=404, detail="Trace not found for this execution")
+    
+    # Return the full trace data with all spans and performance metrics
+    return {
+        "execution_id": execution_id,
+        "status": execution["status"],
+        "trace": execution["trace"],
+        "created_at": execution.get("created_at", None)
+    }
+
+
+@app.get("/executions/{execution_id}/performance")
+async def get_execution_performance(execution_id: str):
+    """Get performance metrics for an execution"""
+    if execution_id not in executor.executions:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    execution = executor.executions[execution_id]
+    if "trace" not in execution:
+        raise HTTPException(status_code=404, detail="Performance data not available")
+    
+    trace_data = execution["trace"]
+    performance = trace_data.get("performance", {})
+    spans = trace_data.get("spans", [])
+    
+    # Enhanced performance analysis
+    span_analysis = []
+    for span in spans:
+        span_perf = {
+            "name": span.get("name"),
+            "duration_ms": span.get("duration_ms"),
+            "token_usage": {
+                "prompt": span.get("attributes", {}).get("llm.token_count.prompt", 0),
+                "completion": span.get("attributes", {}).get("llm.token_count.completion", 0)
+            },
+            "cost": {
+                "prompt": span.get("attributes", {}).get("cost_prompt", 0),
+                "completion": span.get("attributes", {}).get("cost_completion", 0)
+            },
+            "model": span.get("attributes", {}).get("llm.model_name", "unknown")
+        }
+        span_analysis.append(span_perf)
+    
+    return {
+        "execution_id": execution_id,
+        "overall_performance": performance,
+        "span_breakdown": span_analysis,
+        "bottlenecks": sorted(span_analysis, key=lambda x: x.get("duration_ms", 0), reverse=True)[:3],
+        "cost_breakdown": {
+            "most_expensive_spans": sorted(span_analysis, 
+                key=lambda x: x.get("cost", {}).get("prompt", 0) + x.get("cost", {}).get("completion", 0), 
+                reverse=True)[:3]
+        }
+    }
+
+
+@app.get("/analytics/executions")
+async def get_execution_analytics():
+    """Get aggregated analytics across all executions"""
+    if not executor.executions:
+        return {"message": "No executions found", "analytics": {}}
+    
+    executions = list(executor.executions.values())
+    completed_executions = [e for e in executions if e.get("status") == "completed" and "trace" in e]
+    
+    if not completed_executions:
+        return {"message": "No completed executions with traces found", "analytics": {}}
+    
+    # Aggregate performance data
+    total_cost = 0
+    total_tokens = 0
+    total_duration = 0
+    model_usage = {}
+    
+    for execution in completed_executions:
+        trace = execution.get("trace", {})
+        performance = trace.get("performance", {})
+        
+        total_cost += performance.get("total_cost", 0)
+        total_tokens += performance.get("total_tokens", 0)
+        total_duration += performance.get("total_duration_ms", 0)
+        
+        # Track model usage
+        for span in trace.get("spans", []):
+            model = span.get("attributes", {}).get("llm.model_name", "unknown")
+            if model not in model_usage:
+                model_usage[model] = {"count": 0, "total_cost": 0, "total_tokens": 0}
+            model_usage[model]["count"] += 1
+            model_usage[model]["total_cost"] += span.get("attributes", {}).get("cost_prompt", 0) + span.get("attributes", {}).get("cost_completion", 0)
+            model_usage[model]["total_tokens"] += span.get("attributes", {}).get("llm.token_count.prompt", 0) + span.get("attributes", {}).get("llm.token_count.completion", 0)
+    
+    avg_cost = total_cost / len(completed_executions) if completed_executions else 0
+    avg_duration = total_duration / len(completed_executions) if completed_executions else 0
+    
+    return {
+        "summary": {
+            "total_executions": len(executor.executions),
+            "completed_executions": len(completed_executions),
+            "total_cost": round(total_cost, 4),
+            "total_tokens": total_tokens,
+            "total_duration_ms": total_duration,
+            "average_cost_per_execution": round(avg_cost, 4),
+            "average_duration_per_execution": round(avg_duration, 2)
+        },
+        "model_breakdown": model_usage,
+        "recent_executions": [
+            {
+                "execution_id": exec_id,
+                "status": execution["status"],
+                "cost": execution.get("trace", {}).get("performance", {}).get("total_cost", 0),
+                "duration_ms": execution.get("trace", {}).get("performance", {}).get("total_duration_ms", 0)
+            }
+            for exec_id, execution in list(executor.executions.items())[-10:]  # Last 10 executions
+        ]
+    }
 
 
 @app.websocket("/ws/execution/{execution_id}")
