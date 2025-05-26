@@ -29,17 +29,35 @@ export default function ChatInterface({ workflowContext, onExecuteActions, onSug
 
   // Extract workflow context from the latest assistant message
   useEffect(() => {
-    const lastAssistantMessage = messages
-      .filter(msg => msg.role === 'assistant')
-      .slice(-1)[0]
+    const extractContext = async () => {
+      const lastAssistantMessage = messages
+        .filter(msg => msg.role === 'assistant')
+        .slice(-1)[0]
 
-    if (lastAssistantMessage?.content) {
-      const workflowCtx = extractWorkflowContext(lastAssistantMessage.content)
-      if (workflowCtx) {
-        setCurrentSuggestion(workflowCtx.suggestion)
-        setCurrentWorkflowType(workflowCtx.workflowType || '')
+      if (lastAssistantMessage?.content) {
+        try {
+          console.log('🔍 Debug - AI Response:', lastAssistantMessage.content.substring(0, 200) + '...')
+          const workflowCtx = await extractWorkflowContext(lastAssistantMessage.content)
+          console.log('🔍 Debug - Extracted Context:', workflowCtx)
+          
+          if (workflowCtx) {
+            console.log('🔍 Debug - Setting suggestion:', workflowCtx.suggestion)
+            setCurrentSuggestion(workflowCtx.suggestion)
+            setCurrentWorkflowType(workflowCtx.workflowType || '')
+          } else {
+            console.log('🔍 Debug - No workflow context extracted, clearing suggestion')
+            setCurrentSuggestion('')
+            setCurrentWorkflowType('')
+          }
+        } catch (error) {
+          console.error('❌ Error extracting workflow context:', error)
+          setCurrentSuggestion('')
+          setCurrentWorkflowType('')
+        }
       }
     }
+
+    extractContext()
   }, [messages])
 
   const handleSendMessage = (message: string) => {

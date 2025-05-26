@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, workflowContext } = await request.json()
+    const { messages, workflowContext, extractionMode } = await request.json()
     
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -11,7 +11,56 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the latest user message
+    // Handle extraction mode - simple LLM call without workflow context
+    if (extractionMode) {
+      console.log('🔍 Processing extraction mode request')
+      
+      const chatWorkflow = {
+        nodes: [
+          {
+            id: 'context-extractor',
+            type: 'agent',
+            data: {
+              name: 'ContextExtractor',
+              instructions: 'You are a workflow suggestion expert. Extract actionable workflow suggestions from AI responses. Always respond with valid JSON only.',
+              model_id: 'gpt-4o-mini'
+            },
+            position: { x: 0, y: 0 }
+          }
+        ],
+        edges: []
+      }
+
+      const latestMessage = messages[messages.length - 1]
+      
+      // Call our any-agent backend for extraction
+      const backendResponse = await fetch('http://localhost:8000/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workflow: chatWorkflow,
+          input_data: latestMessage.content,
+          framework: 'openai'
+        })
+      })
+
+      if (!backendResponse.ok) {
+        const errorText = await backendResponse.text()
+        console.error('Backend response error:', errorText)
+        throw new Error(`Backend error: ${backendResponse.status} - ${errorText}`)
+      }
+
+      const result = await backendResponse.json()
+      
+      return NextResponse.json({
+        message: result.result || 'No extraction result',
+        actions: []
+      })
+    }
+
+    // Regular chat mode continues below...
     const latestMessage = messages[messages.length - 1]
     if (!latestMessage || latestMessage.role !== 'user') {
       return NextResponse.json(

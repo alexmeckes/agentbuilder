@@ -102,3 +102,26 @@
 .react-flow__handle-right {
   right: -0.375rem;
 }
+
+/* Custom node z-index classes to override ReactFlow stacking */
+.node-default {
+  z-index: 1 !important;
+}
+
+.node-expanded {
+  z-index: 1000 !important;
+  transform: scale(1.02) !important; /* Slight scale to make expanded nodes more prominent */
+}
+
+.node-selected {
+  z-index: 2000 !important;
+}
+
+.node-selected-expanded {
+  z-index: 3000 !important;
+  transform: scale(1.02) !important;
+}
+
+.node-modal-open {
+  z-index: 4000 !important;
+}

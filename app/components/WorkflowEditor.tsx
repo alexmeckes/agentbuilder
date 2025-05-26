@@ -18,6 +18,9 @@ import { Play, Square, Loader2, Maximize2, Copy, CheckCircle } from 'lucide-reac
 
 const nodeTypes = {
   agent: AgentNode,
+  tool: AgentNode,
+  input: AgentNode,
+  output: AgentNode,
 }
 
 const initialNodes: Node[] = [
@@ -29,9 +32,10 @@ const initialNodes: Node[] = [
       type: 'input',
       model_id: 'gpt-3.5-turbo',
       instructions: 'You are a helpful assistant that processes input data.',
-      name: 'InputAgent'
+      name: 'InputAgent',
+      description: 'Processes and validates incoming data for the workflow'
     },
-    position: { x: 250, y: 25 },
+    position: { x: 100, y: 100 },
   },
 ]
 
@@ -114,6 +118,57 @@ export default function WorkflowEditor({
     }
   }, [externalOnNodesChange, externalNodes, onInternalNodesChange])
 
+  // Handle node data updates from the node components
+  const handleNodeUpdate = useCallback((nodeId: string, updatedData: any) => {
+    const updateNodes = (currentNodes: Node[]) => {
+      return currentNodes.map(node => 
+        node.id === nodeId 
+          ? { ...node, data: { ...node.data, ...updatedData } }
+          : node
+      )
+    }
+
+    if (externalOnNodesChange) {
+      // Update external state
+      const updatedNodes = updateNodes(nodes)
+      externalOnNodesChange(updatedNodes)
+      if (onWorkflowChange) {
+        onWorkflowChange(updatedNodes, edges)
+      }
+    } else {
+      // Update internal state
+      setInternalNodes(updateNodes)
+    }
+  }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
+
+  // Ensure all nodes have the onNodeUpdate callback
+  useEffect(() => {
+    const updateNodesWithCallback = (currentNodes: Node[]) => {
+      return currentNodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          onNodeUpdate: handleNodeUpdate
+        }
+      }))
+    }
+
+    if (externalOnNodesChange && externalNodes) {
+      // Check if any nodes are missing the callback
+      const needsUpdate = externalNodes.some(node => !node.data.onNodeUpdate)
+      if (needsUpdate) {
+        const updatedNodes = updateNodesWithCallback(externalNodes)
+        externalOnNodesChange(updatedNodes)
+      }
+    } else {
+      // Check if any internal nodes are missing the callback
+      const needsUpdate = internalNodes.some(node => !node.data.onNodeUpdate)
+      if (needsUpdate) {
+        setInternalNodes(updateNodesWithCallback(internalNodes))
+      }
+    }
+  }, [handleNodeUpdate, externalNodes, internalNodes, externalOnNodesChange, setInternalNodes])
+
   // Handle edge changes  
   const handleEdgesChange = useCallback((changes: any) => {
     if (externalOnEdgesChange && externalEdges) {
@@ -160,17 +215,95 @@ export default function WorkflowEditor({
         y: event.clientY - reactFlowBounds.top,
       })
 
+      // Adjust position to avoid overlaps with existing nodes
+      const adjustedPosition = { ...position }
+      const nodeWidth = 500 // Much larger width to account for any expanded state
+      const nodeHeight = 400 // Much larger height for any expanded content  
+      const padding = 200 // Very large padding between nodes
+
+      // Check for overlaps and adjust position
+      let attempts = 0
+      const maxAttempts = 30 // More attempts for better positioning
+      
+      while (attempts < maxAttempts) {
+        const hasOverlap = nodes.some(node => {
+          const dx = Math.abs(node.position.x - adjustedPosition.x)
+          const dy = Math.abs(node.position.y - adjustedPosition.y)
+          return dx < nodeWidth + padding && dy < nodeHeight + padding
+        })
+
+        if (!hasOverlap) break
+
+        // Try different positions with very generous spacing
+        if (attempts < 10) {
+          // Try to the right with much more spacing
+          adjustedPosition.x += nodeWidth + padding
+        } else if (attempts < 20) {
+          // Try below with much more spacing
+          adjustedPosition.x = position.x
+          adjustedPosition.y += nodeHeight + padding
+        } else {
+          // Try diagonal positioning with very generous spacing
+          adjustedPosition.x = position.x + (attempts - 20) * (nodeWidth + padding)
+          adjustedPosition.y = position.y + (attempts - 20) * (nodeHeight + padding)
+        }
+        attempts++
+      }
+
+      // Enhanced node data based on type
+      const getNodeDefaults = (nodeType: string) => {
+        switch (nodeType) {
+          case 'agent':
+            return {
+              label: 'AI Agent',
+              type: nodeType,
+              model_id: 'gpt-4o-mini',
+              instructions: 'You are a helpful AI assistant. Process the input data and provide useful insights.',
+              name: `Agent_${nodes.length + 1}`,
+              description: 'An AI agent that processes data and generates responses',
+              onNodeUpdate: handleNodeUpdate
+            }
+          case 'tool':
+            return {
+              label: 'Tool',
+              type: nodeType,
+              tool_type: 'web_search',
+              name: `Tool_${nodes.length + 1}`,
+              description: 'A tool that performs specific operations on data',
+              onNodeUpdate: handleNodeUpdate
+            }
+          case 'input':
+            return {
+              label: 'Input',
+              type: nodeType,
+              name: `Input_${nodes.length + 1}`,
+              description: 'Receives and validates input data for the workflow',
+              onNodeUpdate: handleNodeUpdate
+            }
+          case 'output':
+            return {
+              label: 'Output',
+              type: nodeType,
+              name: `Output_${nodes.length + 1}`,
+              description: 'Formats and presents the final workflow results',
+              onNodeUpdate: handleNodeUpdate
+            }
+          default:
+            return {
+              label: `${nodeType} Node`,
+              type: nodeType,
+              name: `Node_${nodes.length + 1}`,
+              description: 'A workflow node',
+              onNodeUpdate: handleNodeUpdate
+            }
+        }
+      }
+
       const newNode: Node = {
-        id: `${type}-${nodes.length + 1}`,
-        type,
-        position,
-        data: { 
-          label: `${type} Node`, 
-          type,
-          model_id: type === 'agent' ? 'gpt-4.1' : undefined,
-          instructions: type === 'agent' ? 'You are a helpful assistant.' : undefined,
-          name: type === 'agent' ? `${type}Agent` : undefined,
-        },
+        id: `${type}-${Date.now()}`, // Use timestamp for unique IDs
+        type: 'agent', // All nodes use the same component now
+        position: adjustedPosition,
+        data: getNodeDefaults(type),
       }
 
       if (externalOnNodesChange) {
@@ -185,7 +318,7 @@ export default function WorkflowEditor({
         setInternalNodes((nds) => nds.concat(newNode))
       }
     },
-    [reactFlowInstance, nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange],
+    [reactFlowInstance, nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange, handleNodeUpdate],
   )
 
   const executeWorkflow = async () => {
@@ -248,6 +381,253 @@ export default function WorkflowEditor({
     return JSON.stringify(result, null, 2)
   }
 
+  // Add example workflow templates
+  const addExampleWorkflow = (workflowType: 'research' | 'analysis' | 'content') => {
+    const workflows = {
+      research: {
+        nodes: [
+          {
+            id: 'input-1',
+            type: 'agent',
+            position: { x: 100, y: 100 },
+            data: { 
+              label: 'Research Topic', 
+              type: 'input',
+              description: 'Starting input for research',
+              name: 'ResearchInput'
+            }
+          },
+          {
+            id: 'agent-1', 
+            type: 'agent',
+            position: { x: 600, y: 100 },
+            data: {
+              label: 'Information Gatherer',
+              type: 'agent',
+              model_id: 'gpt-4',
+              instructions: 'You are a research specialist. Gather comprehensive information about the given topic. Focus on finding key facts, recent developments, and authoritative sources.',
+              name: 'InfoGatherer',
+              description: 'Researches and gathers information on the given topic'
+            }
+          },
+          {
+            id: 'tool-1',
+            type: 'agent', 
+            position: { x: 1100, y: 100 },
+            data: { 
+              label: 'Web Search', 
+              type: 'tool',
+              tool_type: 'web_search',
+              name: 'WebSearchTool',
+              description: 'Searches the web for relevant information'
+            }
+          },
+          {
+            id: 'agent-2',
+            type: 'agent',
+            position: { x: 1600, y: 100 },
+            data: {
+              label: 'Research Synthesizer',
+              type: 'agent',
+              model_id: 'gpt-4',
+              instructions: 'You are an expert analyst. Synthesize the gathered information into a comprehensive research report with key findings, insights, and conclusions.',
+              name: 'ResearchSynthesizer',
+              description: 'Analyzes and synthesizes research findings into a comprehensive report'
+            }
+          },
+          {
+            id: 'output-1',
+            type: 'agent',
+            position: { x: 2100, y: 100 },
+            data: { 
+              label: 'Research Report', 
+              type: 'output',
+              name: 'ResearchOutput',
+              description: 'Final research report with findings and insights'
+            }
+          }
+        ],
+        edges: [
+          { id: 'e1', source: 'input-1', target: 'agent-1' },
+          { id: 'e2', source: 'agent-1', target: 'tool-1' },
+          { id: 'e3', source: 'tool-1', target: 'agent-2' },
+          { id: 'e4', source: 'agent-2', target: 'output-1' }
+        ]
+      },
+      analysis: {
+        nodes: [
+          {
+            id: 'input-1',
+            type: 'agent',
+            position: { x: 50, y: 300 },
+            data: { 
+              label: 'Data Input', 
+              type: 'input',
+              description: 'Raw data to analyze',
+              name: 'DataInput'
+            }
+          },
+          {
+            id: 'agent-1',
+            type: 'agent', 
+            position: { x: 450, y: 100 },
+            data: {
+              label: 'Data Cleaner',
+              type: 'agent',
+              model_id: 'gpt-3.5-turbo',
+              instructions: 'Clean and preprocess the input data. Remove inconsistencies, handle missing values, and format for analysis.',
+              name: 'DataCleaner',
+              description: 'Cleans and preprocesses raw data for analysis'
+            }
+          },
+          {
+            id: 'agent-2',
+            type: 'agent',
+            position: { x: 450, y: 500 },
+            data: {
+              label: 'Pattern Analyzer', 
+              type: 'agent',
+              model_id: 'gpt-4',
+              instructions: 'Analyze the data for patterns, trends, and insights. Identify key metrics and statistical relationships.',
+              name: 'PatternAnalyzer',
+              description: 'Identifies patterns and trends in the data'
+            }
+          },
+          {
+            id: 'agent-3',
+            type: 'agent',
+            position: { x: 850, y: 300 },
+            data: {
+              label: 'Report Generator',
+              type: 'agent',
+              model_id: 'gpt-4',
+              instructions: 'Generate a comprehensive analysis report combining the cleaned data and pattern analysis. Include visualizations suggestions and actionable insights.',
+              name: 'ReportGenerator',
+              description: 'Generates comprehensive analysis reports with insights'
+            }
+          },
+          {
+            id: 'output-1',
+            type: 'agent',
+            position: { x: 1250, y: 300 },
+            data: { 
+              label: 'Analysis Report', 
+              type: 'output',
+              name: 'AnalysisOutput',
+              description: 'Final analysis report with insights and recommendations'
+            }
+          }
+        ],
+        edges: [
+          { id: 'e1', source: 'input-1', target: 'agent-1' },
+          { id: 'e2', source: 'input-1', target: 'agent-2' },
+          { id: 'e3', source: 'agent-1', target: 'agent-3' },
+          { id: 'e4', source: 'agent-2', target: 'agent-3' },
+          { id: 'e5', source: 'agent-3', target: 'output-1' }
+        ]
+      },
+      content: {
+        nodes: [
+          {
+            id: 'input-1',
+            type: 'agent',
+            position: { x: 50, y: 300 },
+            data: { 
+              label: 'Content Brief', 
+              type: 'input',
+              description: 'Content requirements and topic',
+              name: 'ContentBrief'
+            }
+          },
+          {
+            id: 'tool-1',
+            type: 'agent',
+            position: { x: 450, y: 300 },
+            data: { 
+              label: 'Research', 
+              type: 'tool',
+              tool_type: 'web_search',
+              name: 'ContentResearch',
+              description: 'Researches content topics and trends'
+            }
+          },
+          {
+            id: 'agent-1',
+            type: 'agent',
+            position: { x: 850, y: 100 },
+            data: {
+              label: 'Content Planner',
+              type: 'agent',
+              model_id: 'gpt-4',
+              instructions: 'Create a detailed content outline based on the brief and research. Include key points, structure, and messaging strategy.',
+              name: 'ContentPlanner',
+              description: 'Plans and outlines content structure and strategy'
+            }
+          },
+          {
+            id: 'agent-2',
+            type: 'agent',
+            position: { x: 850, y: 500 },
+            data: {
+              label: 'Content Writer',
+              type: 'agent',
+              model_id: 'gpt-4',
+              instructions: 'Write high-quality content following the outline. Ensure engaging, informative, and well-structured content that meets the brief requirements.',
+              name: 'ContentWriter',
+              description: 'Writes high-quality content based on the plan'
+            }
+          },
+          {
+            id: 'agent-3',
+            type: 'agent',
+            position: { x: 1250, y: 300 },
+            data: {
+              label: 'Content Reviewer',
+              type: 'agent',
+              model_id: 'gpt-4',
+              instructions: 'Review and refine the content for clarity, engagement, and quality. Suggest improvements and ensure it meets professional standards.',
+              name: 'ContentReviewer',
+              description: 'Reviews and refines content for quality and engagement'
+            }
+          },
+          {
+            id: 'output-1',
+            type: 'agent',
+            position: { x: 1650, y: 300 },
+            data: { 
+              label: 'Final Content', 
+              type: 'output',
+              name: 'ContentOutput',
+              description: 'Polished, high-quality content ready for publication'
+            }
+          }
+        ],
+        edges: [
+          { id: 'e1', source: 'input-1', target: 'tool-1' },
+          { id: 'e2', source: 'tool-1', target: 'agent-1' },
+          { id: 'e3', source: 'tool-1', target: 'agent-2' },
+          { id: 'e4', source: 'agent-1', target: 'agent-2' },
+          { id: 'e5', source: 'agent-2', target: 'agent-3' },
+          { id: 'e6', source: 'agent-3', target: 'output-1' }
+        ]
+      }
+    }
+    
+    const workflow = workflows[workflowType]
+    
+    // Add onNodeUpdate callback to all nodes
+    const nodesWithCallbacks = workflow.nodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        onNodeUpdate: handleNodeUpdate
+      }
+    }))
+    
+    setInternalNodes(nodesWithCallbacks)
+    setInternalEdges(workflow.edges)
+  }
+
   return (
     <div className="h-full w-full bg-slate-50">
       <div className="h-full" ref={reactFlowWrapper}>
@@ -267,90 +647,127 @@ export default function WorkflowEditor({
           <Background color="#e2e8f0" />
           <Controls className="bg-white border border-slate-200 shadow-sm" />
           
-          {/* Floating Execution Panel - Only show if we have nodes */}
-          {nodes.length > 0 && (
-            <Panel position="top-right" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <Play className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900">Execute Workflow</h3>
-                  <p className="text-xs text-slate-500">Run your AI workflow</p>
-                </div>
-              </div>
-              
-              {/* Input Data */}
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Input:</label>
-                <textarea
-                  value={inputData}
-                  onChange={(e) => setInputData(e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm resize-none bg-white/80 focus:bg-white transition-all ${
-                    inputHighlight 
-                      ? 'border-blue-400 bg-blue-50/50 shadow-sm' 
-                      : 'border-slate-200 focus:border-blue-300'
-                  }`}
-                  rows={2}
-                  placeholder="Enter your workflow input..."
-                  disabled={isExecuting}
-                />
-                {inputHighlight && (
-                  <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                    <span className="w-1 h-1 bg-blue-400 rounded-full"></span>
-                    Updated from AI suggestion
-                  </p>
-                )}
-              </div>
-
-              {/* Execution Button */}
+          {/* Enhanced Template Section - Top Left */}
+          <Panel position="top-left" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-40">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Multi-Step Workflow Templates</h3>
+            <div className="flex gap-2 flex-wrap mb-3">
               <button
-                onClick={executeWorkflow}
-                disabled={isExecuting || !nodes.length}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg text-sm font-medium hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                onClick={() => addExampleWorkflow('research')}
+                className="px-3 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
               >
-                {isExecuting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Running...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" />
-                    Execute Workflow
-                  </>
-                )}
+                🔍 Research Pipeline
               </button>
+              <button
+                onClick={() => addExampleWorkflow('analysis')}
+                className="px-3 py-1 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 transition-colors"
+              >
+                📊 Data Analysis
+              </button>
+              <button
+                onClick={() => addExampleWorkflow('content')}
+                className="px-3 py-1 text-xs bg-purple-100 text-purple-800 rounded hover:bg-purple-200 transition-colors"
+              >
+                ✍️ Content Creation
+              </button>
+              <button
+                onClick={() => { setInternalNodes([]); setInternalEdges([]) }}
+                className="px-3 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
+              >
+                🗑️ Clear All
+              </button>
+            </div>
+            <p className="text-xs text-gray-600">
+              Select a template to see multi-step workflow execution in action
+            </p>
+          </Panel>
+          
+          {/* Floating Execution Panel - Top Right */}
+          <Panel position="top-right" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-50">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                <Play className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">Execute Workflow</h3>
+                <p className="text-xs text-slate-500">Run your AI workflow</p>
+              </div>
+            </div>
+            
+            {/* Input Data */}
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Input:</label>
+              <textarea
+                value={inputData}
+                onChange={(e) => setInputData(e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg text-sm resize-none bg-white/80 focus:bg-white transition-all ${
+                  inputHighlight 
+                    ? 'border-blue-400 bg-blue-50/50 shadow-sm' 
+                    : 'border-slate-200 focus:border-blue-300'
+                }`}
+                rows={2}
+                placeholder="Enter your workflow input..."
+                disabled={isExecuting}
+              />
+              {inputHighlight && (
+                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                  <span className="w-1 h-1 bg-blue-400 rounded-full"></span>
+                  Updated from AI suggestion
+                </p>
+              )}
+            </div>
 
-              {/* Quick Results Preview */}
-              {executionResult && (
-                <div className="mt-3 p-3 bg-slate-50 rounded-lg border">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-700">Results:</span>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => copyToClipboard(formatResultText(executionResult.result))}
-                        className="p-1 text-slate-400 hover:text-slate-600 rounded"
-                        title="Copy"
-                      >
-                        {copySuccess ? <CheckCircle className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
-                      </button>
-                      <button
-                        onClick={() => setShowFullResults(true)}
-                        className="p-1 text-slate-400 hover:text-slate-600 rounded"
-                        title="Expand"
-                      >
-                        <Maximize2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="text-xs text-slate-600 max-h-16 overflow-y-auto">
-                    {formatResultText(executionResult.result).substring(0, 150)}...
+            {/* Execution Button */}
+            <button
+              onClick={executeWorkflow}
+              disabled={isExecuting || !nodes.length}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg text-sm font-medium hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isExecuting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  Execute Workflow
+                </>
+              )}
+            </button>
+
+            {/* Node count indicator */}
+            <div className="mt-2 text-xs text-slate-500 text-center">
+              {nodes.length === 0 ? 'Add nodes to enable execution' : `${nodes.length} nodes ready`}
+            </div>
+
+            {/* Quick Results Preview */}
+            {executionResult && (
+              <div className="mt-3 p-3 bg-slate-50 rounded-lg border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-slate-700">Results:</span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => copyToClipboard(formatResultText(executionResult.result))}
+                      className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                      title="Copy"
+                    >
+                      {copySuccess ? <CheckCircle className="w-3 h-3 text-green-600" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                    <button
+                      onClick={() => setShowFullResults(true)}
+                      className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                      title="Expand"
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
-              )}
-            </Panel>
-          )}
+                <div className="text-xs text-slate-600 max-h-16 overflow-y-auto">
+                  {formatResultText(executionResult.result).substring(0, 150)}...
+                </div>
+              </div>
+            )}
+          </Panel>
         </ReactFlow>
       </div>
 

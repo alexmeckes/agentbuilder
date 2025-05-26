@@ -294,10 +294,13 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         result = agent.run(prompt=input_data)
         agent.exit()
         
+        # Extract detailed trace information from the any-agent result
+        trace_data = _extract_trace_from_result(result)
+        
         return {
             "success": True,
             "final_output": result.final_output if hasattr(result, 'final_output') else str(result),
-            "agent_trace": str(result),  # Convert to string for JSON serialization
+            "agent_trace": trace_data,
             "main_agent": main_agent_config.name,
             "managed_agents": [agent.name for agent in managed_agents_config],
             "framework_used": framework
@@ -308,6 +311,79 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
             "success": False,
             "error": str(e),
             "traceback": traceback.format_exc()
+        }
+
+
+def _extract_trace_from_result(result) -> Dict[str, Any]:
+    """Extract detailed trace information from any-agent result object"""
+    try:
+        trace_data = {
+            "final_output": getattr(result, 'final_output', str(result)),
+            "spans": [],
+            "performance": {},
+            "cost_info": {}
+        }
+        
+        # Extract spans if available
+        if hasattr(result, 'spans'):
+            spans = getattr(result, 'spans', [])
+            for span in spans:
+                span_data = {
+                    "name": getattr(span, 'name', 'unknown'),
+                    "span_id": getattr(span, 'span_id', None),
+                    "trace_id": getattr(span, 'trace_id', None),
+                    "start_time": getattr(span, 'start_time', 0),
+                    "end_time": getattr(span, 'end_time', 0),
+                    "duration_ms": None,
+                    "status": str(getattr(span, 'status', '')),
+                    "attributes": dict(getattr(span, 'attributes', {})),
+                    "events": [str(event) for event in getattr(span, 'events', [])],
+                    "kind": str(getattr(span, 'kind', ''))
+                }
+                
+                # Calculate duration if we have start and end times
+                if span_data["start_time"] and span_data["end_time"]:
+                    # Convert nanoseconds to milliseconds
+                    duration_ns = span_data["end_time"] - span_data["start_time"]
+                    span_data["duration_ms"] = duration_ns / 1_000_000
+                
+                trace_data["spans"].append(span_data)
+        
+        # Extract cost information if available
+        if hasattr(result, 'get_total_cost'):
+            try:
+                cost_info = result.get_total_cost()
+                trace_data["cost_info"] = {
+                    "total_cost": getattr(cost_info, 'total_cost', 0),
+                    "total_tokens": getattr(cost_info, 'total_tokens', 0),
+                    "input_tokens": getattr(cost_info, 'input_tokens', 0),
+                    "output_tokens": getattr(cost_info, 'output_tokens', 0)
+                }
+            except Exception as cost_e:
+                trace_data["cost_info"] = {"extraction_error": str(cost_e)}
+        
+        # Calculate performance metrics
+        if trace_data["spans"]:
+            total_duration = sum(span.get("duration_ms", 0) for span in trace_data["spans"] if span.get("duration_ms"))
+            total_cost = trace_data["cost_info"].get("total_cost", 0)
+            total_tokens = trace_data["cost_info"].get("total_tokens", 0)
+            
+            trace_data["performance"] = {
+                "total_duration_ms": total_duration,
+                "total_cost": total_cost,
+                "total_tokens": total_tokens,
+                "span_count": len(trace_data["spans"])
+            }
+        
+        return trace_data
+        
+    except Exception as e:
+        return {
+            "extraction_error": str(e),
+            "final_output": str(result) if result else "",
+            "spans": [],
+            "performance": {},
+            "cost_info": {}
         }
 
 

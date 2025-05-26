@@ -162,7 +162,9 @@ class WorkflowExecutor:
                     "framework_used": workflow_result["framework_used"],
                     "agent_trace": self._serialize_agent_trace(workflow_result.get("agent_trace")),
                     "execution_time": completion_time - start_time,
-                    "cost_info": self._extract_cost_info(workflow_result.get("agent_trace"))
+                    "cost_info": self._extract_cost_info_from_trace(workflow_result.get("agent_trace")),
+                    "performance": self._extract_performance_metrics(workflow_result.get("agent_trace"), completion_time - start_time),
+                    "spans": self._extract_spans_from_trace(workflow_result.get("agent_trace"))
                 }
             })
             
@@ -194,6 +196,11 @@ class WorkflowExecutor:
             return {}
         
         try:
+            # If agent_trace is already a dictionary (from our new extraction), use it directly
+            if isinstance(agent_trace, dict):
+                return agent_trace
+            
+            # Legacy handling for raw agent trace objects
             return {
                 "final_output": getattr(agent_trace, 'final_output', ''),
                 "spans": [self._serialize_span(span) for span in getattr(agent_trace, 'spans', [])],
@@ -236,6 +243,57 @@ class WorkflowExecutor:
             }
         except Exception as e:
             return {"cost_extraction_error": str(e)}
+    
+    def _extract_cost_info_from_trace(self, agent_trace) -> Dict[str, Any]:
+        """Extract cost information from the new trace data structure"""
+        if not agent_trace:
+            return {}
+        
+        try:
+            # If it's our new dictionary structure
+            if isinstance(agent_trace, dict):
+                return agent_trace.get("cost_info", {})
+            
+            # Fallback to legacy method
+            return self._extract_cost_info(agent_trace)
+        except Exception as e:
+            return {"cost_extraction_error": str(e)}
+    
+    def _extract_performance_metrics(self, agent_trace, execution_time: float) -> Dict[str, Any]:
+        """Extract performance metrics from trace data"""
+        if not agent_trace:
+            return {"total_duration_ms": execution_time * 1000}
+        
+        try:
+            # If it's our new dictionary structure
+            if isinstance(agent_trace, dict):
+                performance = agent_trace.get("performance", {})
+                # Ensure we have execution time
+                performance["total_duration_ms"] = performance.get("total_duration_ms", execution_time * 1000)
+                return performance
+            
+            # Legacy fallback
+            return {"total_duration_ms": execution_time * 1000}
+        except Exception as e:
+            return {"performance_extraction_error": str(e), "total_duration_ms": execution_time * 1000}
+    
+    def _extract_spans_from_trace(self, agent_trace) -> List[Dict[str, Any]]:
+        """Extract spans from trace data"""
+        if not agent_trace:
+            return []
+        
+        try:
+            # If it's our new dictionary structure
+            if isinstance(agent_trace, dict):
+                return agent_trace.get("spans", [])
+            
+            # Legacy fallback
+            if hasattr(agent_trace, 'spans'):
+                return [self._serialize_span(span) for span in getattr(agent_trace, 'spans', [])]
+            
+            return []
+        except Exception as e:
+            return []
 
 
 # Global executor instance
