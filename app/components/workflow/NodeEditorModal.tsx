@@ -36,13 +36,33 @@ interface NodeEditorModalProps {
 }
 
 const modelOptions = [
-  { value: 'gpt-4o', label: 'GPT-4o (Latest)', description: 'Most capable model, best for complex tasks' },
+  // Latest GPT-4.1 series (2025)
+  { value: 'gpt-4.1', label: 'GPT-4.1 (Latest)', description: 'Latest GPT model with enhanced coding and instruction following' },
+  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Efficient GPT-4.1 variant for cost-effective applications' },
+  { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano', description: 'Ultra-efficient GPT-4.1 for mobile and edge applications' },
+  
+  // o-series reasoning models
+  { value: 'o4-mini', label: 'o4-mini (Latest Reasoning)', description: 'Latest reasoning model with enhanced problem-solving' },
+  { value: 'o3', label: 'o3', description: 'Advanced reasoning model for complex problem-solving tasks' },
+  { value: 'o3-mini', label: 'o3-mini', description: 'Efficient reasoning model for mathematical and logical tasks' },
+  { value: 'o1', label: 'o1', description: 'Reasoning model with enhanced problem-solving for science and math' },
+  { value: 'o1-mini', label: 'o1-mini', description: 'Faster, cost-efficient reasoning model ideal for coding tasks' },
+  { value: 'o1-preview', label: 'o1-preview', description: 'Preview version of o1 reasoning model' },
+  
+  // GPT-4o series
+  { value: 'gpt-4o-2024-11-20', label: 'GPT-4o (Nov 2024)', description: 'Latest GPT-4o with enhanced creative writing and accuracy' },
+  { value: 'gpt-4o-2024-08-06', label: 'GPT-4o (Aug 2024)', description: 'GPT-4o with structured outputs and enhanced capabilities' },
+  { value: 'gpt-4o', label: 'GPT-4o', description: 'Most capable model, best for complex tasks' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Fast and efficient, good for most tasks' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', description: 'High performance with large context' },
-  { value: 'gpt-4', label: 'GPT-4', description: 'Reliable and capable for complex reasoning' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Fast and cost-effective' },
+  
+  // GPT-4 series
+  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo', description: 'High performance with large context window' },
+  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Fast and cost-effective for simple to moderate tasks' },
+  
+  // Non-OpenAI models
   { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', description: 'Excellent for analysis and writing' },
-  { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku', description: 'Fast and efficient for simple tasks' }
+  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', description: 'Great for multimodal tasks and long context' },
+  { value: 'llama-3.1-70b-instruct', label: 'Llama 3.1 70B', description: 'Open source model, good for general tasks' }
 ]
 
 const toolOptions = [
