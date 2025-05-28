@@ -250,10 +250,25 @@ This project is designed to be AI-friendly and easily modifiable:
 
 ## 📚 Documentation
 
-- [Any-Agent Framework](https://mozilla-ai.github.io/any-agent/)
-- [API Documentation](http://localhost:8000/docs) (when running)
-- [Frontend Components](./frontend/app/components/)
-- [Backend API](./backend/)
+### For AI Agents & New Contributors
+- **[🤖 AI Agent Onboarding Guide](./AI_AGENT_ONBOARDING.md)** - **START HERE** for AI agents
+- **[📋 Product Requirements Document](./prd-doc.md)** - Complete feature documentation
+- **[🏗️ Directory Structure Guide](./DIRECTORY_STRUCTURE.md)** - Architecture overview
+
+### For Developers
+- **[🚀 Development Scripts](./scripts/README.md)** - Setup and development workflow
+- **[Any-Agent Framework](https://mozilla-ai.github.io/any-agent/)** - Core framework docs
+- **[API Documentation](http://localhost:8000/docs)** - Interactive API docs (when running)
+
+### Code Documentation
+- **[Frontend Components](./frontend/app/components/)** - React component library
+- **[Backend API](./backend/)** - FastAPI server implementation
+- **[Type Definitions](./frontend/app/types/)** - TypeScript interfaces
+
+### Key Implementation Files
+- **`frontend/app/page.tsx`** - Main UI component (353 lines)
+- **`backend/main.py`** - Backend server (1367 lines)
+- **`backend/visual_to_anyagent_translator.py`** - Workflow execution engine
 
 ## 📄 License
 

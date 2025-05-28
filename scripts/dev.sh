@@ -82,10 +82,10 @@ echo "   Backend API: http://localhost:8000"
 echo "   API Docs: http://localhost:8000/docs"
 echo ""
 echo "📝 Logs:"
-echo "   Frontend: tail -f frontend.log"
-echo "   Backend: tail -f backend.log"
+echo "   Frontend: tail -f ../frontend.log"
+echo "   Backend: tail -f ../backend.log"
 echo ""
 echo "Press Ctrl+C to stop all servers"
 
 # Keep script running and show logs
-tail -f frontend.log backend.log 
+tail -f ../frontend.log ../backend.log 

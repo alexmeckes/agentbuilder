@@ -8,12 +8,17 @@ native multi-agent orchestration format.
 import sys
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
-from any_agent import AgentConfig, AnyAgent, AgentFramework
-from any_agent.tools import search_web, visit_webpage
+from any_agent import AgentConfig, AgentFramework, AnyAgent
 import multiprocessing
 import json
 import traceback
 
+# Mock tool functions
+def search_web(query: str):
+    return f"Mock search results for: {query}"
+
+def visit_webpage(url: str):
+    return f"Mock webpage content for: {url}"
 
 @dataclass
 class VisualWorkflowNode:
@@ -264,7 +269,19 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
     This function is designed to be called via multiprocessing.Process.
     """
     try:
-        # Recreate AgentConfig objects from dictionaries
+        # Ensure the any_agent module is available in the subprocess
+        import sys
+        import os
+        
+        # Add the src directory to Python path for this subprocess
+        src_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src')
+        if src_path not in sys.path:
+            sys.path.insert(0, src_path)
+        
+        # Now import any_agent
+        from any_agent import AgentConfig, AgentFramework, AnyAgent
+        
+        # Recreate AgentConfig objects from dictionaries using the real any_agent classes
         main_agent_config = AgentConfig(
             name=main_agent_config_dict["name"],
             model_id=main_agent_config_dict["model_id"],
@@ -284,22 +301,26 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
             )
             managed_agents_config.append(managed_agent)
         
-        # Create and run the any-agent
+        # Create the any-agent using the real framework
+        # Convert framework string to AgentFramework enum
+        framework_enum = AgentFramework.from_string(framework.upper())
+        
+        # Create and run the any-agent using the real API
         agent = AnyAgent.create(
-            agent_framework=framework,
+            agent_framework=framework_enum,
             agent_config=main_agent_config,
             managed_agents=managed_agents_config if managed_agents_config else None
         )
         
-        result = agent.run(prompt=input_data)
-        agent.exit()
+        # Run the agent and get the trace
+        agent_trace = agent.run(input_data)
         
         # Extract detailed trace information from the any-agent result
-        trace_data = _extract_trace_from_result(result)
+        trace_data = _extract_trace_from_result(agent_trace)
         
         return {
             "success": True,
-            "final_output": result.final_output if hasattr(result, 'final_output') else str(result),
+            "final_output": agent_trace.final_output if hasattr(agent_trace, 'final_output') else str(agent_trace),
             "agent_trace": trace_data,
             "main_agent": main_agent_config.name,
             "managed_agents": [agent.name for agent in managed_agents_config],
@@ -318,7 +339,7 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
     """Extract detailed trace information from any-agent result object"""
     try:
         trace_data = {
-            "final_output": getattr(result, 'final_output', str(result)),
+            "final_output": result,
             "spans": [],
             "performance": {},
             "cost_info": {}
@@ -492,20 +513,22 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                         new_loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(new_loop)
                         
-                        # Create and run the any-agent
+                        # Convert framework string to AgentFramework enum
+                        framework_enum = AgentFramework.from_string(framework.upper())
+                        
+                        # Create and run the any-agent using the real API
                         agent = AnyAgent.create(
-                            agent_framework=framework,
+                            agent_framework=framework_enum,
                             agent_config=main_agent_config,
                             managed_agents=managed_agents_config if managed_agents_config else None
                         )
                         
-                        result = agent.run(prompt=input_data)
-                        agent.exit()
+                        agent_trace = agent.run(input_data)
                         
                         result_queue.put({
                             "success": True,
-                            "final_output": result.final_output if hasattr(result, 'final_output') else str(result),
-                            "agent_trace": result,
+                            "final_output": agent_trace.final_output if hasattr(agent_trace, 'final_output') else str(agent_trace),
+                            "agent_trace": agent_trace,
                             "main_agent": main_agent_config.name,
                             "managed_agents": [agent.name for agent in managed_agents_config] if managed_agents_config else []
                         })

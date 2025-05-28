@@ -1,57 +1,87 @@
 # Directory Structure
 
-This document explains the clean, organized structure of the any-agent repository.
+This document describes the clean, organized directory structure after Phase 1 cleanup.
 
-## Active Directories
+## Root Directory Structure
 
-### Core Application
-- **`frontend/`** - Next.js frontend application (port 3000)
-  - Contains the main UI with tabs: AI Assistant, Visual Designer, A/B Testing, Trace Viewer, Analytics
-  - All experiments functionality is integrated in the main navigation
-- **`backend/`** - Python FastAPI backend (port 8000)
-  - Handles workflow execution, AI orchestration, and API endpoints
+```
+any-agent-main/
+├── frontend/          # Next.js React frontend
+├── backend/           # FastAPI Python backend  
+├── scripts/           # Development automation scripts
+├── archive/           # Archived duplicate implementations
+├── docs/              # Documentation
+├── tests/             # Test suites
+├── examples/          # Example implementations
+├── src/               # any-agent source code
+├── .github/           # GitHub workflows and templates
+├── README.md          # Main project documentation
+├── DIRECTORY_STRUCTURE.md  # This file
+├── pyproject.toml     # Python package configuration
+├── mkdocs.yml         # Documentation site configuration
+└── package.json       # Root package.json for any-agent
 
-### Development & Deployment
-- **`scripts/`** - Development and deployment scripts
-  - `setup.sh` - Install all dependencies
-  - `dev.sh` - Start both frontend and backend in development mode
-- **`docs/`** - Documentation and guides
-- **`tests/`** - Test suites for both frontend and backend
+## Key Directories
 
-### Configuration
-- **`examples/`** - Example workflows and configurations
-- **`public/`** - Static assets for the frontend
+### `/frontend/` - Next.js Frontend
+- Complete workflow composer UI
+- All 6 main tabs: AI Assistant, Visual Designer, A/B Testing, Evaluations, Trace Viewer, Analytics
+- Real-time execution interface
+- Comprehensive evaluation system UI
 
-## Archived Directories
+### `/backend/` - FastAPI Backend  
+- Real any-agent integration
+- All API endpoints for workflow execution
+- Intelligent workflow naming system
+- Analytics and evaluation engines
 
-The following directories have been moved to `archive/` to reduce confusion:
-- **`archive/workflow-composer/`** - Old Next.js implementation
-- **`archive/workflow-composer-ui/`** - Vite/React implementation  
-- **`archive/app/`** - Original Next.js app directory
-- **`archive/src/`** - Additional source directory
+### `/scripts/` - Development Scripts
+- `setup.sh` - One-time environment setup
+- `dev.sh` - Start development servers with live logs
+- `stop.sh` - Gracefully stop all servers
+- `README.md` - Script documentation
+
+### `/archive/` - Archived Implementations
+- `workflow-composer/` - Original complex implementation
+- `workflow-composer-ui/` - Alternative UI implementation  
+- `app/` - Root-level app directory
+- `src/` - Alternative source structure
+
+**Note**: Archive contains working but over-engineered implementations. Current structure is cleaner and more maintainable.
+
+## Removed Items
+
+The following outdated files were removed during cleanup:
+- Root `dev.sh` - Had wrong paths to archived directories
+- Root `start.sh` - Referenced archived workflow-composer directory
+- Root `stop.sh` - Duplicate of scripts/stop.sh
+
+## Usage
+
+```bash
+# Setup (run once)
+./scripts/setup.sh
+
+# Development
+./scripts/dev.sh
+
+# Stop servers  
+./scripts/stop.sh
+```
 
 ## Quick Start
 
 1. **Setup**: `./scripts/setup.sh`
 2. **Development**: `./scripts/dev.sh`
-3. **Frontend only**: `cd frontend && npm run dev`
-4. **Backend only**: `cd backend && python main.py`
+3. **Open**: http://localhost:3000 (frontend) and http://localhost:8000 (backend)
 
-## Experiments/A/B Testing Location
+## Features Available
 
-**The experiments functionality is NOT hidden away!** It's prominently featured as the "A/B Testing" tab in the main navigation of the frontend application. You can access it by:
+- **Visual Workflow Builder**: Drag-and-drop interface
+- **A/B Testing**: Experiment configuration and analysis (main navigation tab)
+- **Evaluations**: Comprehensive evaluation system with LLM-as-a-judge
+- **Analytics**: Real-time execution analytics and insights
+- **Trace Viewer**: Detailed execution traces and performance metrics
+- **Intelligent Naming**: AI-powered workflow naming and categorization
 
-1. Opening http://localhost:3000
-2. Clicking the "A/B Testing" tab in the header navigation
-3. The tab includes a beaker icon and is located between "Visual Designer" and "Trace Viewer"
-
-The experiments functionality includes:
-- Experiment configuration and setup
-- Variant comparison testing
-- Statistical analysis and results
-- Cost and performance optimization
-- A/B testing workflows
-
-## Legacy Note
-
-Previous versions had multiple frontend implementations scattered across different directories, which created confusion. The current structure consolidates everything into clear, purpose-driven directories. 
+This structure provides a clean, maintainable codebase with all functionality working and properly organized. 

@@ -6,14 +6,15 @@ import ChatInterface from './components/ChatInterface'
 import { TraceViewer } from './components/TraceViewer'
 import { AnalyticsDashboard } from './components/AnalyticsDashboard'
 import ExperimentsPage from './components/ExperimentsPage'
+import EvaluationsPage from './components/EvaluationsPage'
 import PreferencesModal from './components/settings/PreferencesModal'
 import type { Node, Edge } from 'reactflow'
-import { Workflow, MessageSquare, Settings, Play, BarChart3, Beaker } from 'lucide-react'
+import { Workflow, MessageSquare, Settings, Play, BarChart3, Beaker, FlaskConical } from 'lucide-react'
 
 export default function Home() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
-  const [activeTab, setActiveTab] = useState<'design' | 'chat' | 'trace' | 'analytics' | 'experiments'>('chat')
+  const [activeTab, setActiveTab] = useState<'design' | 'chat' | 'trace' | 'analytics' | 'experiments' | 'evaluations'>('chat')
   const [isExecuting, setIsExecuting] = useState(false)
   const [workflowExecutionInput, setWorkflowExecutionInput] = useState('Hello, please analyze this data and provide insights.')
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
@@ -268,6 +269,17 @@ export default function Home() {
                 <BarChart3 className="w-4 h-4" />
                 Analytics
               </button>
+              <button
+                onClick={() => setActiveTab('evaluations')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'evaluations' 
+                    ? 'bg-white text-slate-900 shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FlaskConical className="w-4 h-4" />
+                Evaluations
+              </button>
             </div>
 
             {/* Quick Stats */}
@@ -337,6 +349,10 @@ export default function Home() {
                 setActiveTab('trace')
               }}
             />
+          </div>
+        ) : activeTab === 'evaluations' ? (
+          <div className="h-full">
+            <EvaluationsPage />
           </div>
         ) : (
           <div className="h-full">

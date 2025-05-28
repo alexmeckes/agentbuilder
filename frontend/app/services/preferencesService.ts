@@ -9,9 +9,13 @@ export class PreferencesService {
    * Get current user preferences, loading from localStorage if needed
    */
   static getPreferences(): UserPreferences {
-    if (this.preferences) {
+    // Return cached preferences if available
+    if (this.preferences !== null) {
       return this.preferences
     }
+
+    // Initialize with defaults
+    let preferences: UserPreferences = { ...DEFAULT_USER_PREFERENCES }
 
     // Try to load from localStorage
     if (typeof window !== 'undefined') {
@@ -20,7 +24,7 @@ export class PreferencesService {
         if (stored) {
           const parsed = JSON.parse(stored)
           // Merge with defaults to ensure all fields exist
-          this.preferences = {
+          preferences = {
             ...DEFAULT_USER_PREFERENCES,
             ...parsed,
             defaultModels: {
@@ -28,16 +32,15 @@ export class PreferencesService {
               ...(parsed.defaultModels || {})
             }
           }
-          return this.preferences
         }
       } catch (error) {
         console.warn('Failed to load preferences from localStorage:', error)
       }
     }
 
-    // Return defaults
-    this.preferences = { ...DEFAULT_USER_PREFERENCES }
-    return this.preferences
+    // Cache and return
+    this.preferences = preferences
+    return preferences
   }
 
   /**
