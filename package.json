@@ -1,6 +1,6 @@
 {
   "name": "any-agent-workflow-composer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Visual workflow composer for the any-agent framework",
   "private": true,
   "workspaces": [
@@ -12,7 +12,13 @@
     "start": "./scripts/dev.sh",
     "stop": "./scripts/stop.sh",
     "frontend": "cd frontend && npm run dev",
-    "backend": "cd backend && source venv/bin/activate && python main.py"
+    "backend": "cd backend && source venv/bin/activate && python main.py",
+    "logs": "tail -f backend.log frontend.log",
+    "logs:backend": "tail -f backend.log",
+    "logs:frontend": "tail -f frontend.log",
+    "status": "lsof -i :3000,3001,8000 || echo 'No services running'",
+    "test:backend": "curl -s http://localhost:8000/ | jq .",
+    "test:frontend": "curl -s http://localhost:3000/ | head -3"
   },
   "keywords": [
     "ai",
@@ -20,15 +26,25 @@
     "workflow",
     "any-agent",
     "visual-programming",
-    "drag-and-drop"
+    "drag-and-drop",
+    "orchestration",
+    "visual",
+    "composer"
   ],
+  "author": "any-agent team",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mozilla-ai/any-agent.git"
   },
-  "license": "MIT",
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "npm": ">=8.0.0",
+    "python": ">=3.8.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1"
   }
 }
