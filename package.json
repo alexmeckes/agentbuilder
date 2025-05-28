@@ -1,18 +1,34 @@
 {
-  "devDependencies": {
-    "autoprefixer": "^10.4.17",
-    "postcss": "^8.4.35",
-    "tailwindcss": "^3.4.1"
+  "name": "any-agent-workflow-composer",
+  "version": "0.1.0",
+  "description": "Visual workflow composer for the any-agent framework",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "setup": "./scripts/setup.sh",
+    "dev": "./scripts/dev.sh",
+    "start": "./scripts/dev.sh",
+    "stop": "./scripts/stop.sh",
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && source venv/bin/activate && python main.py"
   },
-  "dependencies": {
-    "@tailwindcss/typography": "^0.5.16",
-    "@types/react-syntax-highlighter": "^15.5.13",
-    "@types/uuid": "^10.0.0",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.511.0",
-    "react-markdown": "^10.1.0",
-    "react-syntax-highlighter": "^15.6.1",
-    "tailwind-merge": "^3.3.0",
-    "uuid": "^11.1.0"
+  "keywords": [
+    "ai",
+    "agents",
+    "workflow",
+    "any-agent",
+    "visual-programming",
+    "drag-and-drop"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mozilla-ai/any-agent.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }

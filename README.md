@@ -1,136 +1,264 @@
-<div align="center">
+# 🎨 Any-Agent Workflow Composer
 
-# 🎨any-agent
+A visual workflow composer for the [any-agent](https://github.com/mozilla-ai/any-agent) framework. Create, edit, and execute AI agent workflows through an intuitive drag-and-drop interface.
 
-</div>
-
-<div align="center">
-
-[![Docs](https://github.com/mozilla-ai/any-agent/actions/workflows/docs.yaml/badge.svg)](https://github.com/mozilla-ai/any-agent/actions/workflows/docs.yaml/)
-[![Tests](https://github.com/mozilla-ai/any-agent/actions/workflows/tests.yaml/badge.svg)](https://github.com/mozilla-ai/any-agent/actions/workflows/tests.yaml/)
-![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
-
-[Documentation](https://mozilla-ai.github.io/any-agent/)
-
-
-[Blog Post Introduction and Motivation](https://blog.mozilla.ai/introducing-any-agent-an-abstraction-layer-between-your-code-and-the-many-agentic-frameworks/)
-
-</div>
-
-`any-agent` is a Python library designed to provide a single interface to access many different agent frameworks.
-
-Using `any-agent`, you can more easily switch to a new or different agent framework without needing to worry about the underlying API changes.
-
-any-agent also provides a 'trace-first' [llm-as-a-judge powered evaluation tool](https://mozilla-ai.github.io/any-agent/evaluation/) for flexible evaluation of agent execution traces.
-
-## [Supported Frameworks](https://mozilla-ai.github.io/any-agent/)
-
-[![Google ADK](https://img.shields.io/badge/Google%20ADK-4285F4?logo=google&logoColor=white)](https://github.com/google/adk-python) [![LangChain](https://img.shields.io/badge/LangChain-1e4545?logo=langchain&logoColor=white)](https://github.com/langchain-ai/langgraph) [![LlamaIndex](https://img.shields.io/badge/🦙%20LlamaIndex-fbcfe2)](https://github.com/run-llama/llama_index) [![OpenAI Agents](https://img.shields.io/badge/OpenAI%20Agents-black?logo=openai)](https://github.com/openai/openai-agents-python) [![Smolagents](https://img.shields.io/badge/Smolagents-ffcb3a?logo=huggingface&logoColor=white)](https://smolagents.org/) [![TinyAgents](https://img.shields.io/badge/TinyAgents-ffcb3a?logo=huggingface&logoColor=white)]([https://smolagents.org/](https://huggingface.co/blog/tiny-agents))  [Agno AI](https://docs.agno.com/introduction)
-
-
-### Planned for Support (Contributions Welcome!)
-
-[Open Github tickets for new frameworks](https://github.com/mozilla-ai/any-agent/issues?q=is%3Aissue%20state%3Aopen%20label%3Aframeworks)
-
-## Requirements
-
-- Python 3.11 or newer
-
-## Quickstart
-
-
-Refer to [pyproject.toml](./pyproject.toml) for a list of the options available.
-Update your pip install command to include the frameworks that you plan on using (or use `all` to install all the currently supported):
+## 🚀 Quick Start
 
 ```bash
-pip install 'any-agent[all]'
+# Clone and setup
+git clone <repository-url>
+cd any-agent-main
+./scripts/setup.sh
+
+# Start development servers
+./scripts/dev.sh
 ```
 
-To define any agent system you will always use the same imports:
+**That's it!** Open http://localhost:3000 to start building workflows.
 
-```python
-from any_agent import AgentConfig, AnyAgent
+## 🎯 Main Features
+
+### 🤖 AI Assistant Tab
+- Chat interface for creating workflows through natural language
+- Automatically generates nodes and connections based on your descriptions
+- Smart suggestions for workflow improvements
+
+### 🎨 Visual Designer Tab  
+- Drag-and-drop workflow builder
+- Real-time execution and testing
+- Multiple agent frameworks and models
+
+### 🧪 A/B Testing Tab
+- **Experiment Configuration**: Set up A/B tests for different models and parameters
+- **Variant Comparison**: Compare performance across different AI models
+- **Statistical Analysis**: Get detailed metrics on cost, speed, and quality
+- **Templates**: Pre-built experiment templates for common use cases
+- **Results Dashboard**: Visual analytics and recommendations
+
+### 📊 Trace Viewer Tab
+- Detailed execution logs and traces
+- Step-by-step workflow debugging
+- Performance monitoring
+
+### 📈 Analytics Tab
+- Workflow performance metrics
+- Cost analysis and optimization
+- Usage statistics and insights
+
+### ⚙️ Settings
+- Model preferences and API key configuration
+- Framework selection and parameters
+- User preferences and customization
+
+## 📁 Project Structure
+
 ```
-For this example we use a model hosted by openai, but you may need to set the relevant API key for whichever provider being used.
-See [our Model docs](https://mozilla-ai.github.io/any-agent/frameworks/#models) for more information about using different models.
+any-agent-main/
+├── frontend/           # Next.js frontend application
+│   ├── app/           # Next.js app directory
+│   ├── components/    # React components
+│   ├── lib/          # Utility libraries
+│   └── package.json  # Frontend dependencies
+├── backend/           # Python FastAPI backend
+│   ├── main.py       # FastAPI server entry point
+│   ├── venv/         # Python virtual environment
+│   └── requirements.txt
+├── scripts/           # Automation scripts
+│   ├── setup.sh      # One-time environment setup
+│   ├── dev.sh        # Start development servers
+│   └── stop.sh       # Stop all servers
+└── docs/             # Documentation
+```
+
+## 🛠️ Features
+
+### Frontend (Next.js + React)
+- **Visual Workflow Builder**: Drag-and-drop interface for creating agent workflows
+- **Real-time Execution**: Live updates during workflow execution
+- **Multi-Agent Support**: Chain multiple AI agents together
+- **Model Selection**: Choose from various AI models (GPT-4, Claude, etc.)
+- **Tool Integration**: Built-in tools like web search, file operations
+
+### Backend (FastAPI + Python)
+- **Any-Agent Integration**: Full support for all any-agent frameworks
+- **WebSocket Support**: Real-time execution updates
+- **Multiple Frameworks**: OpenAI, LangChain, LlamaIndex, Google ADK, and more
+- **RESTful API**: Complete API for workflow management
+- **Execution Tracing**: Detailed execution logs and analytics
+
+## 🔧 Development
+
+### Prerequisites
+- **Node.js** 18+ and npm
+- **Python** 3.11+
+- **API Keys** for your chosen AI providers (OpenAI, Anthropic, etc.)
+
+### Environment Setup
+
+1. **Set API Keys**:
+   ```bash
+   export OPENAI_API_KEY="your-openai-key"
+   export ANTHROPIC_API_KEY="your-anthropic-key"
+   # Add other provider keys as needed
+   ```
+
+2. **Install Any-Agent** (if not already installed):
+   ```bash
+   pip install 'any-agent[all]'  # All frameworks
+   # or
+   pip install 'any-agent[openai]'  # OpenAI only
+   ```
+
+### Available Scripts
 
 ```bash
-export OPENAI_API_KEY="YOUR_KEY_HERE"  # or MISTRAL_API_KEY, etc
+# Setup everything (run once)
+./scripts/setup.sh
+
+# Start development servers
+./scripts/dev.sh
+
+# Stop all servers
+./scripts/stop.sh
 ```
 
-### Single agent
+### Manual Development
 
-```python
-from any_agent.tools import search_web, visit_webpage
+If you prefer to run servers manually:
 
-agent = AnyAgent.create(
-    "openai",  # See all options in https://mozilla-ai.github.io/any-agent/
-    AgentConfig(
-        model_id="gpt-4.1-nano",
-        instructions="Use the tools to find an answer",
-        tools=[search_web, visit_webpage]
-    )
-)
+```bash
+# Backend
+cd backend
+source venv/bin/activate
+python main.py
 
-agent_trace = agent.run("Which Agent Framework is the best??")
-print(agent_trace.final_output)
+# Frontend (in another terminal)
+cd frontend
+npm run dev
 ```
 
-### Multi-agent
+## 🌐 API Endpoints
 
-```python
-from any_agent.tools import search_web, visit_webpage
+### Backend API (http://localhost:8000)
 
-agent = AnyAgent.create(
-    "openai", # See all options in https://mozilla-ai.github.io/any-agent/
-    AgentConfig(
-        model_id="gpt-4.1-mini",
-        instructions="You are the main agent. Use the other available agents to find an answer",
-    ),
-    managed_agents=[
-        AgentConfig(
-            name="search_web_agent",
-            description="An agent that can search the web",
-            model_id="gpt-4.1-nano",
-            tools=[search_web]
-        ),
-        AgentConfig(
-            name="visit_webpage_agent",
-            description="An agent that can visit webpages",
-            model_id="gpt-4.1-nano",
-            tools=[visit_webpage]
-        )
-    ]
-)
+- **GET** `/` - Health check
+- **GET** `/frameworks` - List available agent frameworks
+- **POST** `/execute` - Execute a workflow
+- **GET** `/executions/{id}` - Get execution details
+- **WebSocket** `/ws/execution/{id}` - Real-time execution updates
 
-agent_trace = agent.run("Which Agent Framework is the best??")
-print(agent_trace.final_output)
+### Interactive API Documentation
+Visit http://localhost:8000/docs for the full API documentation.
+
+## 🎯 Usage
+
+### Creating Workflows
+
+1. **Open the Frontend**: http://localhost:3000
+2. **Drag Components**: Add agent nodes, tool nodes, and connections
+3. **Configure Agents**: Set models, instructions, and tools
+4. **Execute**: Run your workflow and see real-time results
+
+### Supported Agent Frameworks
+
+- **OpenAI Agents** - GPT-4, GPT-3.5-turbo
+- **LangChain** - Various LLM providers
+- **LlamaIndex** - Document-based agents
+- **Google ADK** - Google AI models
+- **Smolagents** - Hugging Face agents
+- **Agno AI** - Agno platform
+- **TinyAgent** - Lightweight agents
+
+### Example Workflow
+
+```json
+{
+  "nodes": [
+    {
+      "id": "agent-1",
+      "type": "agent",
+      "data": {
+        "label": "Research Agent",
+        "model_id": "gpt-4",
+        "instructions": "Research the given topic thoroughly"
+      }
+    },
+    {
+      "id": "tool-1",
+      "type": "tool",
+      "data": {
+        "label": "Web Search",
+        "type": "search_web"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "agent-1",
+      "target": "tool-1"
+    }
+  ]
+}
 ```
 
-## Features
+## 🐛 Troubleshooting
 
-`any-agent` supports the use of Model Context Protocol (MCP) servers, and if the agent framework allows,
-any LLM and provider using [LiteLLM](https://docs.litellm.ai/docs/) syntax.
+### Common Issues
 
-Learn more in the docs:
-
-- [Models](https://mozilla-ai.github.io/any-agent/agents/#model-id)
-- [Tools](https://mozilla-ai.github.io/any-agent/tools/)
-- [Instructions](https://mozilla-ai.github.io/any-agent/instructions/)
-- [Tracing](https://mozilla-ai.github.io/any-agent/tracing/)
-- [Evaluation](https://mozilla-ai.github.io/any-agent/evaluation/)
-
-
-## Contributions
-
-The AI agent space is moving fast! If you see a new agentic framework that AnyAgent doesn't yet support, we would love for you to create a Github issue. We also welcome your support in development of additional features or functionality.
-
-
-## Running in Jupyter Notebook
-
-If running in Jupyter Notebook you will need to add the following two lines before running AnyAgent, otherwise you may see the error `RuntimeError: This event loop is already running`. This is a known limitation of Jupyter Notebooks, see [Github Issue](https://github.com/jupyter/notebook/issues/3397#issuecomment-376803076)
-
-```python
-import nest_asyncio
-nest_asyncio.apply()
+**Port Already in Use**:
+```bash
+./scripts/stop.sh  # Stop all servers
+./scripts/dev.sh   # Restart
 ```
+
+**Dependencies Missing**:
+```bash
+./scripts/setup.sh  # Reinstall dependencies
+```
+
+**Backend Not Starting**:
+```bash
+# Check backend logs
+tail -f backend.log
+
+# Ensure any-agent is installed
+cd backend && source venv/bin/activate
+pip install 'any-agent[openai]'
+```
+
+**Frontend Build Errors**:
+```bash
+# Clean and reinstall
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### Log Files
+
+- **Frontend logs**: `frontend.log`
+- **Backend logs**: `backend.log`
+
+## 🤝 Contributing
+
+This project is designed to be AI-friendly and easily modifiable:
+
+1. **Clear Structure**: Organized directories and consistent patterns
+2. **Comprehensive Documentation**: Context for AI assistants
+3. **Modular Architecture**: Easy to modify individual components
+4. **Error Handling**: Clear error messages and solutions
+
+## 📚 Documentation
+
+- [Any-Agent Framework](https://mozilla-ai.github.io/any-agent/)
+- [API Documentation](http://localhost:8000/docs) (when running)
+- [Frontend Components](./frontend/app/components/)
+- [Backend API](./backend/)
+
+## 📄 License
+
+This project maintains the same license as the original any-agent framework.
+
+---
+
+**Built with ❤️ for the AI community**
