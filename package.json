@@ -1,4 +1,32 @@
 {
+  "name": "any-agent-workflow-composer",
+  "version": "1.0.0",
+  "description": "Visual workflow composer for any-agent multi-agent orchestration",
+  "scripts": {
+    "start": "./start.sh",
+    "stop": "./stop.sh",
+    "dev": "./dev.sh",
+    "logs": "tail -f backend.log frontend.log",
+    "logs:backend": "tail -f backend.log",
+    "logs:frontend": "tail -f frontend.log",
+    "status": "lsof -i :3000,3001,8000 || echo 'No services running'",
+    "test:backend": "curl -s http://localhost:8000/ | jq .",
+    "test:frontend": "curl -s http://localhost:3000/ | head -3"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "workflow",
+    "orchestration",
+    "visual",
+    "composer"
+  ],
+  "author": "any-agent team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "python": ">=3.8.0"
+  },
   "devDependencies": {
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.35",
