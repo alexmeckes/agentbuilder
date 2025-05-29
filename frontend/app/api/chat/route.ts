@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
+
 export async function POST(request: NextRequest) {
   try {
     const { messages, workflowContext, extractionMode } = await request.json()
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
       const latestMessage = messages[messages.length - 1]
       
       // Call our any-agent backend for extraction
-      const backendResponse = await fetch('http://localhost:8000/execute', {
+      const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -199,7 +201,7 @@ Always focus on helping them build better workflows, and when appropriate, offer
     }
 
     // Call our any-agent backend
-    const backendResponse = await fetch('http://localhost:8000/execute', {
+    const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

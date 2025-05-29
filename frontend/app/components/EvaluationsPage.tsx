@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { 
   FlaskConical, Play, Plus, FileText, BarChart3, Clock, 
   CheckCircle, XCircle, AlertCircle, Eye, Download, Upload,
@@ -10,6 +10,8 @@ import { EvaluationCase, EvaluationRun, EvaluationMetrics, EVALUATION_TEMPLATES,
 import { EvaluationCaseEditor } from './evaluations/EvaluationCaseEditor'
 import { EvaluationResultsModal } from './evaluations/EvaluationResultsModal'
 import { EvaluationRunModal } from './evaluations/EvaluationRunModal'
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 export default function EvaluationsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'cases' | 'runs' | 'results'>('overview')
@@ -45,15 +47,15 @@ export default function EvaluationsPage() {
     setLoading(true)
     try {
       // Fetch evaluation cases
-      const casesResponse = await fetch('http://localhost:8000/evaluations/cases')
+      const casesResponse = await fetch(`${BACKEND_URL}/evaluations/cases`)
       const casesData = casesResponse.ok ? await casesResponse.json() : { cases: [] }
       
       // Fetch evaluation runs
-      const runsResponse = await fetch('http://localhost:8000/evaluations/runs')
+      const runsResponse = await fetch(`${BACKEND_URL}/evaluations/runs`)
       const runsData = runsResponse.ok ? await runsResponse.json() : { runs: [] }
       
       // Fetch metrics
-      const metricsResponse = await fetch('http://localhost:8000/evaluations/metrics')
+      const metricsResponse = await fetch(`${BACKEND_URL}/evaluations/metrics`)
       const metricsData = metricsResponse.ok ? await metricsResponse.json() : null
 
       // Transform the data to match our types
@@ -143,7 +145,7 @@ export default function EvaluationsPage() {
         final_output_criteria: runConfig.evaluationCase.final_output_criteria || []
       }
 
-      const response = await fetch('http://localhost:8000/evaluations/run', {
+      const response = await fetch(`${BACKEND_URL}/evaluations/run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -220,7 +222,7 @@ export default function EvaluationsPage() {
       if (!isPolling) return // Stop if polling was cancelled
       
       try {
-        const response = await fetch(`http://localhost:8000/evaluations/runs/${evaluationId}/progress`)
+        const response = await fetch(`${BACKEND_URL}/evaluations/runs/${evaluationId}/progress`)
         if (response.ok) {
           const progressData = await response.json()
           setRunProgress(prev => ({
@@ -348,7 +350,7 @@ export default function EvaluationsPage() {
     setSaveStatus({ type: 'saving', message: 'Saving evaluation case...' })
     
     try {
-      const response = await fetch('http://localhost:8000/evaluations/cases', {
+      const response = await fetch(`${BACKEND_URL}/evaluations/cases`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

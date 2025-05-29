@@ -573,9 +573,22 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+import os
+
+# Configure CORS origins based on environment
+if os.getenv("ENVIRONMENT") == "production":
+    # In production, allow all origins (you can restrict this later to your specific domain)
+    cors_origins = ["*"]
+else:
+    # In development, allow only local development servers
+    cors_origins = [
+        "http://localhost:3000", 
+        "http://localhost:3001",  # Next.js dev servers
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Next.js dev servers
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

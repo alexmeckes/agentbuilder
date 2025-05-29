@@ -1,6 +1,8 @@
 // Workflow execution service - integrates with any-agent backend
 
 import { WorkflowIdentity } from '../types/workflow'
+import { Workflow, WorkflowExecution, WorkflowExecutionStep } from '../types/workflow'
+import { WorkflowNode, WorkflowEdge } from '../components/WorkflowEditor'
 
 export interface WorkflowNode {
   id: string
@@ -56,7 +58,7 @@ export interface FrameworkInfo {
   default: string
 }
 
-const BACKEND_URL = 'http://localhost:8000'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 export class WorkflowService {
   /**
@@ -145,7 +147,8 @@ export class WorkflowService {
     onError?: (error: Event) => void,
     onClose?: (event: CloseEvent) => void
   ): WebSocket {
-    const ws = new WebSocket(`ws://localhost:8000/ws/execution/${executionId}`)
+    const wsUrl = BACKEND_URL.replace('http', 'ws')
+    const ws = new WebSocket(`${wsUrl}/ws/execution/${executionId}`)
     
     ws.onmessage = (event) => {
       try {
