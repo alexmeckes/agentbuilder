@@ -306,10 +306,10 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         framework_enum = AgentFramework.from_string(framework.upper())
         
         # Create and run the any-agent using the real API
+        # Note: Removing managed_agents parameter for compatibility
         agent = AnyAgent.create(
             agent_framework=framework_enum,
-            agent_config=main_agent_config,
-            managed_agents=managed_agents_config if managed_agents_config else None
+            agent_config=main_agent_config
         )
         
         # Run the agent and get the trace
@@ -519,8 +519,7 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                         # Create and run the any-agent using the real API
                         agent = AnyAgent.create(
                             agent_framework=framework_enum,
-                            agent_config=main_agent_config,
-                            managed_agents=managed_agents_config if managed_agents_config else None
+                            agent_config=main_agent_config
                         )
                         
                         agent_trace = agent.run(input_data)
