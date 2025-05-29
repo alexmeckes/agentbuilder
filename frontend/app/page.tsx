@@ -9,12 +9,12 @@ import ExperimentsPage from './components/ExperimentsPage'
 import EvaluationsPage from './components/EvaluationsPage'
 import PreferencesModal from './components/settings/PreferencesModal'
 import type { Node, Edge } from 'reactflow'
-import { Workflow, MessageSquare, Settings, Play, BarChart3, Beaker, FlaskConical } from 'lucide-react'
+import { Workflow, MessageSquare, Settings, BarChart3, Beaker, FlaskConical } from 'lucide-react'
 
 export default function Home() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
-  const [activeTab, setActiveTab] = useState<'design' | 'chat' | 'trace' | 'analytics' | 'experiments' | 'evaluations'>('chat')
+  const [activeTab, setActiveTab] = useState<'design' | 'chat' | 'analytics' | 'experiments' | 'evaluations'>('chat')
   const [isExecuting, setIsExecuting] = useState(false)
   const [workflowExecutionInput, setWorkflowExecutionInput] = useState('Hello, please analyze this data and provide insights.')
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
@@ -195,108 +195,99 @@ export default function Home() {
     <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col">
       {/* Modern Header */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
+            {/* Brand Section */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <Workflow className="w-6 h-6 text-white" />
+              <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
+                <Workflow className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900">any-agent Composer</h1>
-                <p className="text-sm text-slate-500">Build AI workflows visually</p>
+                <h1 className="text-lg font-bold text-slate-900">any-agent Composer</h1>
+                <p className="text-xs text-slate-500">Build AI workflows visually</p>
               </div>
             </div>
             
-            {/* Tab Navigation */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+            {/* Main Navigation */}
+            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
               <button
                 onClick={() => setActiveTab('chat')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeTab === 'chat' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
                 <MessageSquare className="w-4 h-4" />
-                AI Assistant
+                <span>AI Assistant</span>
               </button>
+              
               <button
                 onClick={() => setActiveTab('design')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeTab === 'design' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
                 <Workflow className="w-4 h-4" />
-                Visual Designer
+                <span>Design</span>
                 {nodes.length > 0 && (
-                  <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                  <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-medium">
                     {nodes.length}
                   </span>
                 )}
               </button>
-              <button
-                onClick={() => setActiveTab('experiments')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'experiments' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Beaker className="w-4 h-4" />
-                A/B Testing
-              </button>
-              <button
-                onClick={() => setActiveTab('trace')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'trace' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Play className="w-4 h-4" />
-                Trace Viewer
-              </button>
+              
               <button
                 onClick={() => setActiveTab('analytics')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeTab === 'analytics' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
                 <BarChart3 className="w-4 h-4" />
-                Analytics
+                <span>Analytics</span>
               </button>
+              
+              <button
+                onClick={() => setActiveTab('experiments')}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  activeTab === 'experiments' 
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                <Beaker className="w-4 h-4" />
+                <span>A/B Testing</span>
+              </button>
+              
               <button
                 onClick={() => setActiveTab('evaluations')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeTab === 'evaluations' 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
                 <FlaskConical className="w-4 h-4" />
-                Evaluations
+                <span>Evaluations</span>
               </button>
             </div>
 
-            {/* Quick Stats */}
-            <div className="flex items-center gap-4 text-sm">
-              <div className="text-slate-600">
-                <span className="font-medium">{nodes.length}</span> nodes
-              </div>
-              <div className="text-slate-600">
-                <span className="font-medium">{edges.length}</span> connections
-              </div>
+            {/* Settings Button */}
+            <div className="flex items-center">
               <button
-                onClick={() => setIsPreferencesOpen(true)}
-                className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                onClick={() => {
+                  console.log('Settings button clicked')
+                  setIsPreferencesOpen(true)
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
                 title="Settings & Preferences"
               >
                 <Settings className="w-4 h-4" />
-                Settings
+                <span className="text-sm font-medium">Settings</span>
               </button>
             </div>
           </div>
@@ -331,24 +322,27 @@ export default function Home() {
           <div className="h-full">
             <ExperimentsPage />
           </div>
-        ) : activeTab === 'trace' ? (
-          <div className="h-full">
-            <TraceViewer 
-              executionId={selectedExecutionId}
-              onClose={() => {
-                setSelectedExecutionId(null)
-                setActiveTab('analytics')
-              }}
-            />
-          </div>
         ) : activeTab === 'analytics' ? (
           <div className="h-full">
             <AnalyticsDashboard 
               onExecutionSelect={(executionId) => {
                 setSelectedExecutionId(executionId)
-                setActiveTab('trace')
+                // Keep on analytics tab, the TraceViewer will be shown as overlay/modal
               }}
             />
+            {/* Show TraceViewer as overlay modal when execution is selected */}
+            {selectedExecutionId && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg shadow-xl w-full h-full max-w-7xl max-h-[95vh] m-4 overflow-hidden">
+                  <TraceViewer 
+                    executionId={selectedExecutionId}
+                    onClose={() => {
+                      setSelectedExecutionId(null)
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         ) : activeTab === 'evaluations' ? (
           <div className="h-full">

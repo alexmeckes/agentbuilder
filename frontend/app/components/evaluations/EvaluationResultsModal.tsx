@@ -15,12 +15,12 @@ export function EvaluationResultsModal({ evaluationRun, isOpen, onClose }: Evalu
   const { result } = evaluationRun
   const allResults = [
     ...result.checkpoint_results,
-    ...result.hypothesis_answer_results,
-    ...result.direct_results
+    ...result.ground_truth_results,
+    ...result.final_output_results
   ]
 
-  const totalPoints = allResults.reduce((sum, r) => sum + r.points, 0)
-  const earnedPoints = allResults.filter(r => r.passed).reduce((sum, r) => sum + r.points, 0)
+  const totalPoints = result.total_points || allResults.reduce((sum, r) => sum + r.points, 0)
+  const earnedPoints = result.earned_points || allResults.filter(r => r.passed).reduce((sum, r) => sum + r.points, 0)
   const passedCount = allResults.filter(r => r.passed).length
   const failedCount = allResults.length - passedCount
 
@@ -69,9 +69,9 @@ export function EvaluationResultsModal({ evaluationRun, isOpen, onClose }: Evalu
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[95vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{evaluationRun.name}</h2>
             <p className="text-sm text-gray-600">Evaluation Results</p>
@@ -90,7 +90,7 @@ export function EvaluationResultsModal({ evaluationRun, isOpen, onClose }: Evalu
           </div>
         </div>
 
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+        <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-6">
             {/* Overall Score */}
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6">
@@ -190,14 +190,14 @@ export function EvaluationResultsModal({ evaluationRun, isOpen, onClose }: Evalu
               />
 
               <ResultSection
-                title="Final Answer Evaluations"
-                results={result.hypothesis_answer_results}
+                title="Ground Truth Evaluations"
+                results={result.ground_truth_results}
                 color="text-blue-700"
               />
 
               <ResultSection
-                title="Direct Comparisons"
-                results={result.direct_results}
+                title="Final Output Evaluations"
+                results={result.final_output_results}
                 color="text-green-700"
               />
 
@@ -228,7 +228,7 @@ export function EvaluationResultsModal({ evaluationRun, isOpen, onClose }: Evalu
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 flex-shrink-0">
           <button className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
             <Eye className="w-4 h-4" />
             View Trace

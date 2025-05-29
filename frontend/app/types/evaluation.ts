@@ -17,19 +17,26 @@ export interface GroundTruthAnswer {
 }
 
 export interface EvaluationCase {
+  id?: string
+  name?: string
   llm_judge: string
   checkpoints: CheckpointCriteria[]
   ground_truth: GroundTruthAnswer[]
   final_output_criteria: CheckpointCriteria[]
+  created_at?: string
 }
 
 export interface TraceEvaluationResult {
   trace: any // AgentTrace type would go here
   hypothesis_answer: string | null
   checkpoint_results: EvaluationResult[]
-  hypothesis_answer_results: EvaluationResult[]
-  direct_results: EvaluationResult[]
+  ground_truth_results: EvaluationResult[]
+  final_output_results: EvaluationResult[]
   score: number
+  passed?: boolean
+  total_points?: number
+  earned_points?: number
+  summary?: string
 }
 
 export interface EvaluationRun {

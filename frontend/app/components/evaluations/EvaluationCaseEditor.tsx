@@ -1,20 +1,52 @@
 "use client"
 
 import { useState } from 'react'
-import { X, Plus, Trash2, Save } from 'lucide-react'
+import { X, Plus, Trash2, Save, Bot, Loader2 } from 'lucide-react'
 import { EvaluationCase, CheckpointCriteria, GroundTruthAnswer } from '../../types/evaluation'
+import { EvaluationAssistant } from './EvaluationAssistant'
 
 interface EvaluationCaseEditorProps {
   evaluationCase: EvaluationCase
   isOpen: boolean
   onClose: () => void
   onSave: (evaluationCase: EvaluationCase) => void
+  isSaving?: boolean
 }
 
-export function EvaluationCaseEditor({ evaluationCase, isOpen, onClose, onSave }: EvaluationCaseEditorProps) {
+export function EvaluationCaseEditor({ evaluationCase, isOpen, onClose, onSave, isSaving = false }: EvaluationCaseEditorProps) {
   const [formData, setFormData] = useState<EvaluationCase>(evaluationCase)
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false)
 
   if (!isOpen) return null
+
+  const handleAssistantSuggestion = (suggestion: any) => {
+    switch (suggestion.type) {
+      case 'checkpoint':
+        if (suggestion.data.checkpoints) {
+          setFormData({
+            ...formData,
+            checkpoints: [...formData.checkpoints, ...suggestion.data.checkpoints]
+          })
+        }
+        break
+      case 'ground_truth':
+        if (suggestion.data.ground_truth) {
+          setFormData({
+            ...formData,
+            ground_truth: [...formData.ground_truth, ...suggestion.data.ground_truth]
+          })
+        }
+        break
+      case 'judge_model':
+        if (suggestion.data.llm_judge) {
+          setFormData({
+            ...formData,
+            llm_judge: suggestion.data.llm_judge
+          })
+        }
+        break
+    }
+  }
 
   const addCheckpoint = () => {
     setFormData({
@@ -65,12 +97,21 @@ export function EvaluationCaseEditor({ evaluationCase, isOpen, onClose, onSave }
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Edit Evaluation Case</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsAssistantOpen(!isAssistantOpen)}
+              className="px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 flex items-center gap-2 transition-all"
+            >
+              <Bot className="w-4 h-4" />
+              AI Assistant
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
@@ -227,19 +268,38 @@ export function EvaluationCaseEditor({ evaluationCase, isOpen, onClose, onSave }
         <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSaving}
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+            disabled={isSaving}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[140px] justify-center"
           >
-            <Save className="w-4 h-4" />
-            Save Evaluation Case
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save Evaluation
+              </>
+            )}
           </button>
         </div>
       </div>
+
+      {/* AI Assistant */}
+      <EvaluationAssistant
+        evaluationCase={formData}
+        onSuggestionApply={handleAssistantSuggestion}
+        isOpen={isAssistantOpen}
+        onToggle={() => setIsAssistantOpen(!isAssistantOpen)}
+      />
     </div>
   )
 } 

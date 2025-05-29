@@ -324,8 +324,8 @@ export default function WorkflowEditor({
   )
 
   const executeWorkflow = async () => {
-    if (!nodes.length) {
-      alert('Please add at least one agent node to execute the workflow.')
+    if (nodes.length === 0) {
+      alert('Please add some nodes to your workflow first')
       return
     }
 
@@ -366,11 +366,38 @@ export default function WorkflowEditor({
         WorkflowManager.updateExecutionStats(workflowDefinition.identity.id, false)
       }
 
-      setExecutionResult({
+      const finalResult = {
         ...result,
         workflow_name: workflowDefinition.identity.name,
         workflow_id: workflowDefinition.identity.id
-      })
+      }
+
+      setExecutionResult(finalResult)
+
+      // Save to localStorage for evaluation assistant dynamic pills
+      try {
+        const recentExecutions = JSON.parse(localStorage.getItem('recentWorkflowExecutions') || '[]')
+        
+        const executionData = {
+          execution_id: result.execution_id,
+          workflow_name: workflowDefinition.identity.name,
+          workflow_category: workflowDefinition.identity.category,
+          workflow_description: workflowDefinition.identity.description,
+          workflow: workflow,
+          input_data: inputData,
+          created_at: Date.now(),
+          status: result.status
+        }
+        
+        // Add to front of array and keep only last 10
+        recentExecutions.unshift(executionData)
+        const trimmedExecutions = recentExecutions.slice(0, 10)
+        
+        localStorage.setItem('recentWorkflowExecutions', JSON.stringify(trimmedExecutions))
+        console.log(`💾 Saved execution to localStorage: "${workflowDefinition.identity.name}"`)
+      } catch (error) {
+        console.error('Failed to save execution to localStorage:', error)
+      }
       
       // If execution is still running, we could set up WebSocket here
       if (result.status === 'running') {
