@@ -30,8 +30,11 @@ from setup_env import setup_environment
 # Setup environment and get configuration
 config = setup_environment()
 
-# Import the REAL any-agent framework
-from any_agent import AgentConfig, AgentFramework, AnyAgent
+# Import lightweight evaluation instead of heavy any-agent evaluation
+from lightweight_evaluation import evaluate_workflow_output
+
+# Import the REAL any-agent framework (but not evaluation components)
+# from any_agent import AgentConfig, AgentFramework, AnyAgent
 
 # Mock search_web function
 def search_web(query: str):
@@ -1101,92 +1104,23 @@ Based on the request about grizzly bear spotting in Yellowstone, here are the be
             })
             
             try:
-                evaluation_prompt = f"""You are an expert evaluator judging AI workflow outputs. Evaluate the following output against the specified criteria.
-
-EVALUATION CRITERIA: {checkpoint['criteria']}
-POINTS AVAILABLE: {checkpoint['points']}
-
-WORKFLOW OUTPUT TO EVALUATE:
-{sample_workflow_output}
-
-Your task is to determine if the workflow output meets the specified criteria. Respond with ONLY a JSON object in this exact format:
-
-{{
-  "passed": true/false,
-  "points_earned": number (0 to {checkpoint['points']}),
-  "reason": "Detailed explanation of why this passed or failed the criteria"
-}}
-
-Be strict but fair in your evaluation. The reason should explain specifically what aspects of the output led to your decision."""
-
-                # Use the same LLM framework to evaluate
-                evaluation_workflow = {
-                    "nodes": [
-                        {
-                            "id": "evaluator",
-                            "type": "agent", 
-                            "data": {
-                                "name": "EvaluationJudge",
-                                "instructions": "You are a strict but fair evaluator. Always respond with valid JSON in the exact format requested. Be specific in your reasoning.",
-                                "model_id": llm_judge.split("/")[-1] if "/" in llm_judge else llm_judge
-                            },
-                            "position": {"x": 0, "y": 0}
-                        }
-                    ],
-                    "edges": []
-                }
-
-                from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent
-                
-                eval_result = await execute_visual_workflow_with_anyagent(
-                    nodes=evaluation_workflow["nodes"],
-                    edges=evaluation_workflow["edges"],
-                    input_data=evaluation_prompt,
-                    framework="openai"
+                # Use our lightweight evaluation instead of complex any-agent workflow
+                eval_result = evaluate_workflow_output(
+                    workflow_output=sample_workflow_output,
+                    criteria=checkpoint['criteria'],
+                    points=checkpoint['points'],
+                    model=llm_judge.split("/")[-1] if "/" in llm_judge else llm_judge
                 )
-
-                if "error" not in eval_result and eval_result.get("final_output"):
-                    try:
-                        import json
-                        eval_response = eval_result["final_output"].strip()
-                        
-                        # Clean up response
-                        if eval_response.startswith("```json"):
-                            eval_response = eval_response.split("```json")[1].split("```")[0].strip()
-                        elif eval_response.startswith("```"):
-                            eval_response = eval_response.split("```")[1].split("```")[0].strip()
-                        
-                        parsed_eval = json.loads(eval_response)
-                        
-                        checkpoint_results.append({
-                            "criteria": checkpoint["criteria"],
-                            "points": checkpoint["points"],
-                            "points_earned": parsed_eval.get("points_earned", 0),
-                            "passed": parsed_eval.get("passed", False),
-                            "reason": parsed_eval.get("reason", "LLM evaluation completed")
-                        })
-                        
-                        print(f"✅ Checkpoint {i+1} evaluated: {'PASSED' if parsed_eval.get('passed') else 'FAILED'}")
-                        
-                    except (json.JSONDecodeError, KeyError) as e:
-                        print(f"⚠️ Failed to parse evaluation response for checkpoint {i+1}: {e}")
-                        # Fallback to a reasonable evaluation
-                        checkpoint_results.append({
-                            "criteria": checkpoint["criteria"],
-                            "points": checkpoint["points"],
-                            "points_earned": checkpoint["points"] if i < 3 else 0,  # Pass most criteria
-                            "passed": i < 3,
-                            "reason": f"Evaluated criterion: {checkpoint['criteria']} - {'Criteria met based on workflow output' if i < 3 else 'Criterion not fully satisfied'}"
-                        })
-                else:
-                    print(f"❌ LLM evaluation failed for checkpoint {i+1}")
-                    checkpoint_results.append({
-                        "criteria": checkpoint["criteria"],
-                        "points": checkpoint["points"],
-                        "points_earned": 0,
-                        "passed": False,
-                        "reason": "Evaluation service temporarily unavailable"
-                    })
+                
+                checkpoint_results.append({
+                    "criteria": checkpoint["criteria"],
+                    "points": checkpoint["points"],
+                    "points_earned": eval_result.points if eval_result.passed else 0,
+                    "passed": eval_result.passed,
+                    "reason": eval_result.reason
+                })
+                
+                print(f"✅ Checkpoint {i+1} evaluated: {'PASSED' if eval_result.passed else 'FAILED'}")
                     
             except Exception as e:
                 print(f"❌ Error evaluating checkpoint {i+1}: {e}")
