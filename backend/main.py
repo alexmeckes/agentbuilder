@@ -579,14 +579,17 @@ app = FastAPI(
 import os
 
 # Configure CORS origins based on environment
-if os.getenv("ENVIRONMENT") == "production":
-    # In production, allow all origins (you can restrict this later to your specific domain)
-    cors_origins = ["*"]
+vercel_frontend_url = "https://agentfactory-frontend-ntg6woqjj-alexmeckes-gmailcoms-projects.vercel.app"
+
+if os.getenv("ENVIRONMENT") == "production" or os.getenv("RENDER"):
+    # In production (Render), allow Vercel frontend and all origins
+    cors_origins = [vercel_frontend_url, "*"]
 else:
-    # In development, allow only local development servers
+    # In development, allow only local development servers and Vercel
     cors_origins = [
         "http://localhost:3000", 
         "http://localhost:3001",  # Next.js dev servers
+        vercel_frontend_url  # Always allow the Vercel frontend
     ]
 
 app.add_middleware(
