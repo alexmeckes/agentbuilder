@@ -428,7 +428,7 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
         # Set USE_MOCK_EXECUTION=false for real any-agent execution (experimental)
         # Set USE_MOCK_EXECUTION=true for intelligent workflow suggestions (stable)
         import os
-        execution_mode = os.getenv("USE_MOCK_EXECUTION", "true").lower()
+        execution_mode = os.getenv("USE_MOCK_EXECUTION", "false").lower()
         
         if execution_mode == "true":
             # WORKFLOW SUGGESTION MODE: Provide intelligent workflow building guidance
