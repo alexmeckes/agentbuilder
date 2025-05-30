@@ -15,5 +15,5 @@ opentelemetry-sdk
 requests
 rich
 fire
-# Lightweight version without heavy ML dependencies
-# git+https://github.com/mozilla-ai/any-agent.git 
+# Install any-agent but we'll use our lightweight evaluation instead of their heavy one
+git+https://github.com/mozilla-ai/any-agent.git 
