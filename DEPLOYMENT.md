@@ -2,6 +2,40 @@
 
 This document outlines how to deploy the Any-Agent Workflow Composer to various platforms.
 
+## 🚨 Critical: Proxy Architecture & Environment Variables
+
+**IMPORTANT**: The frontend uses a proxy architecture where workflow executions from the Designer are routed through frontend API routes to the backend. This requires specific environment variable configuration.
+
+### Required Environment Variables
+
+The application requires **TWO different environment variables** for proper operation:
+
+1. **`BACKEND_URL`** - Used by server-side API routes (like `/api/execute`) to proxy requests to the backend
+2. **`NEXT_PUBLIC_BACKEND_URL`** - Used by client-side code for direct API calls
+
+**Development Example:**
+```bash
+# In frontend/.env.local
+BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+```
+
+**Production Example:**
+```bash
+# In Vercel environment variables
+BACKEND_URL=https://your-backend.onrender.com
+NEXT_PUBLIC_BACKEND_URL=https://your-backend.onrender.com
+```
+
+### How It Works
+
+1. **Designer Executions**: When you click "Execute" in the Visual Designer, the request goes to `/api/execute`
+2. **Frontend Proxy**: The `/api/execute` route uses `BACKEND_URL` to forward the request to your backend
+3. **Analytics Integration**: Backend processes the workflow and records it in analytics
+4. **Direct API Calls**: Some frontend components use `NEXT_PUBLIC_BACKEND_URL` for direct backend communication
+
+**⚠️ Without proper environment variables**: Workflows will appear to execute but won't show up in Analytics, causing discrepancies between Designer execution counts and backend records.
+
 ## Architecture Overview
 
 - **Frontend**: Next.js 14 app (Vercel-compatible)
@@ -131,18 +165,35 @@ export async function POST(request: NextRequest) {
 
 ### Environment Variables
 
+**⚠️ CRITICAL: Both environment variables are required for proper workflow execution!**
+
 **Development (.env.local):**
-```
+```bash
+# Required for proxy routes (server-side)
 BACKEND_URL=http://localhost:8000
+
+# Required for client-side API calls
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 ```
 
 **Production (Vercel Dashboard):**
-```
-BACKEND_URL=https://your-backend.railway.app
-NEXT_PUBLIC_BACKEND_URL=https://your-backend.railway.app
+```bash
+# Required for proxy routes (server-side)
+BACKEND_URL=https://your-backend.onrender.com
+
+# Required for client-side API calls  
+NEXT_PUBLIC_BACKEND_URL=https://your-backend.onrender.com
+
+# Your AI provider API keys
 OPENAI_API_KEY=your-openai-key
+ANTHROPIC_API_KEY=your-anthropic-key
 ```
+
+**Important Notes:**
+- **DO NOT** use a trailing slash in URLs
+- **Both variables** must point to the same backend URL
+- **Restart** your development server after changing `.env.local`
+- **Redeploy** your Vercel frontend after updating environment variables
 
 ## Database Requirements
 
@@ -180,17 +231,63 @@ If your backend uses persistent storage:
 
 ### Common Issues
 
-1. **CORS Errors**: Configure backend CORS settings
-2. **Environment Variables**: Ensure all required vars are set
-3. **WebSocket Issues**: May need separate WebSocket server
-4. **Cold Starts**: Consider serverless optimization
+**1. Workflows Execute But Don't Appear in Analytics**
+- **Symptom**: Designer shows exec_123 but Analytics shows 0 total workflows
+- **Cause**: Missing or incorrect `BACKEND_URL` environment variable
+- **Fix**: Ensure both `BACKEND_URL` and `NEXT_PUBLIC_BACKEND_URL` are set correctly
+- **Verify**: Check browser network tab for `/api/execute` calls returning 200 status
+
+**2. CORS Errors**
+- **Cause**: Backend CORS settings not configured properly
+- **Fix**: Configure backend CORS settings to allow your frontend domain
+
+**3. Environment Variables Not Working**
+- **Symptom**: Still connecting to localhost in production
+- **Cause**: Environment variables not set in Vercel or missing `NEXT_PUBLIC_` prefix
+- **Fix**: Set both variables in Vercel dashboard and redeploy
+
+**4. WebSocket Issues**
+- **Cause**: May need separate WebSocket server configuration
+- **Fix**: Consider serverless optimization or dedicated WebSocket handling
+
+**5. Cold Starts**
+- **Cause**: Backend takes time to wake up on free hosting tiers
+- **Fix**: Consider upgrading to paid hosting or implementing keep-alive pings
 
 ### Debug Steps
 
-1. Check Vercel deployment logs
-2. Verify environment variables
-3. Test API endpoints directly
-4. Check network requests in browser dev tools
+**1. Check Environment Variables**
+```bash
+# In your frontend directory
+cat .env.local
+
+# Should show both BACKEND_URL and NEXT_PUBLIC_BACKEND_URL
+```
+
+**2. Test Backend Connection**
+```bash
+# Test your backend directly
+curl https://your-backend.onrender.com/
+
+# Should return: {"status": "Any-Agent Workflow Composer Backend is running!"}
+```
+
+**3. Check Frontend API Route**
+```bash
+# Test the proxy route (replace with your frontend URL)
+curl -X POST https://your-frontend.vercel.app/api/execute \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_name": "test", "nodes": [], "edges": []}'
+```
+
+**4. Check Vercel Deployment Logs**
+- Go to Vercel Dashboard → Your Project → Functions
+- Check for any errors in the `/api/execute` function logs
+
+**5. Check Network Requests**
+- Open browser dev tools → Network tab
+- Execute a workflow and look for `/api/execute` requests
+- Verify the request reaches your backend successfully
 
 ## Cost Optimization
 

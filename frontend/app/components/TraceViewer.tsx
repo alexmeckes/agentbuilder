@@ -164,7 +164,7 @@ export function TraceViewer({ executionId, onClose }: TraceViewerProps) {
                   <Clock className="w-5 h-5 text-blue-600 mr-2" />
                   <div>
                     <p className="text-sm text-blue-600">Duration</p>
-                    <p className="font-semibold">{formatDuration(traceData.performance.total_duration_ms || null)}</p>
+                    <p className="font-semibold">{formatDuration(traceData.performance?.total_duration_ms || null)}</p>
                   </div>
                 </div>
               </div>
@@ -174,7 +174,7 @@ export function TraceViewer({ executionId, onClose }: TraceViewerProps) {
                   <DollarSign className="w-5 h-5 text-green-600 mr-2" />
                   <div>
                     <p className="text-sm text-green-600">Total Cost</p>
-                    <p className="font-semibold">{formatCost(traceData.performance.total_cost || 0)}</p>
+                    <p className="font-semibold">{formatCost(traceData.performance?.total_cost || 0)}</p>
                   </div>
                 </div>
               </div>
@@ -184,7 +184,7 @@ export function TraceViewer({ executionId, onClose }: TraceViewerProps) {
                   <Database className="w-5 h-5 text-purple-600 mr-2" />
                   <div>
                     <p className="text-sm text-purple-600">Total Tokens</p>
-                    <p className="font-semibold">{traceData.performance.total_tokens?.toLocaleString() || 'N/A'}</p>
+                    <p className="font-semibold">{traceData.performance?.total_tokens?.toLocaleString() || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -194,7 +194,7 @@ export function TraceViewer({ executionId, onClose }: TraceViewerProps) {
                   <Activity className="w-5 h-5 text-orange-600 mr-2" />
                   <div>
                     <p className="text-sm text-orange-600">Spans</p>
-                    <p className="font-semibold">{traceData.spans.length}</p>
+                    <p className="font-semibold">{traceData.spans?.length || 0}</p>
                   </div>
                 </div>
               </div>
@@ -204,7 +204,7 @@ export function TraceViewer({ executionId, onClose }: TraceViewerProps) {
             <div>
               <h3 className="text-lg font-medium mb-3">Final Output</h3>
               <div className="bg-gray-50 p-4 rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm">{traceData.final_output}</pre>
+                <pre className="whitespace-pre-wrap text-sm">{traceData.final_output || 'No output available'}</pre>
               </div>
             </div>
           </div>
@@ -213,75 +213,87 @@ export function TraceViewer({ executionId, onClose }: TraceViewerProps) {
         {activeTab === 'spans' && traceData && (
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Execution Spans</h3>
-            {traceData.spans.map((span, index) => (
-              <div key={index} className="border rounded-lg">
-                <div
-                  className="p-4 cursor-pointer hover:bg-gray-50"
-                  onClick={() => toggleSpanExpanded(`${index}`)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      {expandedSpans.has(`${index}`) ? (
-                        <ChevronDown className="w-4 h-4 mr-2" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 mr-2" />
-                      )}
-                      <div>
-                        <p className="font-medium">{span.name}</p>
-                        <p className="text-sm text-gray-600">
-                          {formatDuration(span.duration_ms)} • {span.kind}
+            {traceData.spans?.length > 0 ? (
+              traceData.spans.map((span, index) => (
+                <div key={index} className="border rounded-lg">
+                  <div
+                    className="p-4 cursor-pointer hover:bg-gray-50"
+                    onClick={() => toggleSpanExpanded(`${index}`)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        {expandedSpans.has(`${index}`) ? (
+                          <ChevronDown className="w-4 h-4 mr-2" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 mr-2" />
+                        )}
+                        <div>
+                          <p className="font-medium">{span.name || 'Unnamed Span'}</p>
+                          <p className="text-sm text-gray-600">
+                            {formatDuration(span.duration_ms || 0)} • {span.kind || 'Unknown'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">
+                          {span.attributes?.['llm.model_name'] || 'Unknown Model'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {span.attributes?.['llm.token_count.prompt'] && 
+                            `${span.attributes['llm.token_count.prompt']}→${span.attributes['llm.token_count.completion']} tokens`
+                          }
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">
-                        {span.attributes['llm.model_name'] || 'Unknown Model'}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {span.attributes['llm.token_count.prompt'] && 
-                          `${span.attributes['llm.token_count.prompt']}→${span.attributes['llm.token_count.completion']} tokens`
-                        }
-                      </p>
-                    </div>
                   </div>
-                </div>
-                
-                {expandedSpans.has(`${index}`) && (
-                  <div className="border-t p-4 bg-gray-50">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="font-medium mb-2">Attributes</h4>
-                        <div className="space-y-1">
-                          {Object.entries(span.attributes).map(([key, value]) => (
-                            <div key={key} className="text-sm">
-                              <span className="text-gray-600">{key}:</span>{' '}
-                              <span className="font-mono">{String(value)}</span>
+                  
+                  {expandedSpans.has(`${index}`) && (
+                    <div className="border-t p-4 bg-gray-50">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <h4 className="font-medium mb-2">Attributes</h4>
+                          <div className="space-y-1">
+                            {span.attributes ? Object.entries(span.attributes).map(([key, value]) => (
+                              <div key={key} className="text-sm">
+                                <span className="text-gray-600">{key}:</span>{' '}
+                                <span className="font-mono">{String(value)}</span>
+                              </div>
+                            )) : (
+                              <p className="text-sm text-gray-500">No attributes available</p>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-2">Timing</h4>
+                          <div className="space-y-1 text-sm">
+                            <div>
+                              <span className="text-gray-600">Start:</span>{' '}
+                              <span className="font-mono">
+                                {span.start_time ? new Date(span.start_time / 1000000).toISOString() : 'N/A'}
+                              </span>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium mb-2">Timing</h4>
-                        <div className="space-y-1 text-sm">
-                          <div>
-                            <span className="text-gray-600">Start:</span>{' '}
-                            <span className="font-mono">{new Date(span.start_time / 1000000).toISOString()}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">End:</span>{' '}
-                            <span className="font-mono">{new Date(span.end_time / 1000000).toISOString()}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Duration:</span>{' '}
-                            <span className="font-mono">{formatDuration(span.duration_ms)}</span>
+                            <div>
+                              <span className="text-gray-600">End:</span>{' '}
+                              <span className="font-mono">
+                                {span.end_time ? new Date(span.end_time / 1000000).toISOString() : 'N/A'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Duration:</span>{' '}
+                              <span className="font-mono">{formatDuration(span.duration_ms || 0)}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="bg-gray-50 p-8 text-center rounded-lg">
+                <p className="text-gray-600">No execution spans available</p>
               </div>
-            ))}
+            )}
           </div>
         )}
 

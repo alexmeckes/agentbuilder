@@ -50,6 +50,7 @@ interface WorkflowEditorProps {
   onWorkflowChange?: (nodes: Node[], edges: Edge[]) => void
   executionInput?: string
   onExecutionInputChange?: (input: string) => void
+  workflowIdentity?: any
 }
 
 export default function WorkflowEditor({ 
@@ -59,7 +60,8 @@ export default function WorkflowEditor({
   onEdgesChange: externalOnEdgesChange,
   onWorkflowChange,
   executionInput: externalExecutionInput,
-  onExecutionInputChange
+  onExecutionInputChange,
+  workflowIdentity: externalWorkflowIdentity
 }: WorkflowEditorProps = {}) {
   // Use external state if provided, otherwise use internal state
   const [internalNodes, setInternalNodes, onInternalNodesChange] = useNodesState(externalNodes || initialNodes)
@@ -93,6 +95,14 @@ export default function WorkflowEditor({
       return () => clearTimeout(timer)
     }
   }, [externalExecutionInput, internalInputData])
+
+  // Set workflow identity from external prop
+  useEffect(() => {
+    if (externalWorkflowIdentity) {
+      console.log(`🎯 Setting workflow identity from external: "${externalWorkflowIdentity.name}"`)
+      setCurrentWorkflowIdentity(externalWorkflowIdentity)
+    }
+  }, [externalWorkflowIdentity])
 
   // Sync external state changes to internal state
   useEffect(() => {
@@ -333,18 +343,40 @@ export default function WorkflowEditor({
     setExecutionResult(null)
 
     try {
-      // First, create or update the workflow identity using AI naming
-      console.log('Generating workflow identity...')
-      const workflowDefinition = await WorkflowManager.createOrUpdateWorkflow(
-        nodes, 
-        edges, 
-        inputData // Use input as context for naming
-      )
+      let workflowDefinition: any;
+      
+      // Use existing workflow identity if available, otherwise generate new one
+      if (currentWorkflowIdentity) {
+        console.log(`Using existing workflow identity: "${currentWorkflowIdentity.name}"`)
+        workflowDefinition = {
+          identity: currentWorkflowIdentity,
+          nodes,
+          edges,
+          metadata: {
+            node_count: nodes.length,
+            edge_count: edges.length,
+            agent_count: nodes.filter(n => n.data?.type === 'agent').length,
+            tool_count: nodes.filter(n => n.data?.type === 'tool').length,
+            input_count: nodes.filter(n => n.data?.type === 'input').length,
+            output_count: nodes.filter(n => n.data?.type === 'output').length,
+            complexity_score: Math.min(nodes.length + edges.length, 10),
+            estimated_cost: 0
+          }
+        }
+      } else {
+        // Generate new workflow identity using AI naming
+        console.log('Generating new workflow identity...')
+        workflowDefinition = await WorkflowManager.createOrUpdateWorkflow(
+          nodes, 
+          edges, 
+          inputData // Use input as context for naming
+        )
+        
+        // Store the new workflow identity for UI display
+        setCurrentWorkflowIdentity(workflowDefinition.identity)
+      }
 
       console.log(`Executing workflow: "${workflowDefinition.identity.name}"`)
-      
-      // Store the workflow identity for UI display
-      setCurrentWorkflowIdentity(workflowDefinition.identity)
       
       // Convert to the format expected by the execution service
       const workflow = WorkflowService.convertToWorkflowDefinition(nodes, edges)
@@ -856,7 +888,8 @@ export default function WorkflowEditor({
                   </div>
                 </div>
                 <div className="text-xs text-slate-600 max-h-16 overflow-y-auto">
-                  {formatResultText(executionResult.result).substring(0, 150)}...
+                  {executionResult.result ? formatResultText(executionResult.result).substring(0, 150) + '...' : 
+                   executionResult.error ? `Error: ${executionResult.error}` : 'No result available'}
                 </div>
               </div>
             )}

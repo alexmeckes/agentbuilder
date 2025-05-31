@@ -12,17 +12,17 @@ export interface AIResponse {
     targetId?: string
   }>
   error?: string
+  hasWorkflowActions?: boolean
 }
 
-// Helper function to get user preferences from localStorage
+// Get user preferences from localStorage
 function getUserPreferences() {
   if (typeof window === 'undefined') return null
   
   try {
-    const stored = localStorage.getItem('workflow-composer-preferences')
-    return stored ? JSON.parse(stored) : null
-  } catch (error) {
-    console.warn('Failed to load user preferences:', error)
+    const prefs = localStorage.getItem('userPreferences')
+    return prefs ? JSON.parse(prefs) : null
+  } catch {
     return null
   }
 }
@@ -58,7 +58,8 @@ export async function sendMessageToAI(
     const data = await response.json()
     return { 
       message: data.message,
-      actions: data.actions || []
+      actions: data.actions || [],
+      hasWorkflowActions: data.hasWorkflowActions
     }
   } catch (error) {
     console.error('Error sending message to AI:', error)

@@ -1,6 +1,6 @@
-export type MessageRole = 'user' | 'assistant' | 'system'
+export type MessageRole = 'user' | 'assistant'
 
-export type MessageType = 'text' | 'code' | 'error' | 'success'
+export type MessageType = 'default' | 'success' | 'error'
 
 export interface ChatMessage {
   id: string
@@ -18,6 +18,8 @@ export interface ChatMessage {
     sourceId?: string
     targetId?: string
   }>
+  hasWorkflowActions?: boolean
+  originalUserQuery?: string
 }
 
 export interface ChatState {

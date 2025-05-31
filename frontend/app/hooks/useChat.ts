@@ -45,7 +45,7 @@ export function useChat() {
     const userMessage: ChatMessage = {
       id: uuidv4(),
       role: 'user',
-      type: 'text',
+      type: 'default',
       content,
       timestamp: new Date()
     }
@@ -60,10 +60,13 @@ export function useChat() {
       const assistantMessage: ChatMessage = {
         id: uuidv4(),
         role: 'assistant',
-        type: 'text',
+        type: 'default',
         content: response.message,
         timestamp: new Date(),
-        actions: response.actions || []
+        actions: response.actions || [],
+        hasWorkflowActions: response.hasWorkflowActions,
+        // 🎯 Store the original user query for context generation
+        originalUserQuery: content
       }
 
       setMessages(prev => [...prev, assistantMessage])

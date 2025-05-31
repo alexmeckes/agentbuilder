@@ -110,79 +110,39 @@ This is a good opportunity to help them get started with their first workflow.
       }
       
       contextualInput = `${contextInfo}User Question: ${latestMessage.content}`
-    } else {
-      contextualInput = `User Question: ${latestMessage.content}`
     }
 
-    // Create a specialized workflow building assistant with action capabilities
     const workflowAssistantInstructions = `You are a Workflow Building Assistant for a visual workflow composer application. Your primary role is to help users create, modify, and optimize AI agent workflows.
 
-**Your Expertise:**
-- Visual workflow design and best practices
-- AI agent configuration and optimization  
-- Tool integration and automation patterns
-- Workflow debugging and troubleshooting
-- any-agent framework capabilities (OpenAI, LangChain, LlamaIndex, etc.)
+Key Capabilities:
+- **Node Creation**: Create input, output, agent, and tool nodes with appropriate configurations
+- **Workflow Design**: Design complete workflows with logical connections and flow
+- **Best Practices**: Apply workflow design best practices and patterns
+- **Troubleshooting**: Help debug and optimize existing workflows
 
-**Available Node Types:**
-- **Agent Nodes**: AI agents with configurable models (gpt-3.5-turbo, gpt-4o-mini, gpt-4, etc.), custom instructions, and names
-- **Tool Nodes**: Functions like web search, file processing, API calls
-- **Input Nodes**: Data entry points for workflows
-- **Output Nodes**: Results and final outputs
+Guidelines for Node Creation:
+- **Input Nodes**: For collecting user input or data
+- **Output Nodes**: For displaying results or saving output
+- **Agent Nodes**: For AI processing, analysis, or decision-making
+- **Tool Nodes**: For specific tasks like web search, file operations, API calls
 
-**WORKFLOW CONTEXT AWARENESS:**
-When the user has existing nodes in their workflow, be aware of:
-- What nodes already exist and their purposes
-- How to extend or modify their current workflow
-- Suggest complementary nodes that work with existing ones
-- Provide specific improvements to their current setup
-
-When the user has no workflow yet:
-- Help them plan and create their first workflow from scratch
-- Suggest complete workflow patterns for their needs
-- Create a full set of connected nodes to get them started
-
-**IMPORTANT: ACTIONABLE RESPONSES**
-When suggesting workflow improvements, you can provide executable actions. Format your response like this:
-
-For regular advice, just respond normally.
-
-When you want to suggest creating specific nodes, end your response with:
+When creating workflows, use this exact format for actions:
 
 [ACTIONS]
-CREATE_NODE:agent:AgentName:Instructions for the agent:gpt-4o-mini
-CREATE_NODE:tool:ToolName:Tool description
-CREATE_NODE:input:InputName:Description
-CREATE_NODE:output:OutputName:Description
-CONNECT_NODES:sourceNodeId:targetNodeId
+CREATE_NODE:nodeType:NodeName:Node instructions or description:model_id
+CONNECT_NODES:SourceNodeName:TargetNodeName
 [/ACTIONS]
 
-**Action Examples:**
-- CREATE_NODE:agent:DataAnalyzer:You are a data analyst. Analyze the provided data and extract key insights.:gpt-4o-mini
-- CREATE_NODE:tool:WebSearch:Search the web for relevant information
-- CONNECT_NODES:input1:agent1
+Example:
+[ACTIONS]
+CREATE_NODE:input:UserQuery:Collect the user's question or request
+CREATE_NODE:agent:Analyzer:Analyze the user query and determine the best approach:gpt-4o-mini
+CREATE_NODE:output:Response:Present the final answer to the user
+CONNECT_NODES:UserQuery:Analyzer
+CONNECT_NODES:Analyzer:Response
+[/ACTIONS]
 
-**How to Help Users:**
-1. **Workflow Planning**: Help users break down complex tasks into workflow steps
-2. **Context-Aware Suggestions**: If they have existing nodes, suggest how to extend/improve them
-3. **Node Configuration**: Advise on agent instructions, model selection, and tool setup
-4. **Connection Strategy**: Suggest how to connect nodes for optimal data flow
-5. **Best Practices**: Share workflow design patterns and optimization tips
-6. **Troubleshooting**: Help debug workflow issues and improve performance
-7. **Interactive Creation**: Actually create the nodes and connections you recommend
-
-**Response Style:**
-- Be practical and actionable
-- If they have existing nodes, reference them specifically in your suggestions
-- Provide specific examples and configurations
-- Use clear step-by-step instructions
-- When possible, offer to create the nodes you're suggesting
-- Include relevant model recommendations (prefer gpt-4o-mini for cost efficiency)
-- Reference their current workflow when context is provided
-
-**Current Context**: The user is working with a visual drag-and-drop workflow editor. You can see their current workflow state and should tailor your suggestions accordingly. When you suggest workflow improvements, you can actually create the nodes for them using the ACTIONS format.
-
-Always focus on helping them build better workflows, and when appropriate, offer to execute your suggestions.`
+Always respond with helpful explanations and actionable workflow suggestions. Focus on practical, working solutions that users can immediately implement.`
 
     const chatWorkflow = {
       nodes: [
@@ -200,7 +160,7 @@ Always focus on helping them build better workflows, and when appropriate, offer
       edges: []
     }
 
-    // Call our any-agent backend
+    // Call our any-agent backend for the main response
     const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
       method: 'POST',
       headers: {
@@ -267,7 +227,8 @@ Always focus on helping them build better workflows, and when appropriate, offer
     return NextResponse.json({
       message: cleanMessage,
       actions: actions,
-      execution_id: result.execution_id
+      execution_id: result.execution_id,
+      hasWorkflowActions: actions.length > 0 // Flag to show workflow button
     })
 
   } catch (error) {

@@ -8,6 +8,11 @@ A visual workflow composer for the [any-agent](https://github.com/mozilla-ai/any
 # Clone and setup
 git clone <repository-url>
 cd any-agent-main
+
+# Setup environment variables (new!)
+./scripts/setup-env.sh
+
+# Setup dependencies
 ./scripts/setup.sh
 
 # Start development servers
@@ -102,7 +107,21 @@ any-agent-main/
    # Add other provider keys as needed
    ```
 
-2. **Install Any-Agent** (if not already installed):
+2. **🚨 CRITICAL: Frontend Environment Variables**:
+   ```bash
+   # Create frontend/.env.local with BOTH variables
+   cd frontend
+   echo "BACKEND_URL=http://localhost:8000" > .env.local
+   echo "NEXT_PUBLIC_BACKEND_URL=http://localhost:8000" >> .env.local
+   ```
+   
+   **Why both variables?**
+   - `BACKEND_URL`: Used by `/api/execute` to proxy Designer workflows to backend
+   - `NEXT_PUBLIC_BACKEND_URL`: Used by client-side code for direct API calls
+   
+   **⚠️ Without both**: Workflows execute but don't appear in Analytics!
+
+3. **Install Any-Agent** (if not already installed):
    ```bash
    pip install 'any-agent[all]'  # All frameworks
    # or
@@ -204,6 +223,12 @@ Visit http://localhost:8000/docs for the full API documentation.
 ## 🐛 Troubleshooting
 
 ### Common Issues
+
+**🚨 Workflows Execute But Don't Appear in Analytics**:
+- **Symptom**: Designer shows exec_123 but Analytics shows 0 workflows
+- **Cause**: Missing environment variables in `frontend/.env.local`
+- **Fix**: Ensure both `BACKEND_URL` and `NEXT_PUBLIC_BACKEND_URL` are set
+- **Verify**: Check browser network tab for `/api/execute` calls returning 200
 
 **Port Already in Use**:
 ```bash

@@ -2,10 +2,21 @@
 
 import { useState, useEffect } from 'react'
 import { 
-  BarChart3, DollarSign, Clock, Database, TrendingUp, Zap, 
-  Workflow, AlertTriangle, CheckCircle, TrendingDown, 
-  Eye, Filter, ArrowUpRight, ArrowDownRight, Minus,
-  Lightbulb, Target, Activity, Users, PieChart
+  BarChart3, 
+  TrendingUp, 
+  TrendingDown,
+  Workflow, 
+  Lightbulb, 
+  DollarSign, 
+  Clock, 
+  AlertTriangle, 
+  Target, 
+  Filter, 
+  Eye,
+  Zap,
+  RefreshCw,
+  Minus,
+  Activity
 } from 'lucide-react'
 import { WorkflowDetailModal } from './WorkflowDetailModal'
 
@@ -79,7 +90,7 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null)
   const [showWorkflowModal, setShowWorkflowModal] = useState(false)
-
+  
   useEffect(() => {
     fetchAnalytics()
     // Refresh analytics every 30 seconds
@@ -468,16 +479,18 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => {
-                              setSelectedWorkflow(workflow.workflow_id)
-                              setShowWorkflowModal(true)
-                            }}
-                            className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
-                          >
-                            <Eye className="w-4 h-4" />
-                            Details
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedWorkflow(workflow.workflow_id)
+                                setShowWorkflowModal(true)
+                              }}
+                              className="text-blue-600 hover:text-blue-900 flex items-center gap-1"
+                            >
+                              <Eye className="w-4 h-4" />
+                              Details
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

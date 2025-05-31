@@ -8,7 +8,7 @@ native multi-agent orchestration format.
 import sys
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
-from any_agent import AgentConfig, AgentFramework, AnyAgent
+from any_agent import AgentConfig, AgentFramework, AnyAgent, TracingConfig
 import multiprocessing
 import json
 import traceback
@@ -279,7 +279,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
             sys.path.insert(0, src_path)
         
         # Now import any_agent
-        from any_agent import AgentConfig, AgentFramework, AnyAgent
+        from any_agent import AgentConfig, AgentFramework, AnyAgent, TracingConfig
         
         # Recreate AgentConfig objects from dictionaries using the real any_agent classes
         main_agent_config = AgentConfig(
@@ -305,11 +305,14 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         # Convert framework string to AgentFramework enum
         framework_enum = AgentFramework.from_string(framework.upper())
         
-        # Create and run the any-agent using the real API
-        # Note: Removing managed_agents parameter for compatibility
+        # Create and run the any-agent using the real API with proper tracing
         agent = AnyAgent.create(
             agent_framework=framework_enum,
-            agent_config=main_agent_config
+            agent_config=main_agent_config,
+            tracing=TracingConfig(
+                console=True,     # Enable console tracing for debugging
+                cost_info=True    # Enable cost and token tracking
+            )
         )
         
         # Run the agent and get the trace
@@ -382,6 +385,39 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
                 }
             except Exception as cost_e:
                 trace_data["cost_info"] = {"extraction_error": str(cost_e)}
+        
+        # If get_total_cost didn't work, manually aggregate from spans
+        if not trace_data["cost_info"] or trace_data["cost_info"].get("total_cost", 0) == 0:
+            total_input_tokens = 0
+            total_output_tokens = 0
+            total_input_cost = 0.0
+            total_output_cost = 0.0
+            
+            for span in trace_data["spans"]:
+                attrs = span.get("attributes", {})
+                
+                # Extract token counts from gen_ai.usage.* fields
+                input_tokens = attrs.get("gen_ai.usage.input_tokens", 0)
+                output_tokens = attrs.get("gen_ai.usage.output_tokens", 0)
+                input_cost = attrs.get("gen_ai.usage.input_cost", 0.0)
+                output_cost = attrs.get("gen_ai.usage.output_cost", 0.0)
+                
+                total_input_tokens += input_tokens
+                total_output_tokens += output_tokens
+                total_input_cost += input_cost
+                total_output_cost += output_cost
+            
+            total_cost = total_input_cost + total_output_cost
+            total_tokens = total_input_tokens + total_output_tokens
+            
+            trace_data["cost_info"] = {
+                "total_cost": total_cost,
+                "total_tokens": total_tokens,
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+                "input_cost": total_input_cost,
+                "output_cost": total_output_cost
+            }
         
         # Calculate performance metrics
         if trace_data["spans"]:
@@ -519,7 +555,11 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                         # Create and run the any-agent using the real API
                         agent = AnyAgent.create(
                             agent_framework=framework_enum,
-                            agent_config=main_agent_config
+                            agent_config=main_agent_config,
+                            tracing=TracingConfig(
+                                console=True,     # Enable console tracing for debugging
+                                cost_info=True    # Enable cost and token tracking
+                            )
                         )
                         
                         agent_trace = agent.run(input_data)

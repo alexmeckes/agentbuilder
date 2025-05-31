@@ -2,6 +2,14 @@
 
 This is a condensed version of the deployment process. For detailed instructions, see `RENDER_DEPLOYMENT.md`.
 
+## 🚨 Critical: Environment Variables Required
+
+**IMPORTANT**: You need **TWO environment variables** for workflows to reach Analytics:
+- `BACKEND_URL` (for proxy routes)
+- `NEXT_PUBLIC_BACKEND_URL` (for client calls)
+
+**Both must point to your Render backend URL!**
+
 ## Prerequisites
 - GitHub account with your code pushed
 - Render account ([render.com](https://render.com))
@@ -43,7 +51,7 @@ This is a condensed version of the deployment process. For detailed instructions
    ```bash
    cd frontend
    
-   # Create environment file
+   # Create environment file with BOTH required variables
    echo "BACKEND_URL=https://your-app-name.onrender.com" > .env.local
    echo "NEXT_PUBLIC_BACKEND_URL=https://your-app-name.onrender.com" >> .env.local
    
@@ -52,7 +60,7 @@ This is a condensed version of the deployment process. For detailed instructions
    vercel --prod
    ```
 
-3. **Set Environment Variables in Vercel:**
+3. **🚨 CRITICAL: Set BOTH Environment Variables in Vercel:**
    - Go to Vercel Dashboard → Your Project → Settings → Environment Variables
    - Add: `BACKEND_URL` = `https://your-app-name.onrender.com`
    - Add: `NEXT_PUBLIC_BACKEND_URL` = `https://your-app-name.onrender.com`
@@ -67,6 +75,11 @@ This is a condensed version of the deployment process. For detailed instructions
    - Should load the workflow composer interface
    - Try creating and running a simple workflow
 
+3. **🚨 CRITICAL: Test Analytics Integration:**
+   - Create a workflow in Designer and execute it
+   - Check Analytics tab - execution should appear there
+   - **If Analytics shows 0 workflows**: Environment variables not set correctly
+
 ## 🎉 You're Live!
 
 Your Any-Agent Workflow Composer is now deployed and accessible worldwide!
@@ -75,6 +88,11 @@ Your Any-Agent Workflow Composer is now deployed and accessible worldwide!
 **Backend**: `https://your-app-name.onrender.com`
 
 ## 🔧 Common Issues & Fixes
+
+**🚨 Workflows execute but don't appear in Analytics:**
+- **Cause**: Missing environment variables in Vercel
+- **Fix**: Ensure BOTH `BACKEND_URL` and `NEXT_PUBLIC_BACKEND_URL` are set
+- **Test**: Check browser network tab for `/api/execute` calls returning 200
 
 **Frontend can't connect to backend:**
 - Check environment variables are set in Vercel

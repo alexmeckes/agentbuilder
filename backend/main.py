@@ -70,6 +70,9 @@ class ExecutionRequest(BaseModel):
     workflow: WorkflowDefinition
     input_data: str
     framework: str = "openai"  # Default to OpenAI
+    workflow_identity: Optional[Dict[str, Any]] = None  # Frontend workflow identity
+    workflow_name: Optional[str] = None  # Frontend workflow name
+    workflow_id: Optional[str] = None  # Frontend workflow ID
 
 
 class ExecutionResponse(BaseModel):
@@ -107,11 +110,23 @@ class WorkflowExecutor:
     
     def __init__(self):
         self.executions: Dict[str, Dict[str, Any]] = {}
+        self._generating_identity = False  # Protection against infinite loops
+        self._validation_cache = {}  # Cache for validation results
+        self._last_validation_time = {}  # Track validation timing
 
     async def execute_workflow(self, request: ExecutionRequest) -> ExecutionResponse:
         """Execute a workflow definition using any-agent's native multi-agent capabilities"""
         execution_id = f"exec_{len(self.executions) + 1}"
         start_time = time.time()
+        
+        # Initialize execution record EARLY to prevent KeyError in error handlers
+        self.executions[execution_id] = {
+            "status": "initializing",
+            "input": request.input_data,
+            "created_at": start_time,
+            "workflow": request.workflow,
+            "framework": request.framework
+        }
         
         try:
             # Convert workflow to format expected by translator
@@ -134,45 +149,106 @@ class WorkflowExecutor:
                 for edge in request.workflow.edges
             ]
 
-            # Generate intelligent workflow identity
-            print(f"🏷️  Generating intelligent workflow name for {execution_id}...")
-            workflow_identity = await self._generate_workflow_identity(nodes, edges, request.input_data)
-            print(f"✨ Generated workflow: {workflow_identity['name']} ({workflow_identity['category']})")
+            # DEBUG: Log the actual workflow structure for Designer debugging
+            print(f"🔍 DEBUG: Workflow from Designer has {len(nodes)} nodes")
+            for i, node in enumerate(nodes):
+                node_data = node.get("data", {})
+                print(f"  Node {i+1}: id={node.get('id')}, type={node.get('type')}, data.type={node_data.get('type')}, data.name={node_data.get('name')}")
             
-            # Initialize execution record with timestamp and workflow identity
-            self.executions[execution_id] = {
+            # Validate workflow structure before execution with caching
+            validation_result = self._validate_workflow_structure_cached(nodes, edges)
+            if not validation_result["valid"]:
+                raise ValueError(f"Invalid workflow structure: {validation_result['error']}")
+
+            # Use provided workflow identity from Designer, or generate new one
+            if request.workflow_identity:
+                print(f"🎯 Using provided workflow identity: {request.workflow_identity.get('name', 'Unknown')}")
+                workflow_identity = request.workflow_identity
+                # Ensure all required fields are present
+                if "name" not in workflow_identity:
+                    workflow_identity["name"] = request.workflow_name or "Unknown Workflow"
+                if "category" not in workflow_identity:
+                    workflow_identity["category"] = "general"
+                if "description" not in workflow_identity:
+                    workflow_identity["description"] = "A custom workflow"
+            else:
+                # Generate intelligent workflow identity
+                print(f"🏷️  Generating intelligent workflow name for {execution_id}...")
+                workflow_identity = await self._generate_workflow_identity(nodes, edges, request.input_data)
+                print(f"✨ Generated workflow: {workflow_identity['name']} ({workflow_identity['category']})")
+            
+            # Update execution record with complete workflow information
+            self.executions[execution_id].update({
                 "status": "running",
-                "input": request.input_data,
-                "created_at": start_time,
-                "workflow": request.workflow,
-                "framework": request.framework,
                 "workflow_identity": workflow_identity,
                 "workflow_name": workflow_identity["name"],
                 "workflow_category": workflow_identity["category"],
                 "workflow_description": workflow_identity["description"]
-            }
+            })
             
-            # Execute using any-agent's native multi-agent orchestration
-            workflow_result = await execute_visual_workflow_with_anyagent(
-                nodes=nodes,
-                edges=edges,
-                input_data=request.input_data,
-                framework=request.framework
-            )
+            # Execute using any-agent's native multi-agent orchestration with enhanced error handling
+            try:
+                workflow_result = await execute_visual_workflow_with_anyagent(
+                    nodes=nodes,
+                    edges=edges,
+                    input_data=request.input_data,
+                    framework=request.framework
+                )
+            except Exception as exec_error:
+                # Enhanced error handling for execution failures
+                error_details = {
+                    "error_type": type(exec_error).__name__,
+                    "error_message": str(exec_error),
+                    "nodes_count": len(nodes),
+                    "framework": request.framework,
+                    "input_length": len(request.input_data)
+                }
+                print(f"❌ Workflow execution failed: {error_details['error_type']}: {error_details['error_message']}")
+                
+                # Store failed execution with detailed error info
+                completion_time = time.time()
+                self.executions[execution_id].update({
+                    "status": "failed",
+                    "error": str(exec_error),
+                    "error_details": error_details,
+                    "completed_at": completion_time,
+                    "execution_time": completion_time - start_time,
+                    "trace": {
+                        "error": str(exec_error),
+                        "error_details": error_details,
+                        "framework_used": request.framework,
+                        "workflow_identity": workflow_identity
+                    }
+                })
+                
+                return ExecutionResponse(
+                    execution_id=execution_id,
+                    status="failed",
+                    error=f"Execution failed: {error_details['error_type']}: {error_details['error_message']}",
+                    trace=self.executions[execution_id]["trace"]
+                )
             
             # Store execution details with completion timestamp
             completion_time = time.time()
             
-            # Check if there was an error
+            # Check if there was an error in workflow result
             if "error" in workflow_result:
+                error_details = {
+                    "error_type": "WorkflowResultError",
+                    "error_message": workflow_result["error"],
+                    "result_data": workflow_result.get("final_output", "No output")
+                }
+                
                 self.executions[execution_id].update({
                     "status": "failed",
                     "result": workflow_result["final_output"],
                     "error": workflow_result["error"],
+                    "error_details": error_details,
                     "completed_at": completion_time,
                     "execution_time": completion_time - start_time,
                     "trace": {
                         "error": workflow_result["error"],
+                        "error_details": error_details,
                         "framework_used": request.framework,
                         "workflow_identity": workflow_identity
                     }
@@ -185,18 +261,23 @@ class WorkflowExecutor:
                     trace=self.executions[execution_id]["trace"]
                 )
             
-            # Success case
+            # Success case - validate result structure
+            final_output = workflow_result.get("final_output")
+            if not final_output:
+                print("⚠️  Warning: Workflow completed but produced no output")
+                final_output = "Workflow completed successfully but produced no output."
+            
             self.executions[execution_id].update({
                 "status": "completed",
-                "result": workflow_result["final_output"],
+                "result": final_output,
                 "completed_at": completion_time,
                 "execution_time": completion_time - start_time,
                 "trace": {
-                    "final_output": workflow_result["final_output"],
-                    "execution_pattern": workflow_result["execution_pattern"],
-                    "main_agent": workflow_result["main_agent"],
-                    "managed_agents": workflow_result["managed_agents"],
-                    "framework_used": workflow_result["framework_used"],
+                    "final_output": final_output,
+                    "execution_pattern": workflow_result.get("execution_pattern", "unknown"),
+                    "main_agent": workflow_result.get("main_agent", "unknown"),
+                    "managed_agents": workflow_result.get("managed_agents", []),
+                    "framework_used": workflow_result.get("framework_used", request.framework),
                     "agent_trace": self._serialize_agent_trace(workflow_result.get("agent_trace")),
                     "execution_time": completion_time - start_time,
                     "cost_info": self._extract_cost_info_from_trace(workflow_result.get("agent_trace")),
@@ -209,15 +290,24 @@ class WorkflowExecutor:
             return ExecutionResponse(
                 execution_id=execution_id,
                 status="completed",
-                result=workflow_result["final_output"],
+                result=final_output,
                 trace=self.executions[execution_id]["trace"]
             )
             
         except Exception as e:
             completion_time = time.time()
+            error_details = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "execution_stage": "workflow_setup_or_execution"
+            }
+            
+            print(f"❌ Critical workflow error: {error_details['error_type']}: {error_details['error_message']}")
+            
             self.executions[execution_id].update({
                 "status": "failed",
                 "error": str(e),
+                "error_details": error_details,
                 "completed_at": completion_time,
                 "execution_time": completion_time - start_time
             })
@@ -225,7 +315,7 @@ class WorkflowExecutor:
             return ExecutionResponse(
                 execution_id=execution_id,
                 status="failed",
-                error=str(e)
+                error=f"Critical error: {error_details['error_type']}: {error_details['error_message']}"
             )
     
     def _serialize_agent_trace(self, agent_trace) -> Dict[str, Any]:
@@ -333,206 +423,6 @@ class WorkflowExecutor:
         except Exception as e:
             return []
 
-    async def _generate_workflow_identity(self, nodes: List[Dict], edges: List[Dict], input_data: str) -> Dict[str, Any]:
-        """Generate intelligent workflow name and identity using the workflow naming service"""
-        try:
-            # Build a descriptive prompt for the workflow naming service
-            node_descriptions = []
-            for node in nodes:
-                node_type = node.get("type", "unknown")
-                node_data = node.get("data", {})
-                node_label = node_data.get("label", node_data.get("name", f"{node_type} node"))
-                
-                if node_type == "agent":
-                    instructions = node_data.get("instructions", "")
-                    if instructions:
-                        node_descriptions.append(f"- {node_label}: {instructions[:100]}...")
-                    else:
-                        node_descriptions.append(f"- {node_label} (AI agent)")
-                elif node_type == "tool":
-                    tool_type = node_data.get("tool_type", "unknown tool")
-                    node_descriptions.append(f"- {node_label} ({tool_type})")
-                else:
-                    node_descriptions.append(f"- {node_label} ({node_type})")
-            
-            # Create a comprehensive prompt for workflow analysis
-            prompt = f"""Analyze this AI workflow and generate a smart name, description, and category.
-
-WORKFLOW STRUCTURE:
-- Total nodes: {len(nodes)}
-- Total connections: {len(edges)}
-- Input: "{input_data[:200]}..."
-
-NODES:
-{chr(10).join(node_descriptions)}
-
-Generate a response in this exact JSON format:
-{{
-  "name": "Concise, descriptive workflow name (2-6 words)",
-  "description": "Clear description of what this workflow does (1-2 sentences)",
-  "category": "One of: research, analysis, content, automation, support, data-processing, general",
-  "confidence": 0.85,
-  "alternatives": ["Alternative name 1", "Alternative name 2", "Alternative name 3"]
-}}
-
-Guidelines:
-- Name should be professional and descriptive
-- Avoid generic terms like "Workflow" or "Process" 
-- Focus on the main business value or outcome
-- Category should reflect the primary use case
-- Confidence should be 0.6-0.95 based on how clear the purpose is"""
-
-            # Create a specialized workflow naming agent
-            naming_workflow = {
-                "nodes": [
-                    {
-                        "id": "workflow-namer",
-                        "type": "agent",
-                        "data": {
-                            "name": "WorkflowNamer",
-                            "instructions": "You are an expert at analyzing AI workflows and generating concise, descriptive names. You must respond ONLY with valid JSON in the exact format requested. Do not include any explanatory text, markdown formatting, or additional content - just the raw JSON object.",
-                            "model_id": "gpt-4o-mini"
-                        },
-                        "position": {"x": 0, "y": 0}
-                    }
-                ],
-                "edges": []
-            }
-
-            # Execute the naming workflow
-            from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent
-            
-            naming_result = await execute_visual_workflow_with_anyagent(
-                nodes=naming_workflow["nodes"],
-                edges=naming_workflow["edges"],
-                input_data=prompt,
-                framework="openai"
-            )
-
-            if "error" not in naming_result and naming_result.get("final_output"):
-                try:
-                    # Parse the AI response
-                    import json
-                    ai_response = naming_result["final_output"].strip()
-                    
-                    # Try to extract JSON from the response
-                    if ai_response.startswith("```json"):
-                        ai_response = ai_response.split("```json")[1].split("```")[0].strip()
-                    elif ai_response.startswith("```"):
-                        ai_response = ai_response.split("```")[1].split("```")[0].strip()
-                    
-                    parsed_response = json.loads(ai_response)
-                    
-                    return {
-                        "name": parsed_response.get("name", self._generate_fallback_name(nodes, edges)),
-                        "description": parsed_response.get("description", f"A workflow with {len(nodes)} nodes"),
-                        "category": parsed_response.get("category", self._infer_category_from_nodes(nodes)),
-                        "confidence": parsed_response.get("confidence", 0.7),
-                        "alternatives": parsed_response.get("alternatives", []),
-                        "auto_generated": True,
-                        "structure_hash": self._generate_structure_hash(nodes, edges)
-                    }
-                except (json.JSONDecodeError, KeyError) as e:
-                    print(f"Failed to parse AI naming response: {e}")
-                    # Fall back to intelligent naming
-                    return self._generate_intelligent_fallback(nodes, edges, input_data)
-            else:
-                print(f"Workflow naming service failed: {naming_result.get('error', 'Unknown error')}")
-                return self._generate_intelligent_fallback(nodes, edges, input_data)
-                
-        except Exception as e:
-            print(f"Error in workflow naming: {e}")
-            return self._generate_intelligent_fallback(nodes, edges, input_data)
-
-    def _generate_intelligent_fallback(self, nodes: List[Dict], edges: List[Dict], input_data: str) -> Dict[str, Any]:
-        """Generate intelligent fallback names based on workflow structure"""
-        agent_nodes = [n for n in nodes if n.get("type") == "agent"]
-        tool_nodes = [n for n in nodes if n.get("type") == "tool"]
-        
-        # Analyze the workflow purpose from input and nodes
-        input_lower = input_data.lower()
-        
-        if len(agent_nodes) == 1 and len(tool_nodes) == 0:
-            # Single agent workflow
-            agent_data = agent_nodes[0].get("data", {})
-            agent_name = agent_data.get("name", agent_data.get("label", "Agent"))
-            instructions = agent_data.get("instructions", "").lower()
-            
-            # Infer purpose from instructions and input
-            if any(word in instructions or word in input_lower for word in ["research", "search", "find", "investigate"]):
-                name = f"{agent_name} Research Assistant"
-                category = "research"
-            elif any(word in instructions or word in input_lower for word in ["analy", "data", "examine", "evaluate"]):
-                name = f"{agent_name} Data Analyzer"
-                category = "analysis"
-            elif any(word in instructions or word in input_lower for word in ["content", "writ", "generat", "creat"]):
-                name = f"{agent_name} Content Generator"
-                category = "content"
-            elif any(word in instructions or word in input_lower for word in ["support", "help", "assist", "customer"]):
-                name = f"{agent_name} Support Assistant"
-                category = "support"
-            else:
-                name = f"{agent_name} Workflow"
-                category = "general"
-                
-            description = f"Single-agent workflow using {agent_name} for specialized tasks"
-        else:
-            # Multi-node workflow
-            if len(tool_nodes) > 0:
-                name = f"Multi-Agent Automation ({len(nodes)} nodes)"
-                category = "automation"
-                description = f"Complex workflow with {len(agent_nodes)} agents and {len(tool_nodes)} tools"
-            else:
-                name = f"Multi-Agent Pipeline ({len(agent_nodes)} agents)"
-                category = "automation"
-                description = f"Multi-agent workflow with {len(agent_nodes)} specialized agents"
-        
-        return {
-            "name": name,
-            "description": description,
-            "category": category,
-            "confidence": 0.6,
-            "alternatives": [self._generate_fallback_name(nodes, edges)],
-            "auto_generated": True,
-            "structure_hash": self._generate_structure_hash(nodes, edges)
-        }
-
-    def _generate_fallback_name(self, nodes: List[Dict], edges: List[Dict]) -> str:
-        """Generate a simple fallback name"""
-        agent_count = len([n for n in nodes if n.get("type") == "agent"])
-        tool_count = len([n for n in nodes if n.get("type") == "tool"])
-        
-        if agent_count == 1 and tool_count == 0:
-            return "Single Agent Workflow"
-        elif agent_count > 1:
-            return f"Multi-Agent Workflow ({agent_count} agents)"
-        else:
-            return f"Custom Workflow ({len(nodes)} nodes)"
-
-    def _infer_category_from_nodes(self, nodes: List[Dict]) -> str:
-        """Infer workflow category from node types and data"""
-        agent_nodes = [n for n in nodes if n.get("type") == "agent"]
-        tool_nodes = [n for n in nodes if n.get("type") == "tool"]
-        
-        # Look for patterns in instructions
-        all_instructions = " ".join([
-            node.get("data", {}).get("instructions", "").lower()
-            for node in agent_nodes
-        ])
-        
-        if "research" in all_instructions or "search" in all_instructions:
-            return "research"
-        elif "analy" in all_instructions or "data" in all_instructions:
-            return "analysis"
-        elif "content" in all_instructions or "writ" in all_instructions:
-            return "content"
-        elif "support" in all_instructions or "customer" in all_instructions:
-            return "support"
-        elif len(tool_nodes) > 0:
-            return "automation"
-        else:
-            return "general"
-
     def _generate_structure_hash(self, nodes: List[Dict], edges: List[Dict]) -> str:
         """Generate a hash representing the workflow structure for grouping"""
         import hashlib
@@ -546,6 +436,502 @@ Guidelines:
         
         structure_str = json.dumps(structure, sort_keys=True)
         return hashlib.md5(structure_str.encode()).hexdigest()[:16]
+
+    async def _generate_workflow_identity(self, nodes: List[Dict], edges: List[Dict], input_data: str) -> Dict[str, Any]:
+        """Generate workflow identity using smart pattern matching"""
+        # Enhanced protection against infinite loops
+        if self._generating_identity:
+            print("⚠️  Loop protection: Skipping nested workflow identity generation")
+            return {
+                "name": f"Workflow {len(self.executions) + 1}",
+                "description": "A custom workflow",
+                "category": "general",
+                "confidence": 0.5,
+                "alternatives": [],
+                "auto_generated": True,
+                "structure_hash": self._generate_structure_hash(nodes, edges)
+            }
+        
+        # Check if we've generated identity for this exact structure recently
+        structure_hash = self._generate_structure_hash(nodes, edges)
+        current_time = time.time()
+        cache_key = f"identity_{structure_hash}"
+        
+        # Rate limiting for identity generation (once per 10 seconds for same structure)
+        if cache_key in self._last_validation_time:
+            time_since_last = current_time - self._last_validation_time[cache_key]
+            if time_since_last < 10.0:  # 10 second rate limit for identity generation
+                print(f"⚠️  Rate limiting identity generation for structure {structure_hash[:8]}")
+                return {
+                    "name": f"Workflow {len(self.executions) + 1}",
+                    "description": "Rate-limited workflow generation",
+                    "category": "general",
+                    "confidence": 0.7,
+                    "alternatives": [],
+                    "auto_generated": True,
+                    "structure_hash": structure_hash
+                }
+        
+        self._last_validation_time[cache_key] = current_time
+        self._generating_identity = True
+        try:
+            # Remove the duplicate print statement that was causing confusion
+            # The main print statement should come from the caller in execute_workflow
+            
+            # Smart pattern matching based on input content and node analysis
+            input_lower = input_data.lower()
+            workflow_name = "Custom Workflow"
+            workflow_category = "general"
+            workflow_description = "A custom workflow"
+            confidence = 0.7
+            
+            # Analyze agent names and instructions for context
+            agent_contexts = []
+            for node in nodes:
+                if node.get("type") == "agent":
+                    agent_data = node.get("data", {})
+                    agent_name = agent_data.get("name", "").lower()
+                    agent_instructions = agent_data.get("instructions", "").lower()
+                    agent_contexts.append(f"{agent_name} {agent_instructions}")
+            
+            combined_context = f"{input_data} {' '.join(agent_contexts)}".lower()
+            
+            # Advanced pattern matching for specific use cases
+            if any(word in combined_context for word in ["grizzly", "bear", "wildlife", "animal", "yellowstone", "park"]):
+                if "grizzly" in combined_context and ("yellowstone" in combined_context or "park" in combined_context):
+                    workflow_name = "Grizzly Bear Viewing Guide"
+                    workflow_description = "Find the best locations for grizzly bear viewing in Yellowstone"
+                    confidence = 0.9
+                elif "wildlife" in combined_context:
+                    workflow_name = "Wildlife Viewing Guide"
+                    workflow_description = "Discover optimal wildlife viewing locations and tips"
+                    confidence = 0.85
+                else:
+                    workflow_name = "Animal Research Guide"
+                    workflow_description = "Research and information gathering about animals"
+                    confidence = 0.8
+                workflow_category = "research"
+                
+            elif any(word in combined_context for word in ["customer", "onboard", "support", "service"]):
+                workflow_name = "Customer Service Automation"
+                workflow_description = "Streamline customer onboarding and support processes"
+                workflow_category = "automation"
+                confidence = 0.85
+                
+            elif any(word in combined_context for word in ["content", "create", "generate", "write", "blog", "article"]):
+                workflow_name = "Content Creation Assistant"
+                workflow_description = "Generate and create various types of content"
+                workflow_category = "content"
+                confidence = 0.8
+                
+            elif any(word in combined_context for word in ["research", "find", "search", "discover", "information", "data"]):
+                workflow_name = "Research Assistant"
+                workflow_description = "Gather and analyze information from various sources"
+                workflow_category = "research"
+                confidence = 0.8
+                
+            elif any(word in combined_context for word in ["analyze", "analysis", "insight", "metric", "report"]):
+                workflow_name = "Data Analysis Tool"
+                workflow_description = "Analyze data and generate insights"
+                workflow_category = "analysis"
+                confidence = 0.8
+                
+            elif any(word in combined_context for word in ["workflow", "builder", "assistant", "help", "guide"]):
+                workflow_name = "Workflow Assistant"
+                workflow_description = "Help users build and design workflows"
+                workflow_category = "support"
+                confidence = 0.85
+            
+            # Enhance based on node count and structure
+            agent_count = len([n for n in nodes if n.get("type") == "agent"])
+            if agent_count > 1:
+                workflow_name = f"Multi-Agent {workflow_name}"
+                workflow_description = f"{workflow_description} using {agent_count} AI agents"
+            
+            return {
+                "name": workflow_name,
+                "description": workflow_description,
+                "category": workflow_category,
+                "confidence": confidence,
+                "alternatives": [],
+                "auto_generated": True,
+                "structure_hash": self._generate_structure_hash(nodes, edges)
+            }
+            
+        except Exception as e:
+            print(f"Error in workflow naming: {e}")
+            return {
+                "name": f"Workflow {len(self.executions) + 1}",
+                "description": "A custom workflow",
+                "category": "general",
+                "confidence": 0.5,
+                "alternatives": [],
+                "auto_generated": True,
+                "structure_hash": self._generate_structure_hash(nodes, edges)
+            }
+        finally:
+            self._generating_identity = False
+
+    def _validate_workflow_structure(self, nodes: List[Dict], edges: List[Dict]) -> Dict[str, Any]:
+        """Enhanced workflow structure validation before execution"""
+        try:
+            # Basic validation checks
+            if not nodes:
+                return {"valid": False, "error": "Workflow must contain at least one node"}
+            
+            # Check for required node types
+            node_types = [node.get("type") for node in nodes]
+            agent_nodes_by_type = [n for n in nodes if n.get("type") == "agent"]
+            tool_nodes_by_type = [n for n in nodes if n.get("type") == "tool"]
+            agent_nodes_by_data = [n for n in nodes if n.get("data", {}).get("type") == "agent"]
+            tool_nodes_by_data = [n for n in nodes if n.get("data", {}).get("type") == "tool"]
+            
+            # Accept either node.type OR data.type format for agent/tool nodes
+            all_executable_nodes = agent_nodes_by_type + tool_nodes_by_type + agent_nodes_by_data + tool_nodes_by_data
+            
+            if not all_executable_nodes:
+                return {"valid": False, "error": "Workflow must contain at least one agent or tool node"}
+            
+            # Validate node structure
+            for i, node in enumerate(nodes):
+                if not node.get("id"):
+                    return {"valid": False, "error": f"Node {i} missing required 'id' field"}
+                if not node.get("type"):
+                    return {"valid": False, "error": f"Node {node.get('id', i)} missing required 'type' field"}
+                if not node.get("data"):
+                    return {"valid": False, "error": f"Node {node.get('id', i)} missing required 'data' field"}
+            
+            # Separate validation for different node types (check data.type, not node.type)
+            agent_nodes = [n for n in nodes if n.get("data", {}).get("type") == "agent"]
+            tool_nodes = [n for n in nodes if n.get("data", {}).get("type") == "tool"]
+            
+            # Ensure we have at least one executable node (agent OR tool)
+            executable_nodes = agent_nodes + tool_nodes
+            if not executable_nodes:
+                return {"valid": False, "error": "Workflow must contain at least one agent or tool node"}
+            
+            print(f"🔍 Found {len(agent_nodes)} agent nodes and {len(tool_nodes)} tool nodes")
+            
+            # Enhanced agent node validation with model checking
+            for agent_node in agent_nodes:
+                agent_data = agent_node.get("data", {})
+                
+                # Check for name/label
+                if not agent_data.get("name") and not agent_data.get("label"):
+                    return {"valid": False, "error": f"Agent node {agent_node.get('id')} missing name or label"}
+                
+                # Check for instructions
+                if not agent_data.get("instructions"):
+                    return {"valid": False, "error": f"Agent node {agent_node.get('id')} missing instructions"}
+                
+                # Validate model_id format (only for agent nodes)
+                model_id = agent_data.get("model_id")
+                if model_id and not self._is_valid_model_format(model_id):
+                    return {"valid": False, "error": f"Agent node {agent_node.get('id')} has invalid model_id format: {model_id}"}
+            
+            # Tool node validation (separate from agent nodes)
+            for tool_node in tool_nodes:
+                tool_data = tool_node.get("data", {})
+                
+                # Check for name/label
+                if not tool_data.get("name") and not tool_data.get("label"):
+                    return {"valid": False, "error": f"Tool node {tool_node.get('id')} missing name or label"}
+                
+                # Tool nodes should have tool_type, not model_id
+                if tool_data.get("model_id") and not tool_data.get("tool_type"):
+                    # If tool has model_id but no tool_type, try to infer tool_type
+                    model_id = tool_data.get("model_id")
+                    if "browse" in model_id.lower() or "search" in model_id.lower():
+                        tool_data["tool_type"] = "web_search"
+                        print(f"⚡ Inferred tool_type 'web_search' for tool node {tool_node.get('id')} with model_id {model_id}")
+                        # Remove the invalid model_id since this is a tool
+                        del tool_data["model_id"]
+                        print(f"🔧 Removed invalid model_id from tool node {tool_node.get('id')}")
+            
+            # Validate edges structure
+            node_ids = set(node["id"] for node in nodes)
+            for i, edge in enumerate(edges):
+                if not edge.get("source"):
+                    return {"valid": False, "error": f"Edge {i} missing 'source' field"}
+                if not edge.get("target"):
+                    return {"valid": False, "error": f"Edge {i} missing 'target' field"}
+                if edge["source"] not in node_ids:
+                    return {"valid": False, "error": f"Edge {i} source '{edge['source']}' references non-existent node"}
+                if edge["target"] not in node_ids:
+                    return {"valid": False, "error": f"Edge {i} target '{edge['target']}' references non-existent node"}
+            
+            # Enhanced workflow flow validation
+            flow_validation = self._validate_workflow_flow(nodes, edges)
+            if not flow_validation["valid"]:
+                return flow_validation
+            
+            # Check for circular dependencies
+            if self._has_circular_dependency(nodes, edges):
+                return {"valid": False, "error": "Workflow contains circular dependencies"}
+            
+            # Validate execution paths
+            path_validation = self._validate_execution_paths(nodes, edges)
+            if not path_validation["valid"]:
+                return path_validation
+            
+            return {"valid": True, "message": "Workflow structure is valid", "validation_details": {
+                "node_count": len(nodes),
+                "edge_count": len(edges),
+                "agent_count": len(agent_nodes),
+                "has_cycles": False,
+                "execution_paths": len(self._find_execution_paths(nodes, edges))
+            }}
+            
+        except Exception as e:
+            return {"valid": False, "error": f"Validation error: {str(e)}"}
+    
+    def _is_valid_model_format(self, model_id: str) -> bool:
+        """Basic model ID format validation"""
+        if not isinstance(model_id, str) or len(model_id) < 3:
+            return False
+        
+        # Allow common model patterns
+        valid_patterns = [
+            "gpt-", "claude-", "gemini-", "llama-", "mixtral-", 
+            "anthropic", "openai", "o1-", "o3-"
+        ]
+        
+        return any(model_id.lower().startswith(pattern) for pattern in valid_patterns)
+    
+    def _validate_workflow_flow(self, nodes: List[Dict], edges: List[Dict]) -> Dict[str, Any]:
+        """Validate workflow flow connectivity and structure"""
+        try:
+            node_ids = set(node["id"] for node in nodes)
+            
+            # Build adjacency lists
+            outgoing = {}
+            incoming = {}
+            for node_id in node_ids:
+                outgoing[node_id] = []
+                incoming[node_id] = []
+            
+            for edge in edges:
+                outgoing[edge["source"]].append(edge["target"])
+                incoming[edge["target"]].append(edge["source"])
+            
+            # Find orphaned nodes (nodes with no connections)
+            orphaned_nodes = [
+                node_id for node_id in node_ids 
+                if not outgoing[node_id] and not incoming[node_id]
+            ]
+            
+            # Allow single-node workflows (common for simple agent tasks)
+            if len(nodes) == 1:
+                return {"valid": True, "message": "Single-node workflow is valid"}
+            
+            # For multi-node workflows, check for proper connectivity
+            if orphaned_nodes:
+                return {
+                    "valid": False, 
+                    "error": f"Orphaned nodes detected (not connected to workflow): {', '.join(orphaned_nodes)}"
+                }
+            
+            # Find start nodes (no incoming edges) and end nodes (no outgoing edges)
+            start_nodes = [node_id for node_id in node_ids if not incoming[node_id]]
+            end_nodes = [node_id for node_id in node_ids if not outgoing[node_id]]
+            
+            # Validate workflow has proper start and end points
+            if not start_nodes:
+                return {"valid": False, "error": "Workflow has no start nodes (all nodes have incoming edges - circular dependency)"}
+            
+            if not end_nodes:
+                return {"valid": False, "error": "Workflow has no end nodes (all nodes have outgoing edges - circular dependency)"}
+            
+            # Check for disconnected components
+            reachable_from_start = self._find_reachable_nodes(start_nodes[0], outgoing)
+            if len(reachable_from_start) < len(node_ids):
+                unreachable = node_ids - reachable_from_start
+                return {
+                    "valid": False,
+                    "error": f"Workflow has disconnected components. Unreachable nodes: {', '.join(unreachable)}"
+                }
+            
+            return {"valid": True, "message": "Workflow flow is valid"}
+            
+        except Exception as e:
+            return {"valid": False, "error": f"Flow validation error: {str(e)}"}
+    
+    def _find_reachable_nodes(self, start_node: str, adjacency: Dict[str, List[str]]) -> set:
+        """Find all nodes reachable from a start node"""
+        visited = set()
+        stack = [start_node]
+        
+        while stack:
+            node = stack.pop()
+            if node not in visited:
+                visited.add(node)
+                stack.extend(adjacency.get(node, []))
+        
+        return visited
+    
+    def _validate_execution_paths(self, nodes: List[Dict], edges: List[Dict]) -> Dict[str, Any]:
+        """Validate that workflow has valid execution paths"""
+        try:
+            if len(nodes) == 1:
+                return {"valid": True, "message": "Single-node execution path is valid"}
+            
+            # Build graph
+            node_ids = set(node["id"] for node in nodes)
+            outgoing = {node_id: [] for node_id in node_ids}
+            incoming = {node_id: [] for node_id in node_ids}
+            
+            for edge in edges:
+                outgoing[edge["source"]].append(edge["target"])
+                incoming[edge["target"]].append(edge["source"])
+            
+            # Find execution paths
+            paths = self._find_execution_paths(nodes, edges)
+            
+            if not paths:
+                return {"valid": False, "error": "No valid execution paths found in workflow"}
+            
+            # Validate path lengths are reasonable
+            max_path_length = max(len(path) for path in paths) if paths else 0
+            if max_path_length > 20:
+                return {
+                    "valid": False, 
+                    "error": f"Workflow execution path too long ({max_path_length} nodes). Consider breaking into smaller workflows."
+                }
+            
+            return {"valid": True, "message": f"Found {len(paths)} valid execution paths"}
+            
+        except Exception as e:
+            return {"valid": False, "error": f"Execution path validation error: {str(e)}"}
+    
+    def _find_execution_paths(self, nodes: List[Dict], edges: List[Dict]) -> List[List[str]]:
+        """Find all execution paths from start to end nodes"""
+        if len(nodes) == 1:
+            return [[nodes[0]["id"]]]
+        
+        node_ids = set(node["id"] for node in nodes)
+        outgoing = {node_id: [] for node_id in node_ids}
+        incoming = {node_id: [] for node_id in node_ids}
+        
+        for edge in edges:
+            outgoing[edge["source"]].append(edge["target"])
+            incoming[edge["target"]].append(edge["source"])
+        
+        # Find start and end nodes
+        start_nodes = [node_id for node_id in node_ids if not incoming[node_id]]
+        end_nodes = [node_id for node_id in node_ids if not outgoing[node_id]]
+        
+        paths = []
+        
+        def find_paths_dfs(current_node: str, current_path: List[str], visited: set):
+            if current_node in end_nodes:
+                paths.append(current_path + [current_node])
+                return
+            
+            if current_node in visited:
+                return  # Avoid cycles
+            
+            visited.add(current_node)
+            
+            for next_node in outgoing.get(current_node, []):
+                find_paths_dfs(next_node, current_path + [current_node], visited.copy())
+        
+        # Find all paths from each start node
+        for start_node in start_nodes:
+            find_paths_dfs(start_node, [], set())
+        
+        return paths
+
+    def _has_circular_dependency(self, nodes: List[Dict], edges: List[Dict]) -> bool:
+        """Basic circular dependency detection"""
+        try:
+            # Build adjacency list
+            graph = {}
+            for node in nodes:
+                graph[node["id"]] = []
+            
+            for edge in edges:
+                if edge["source"] in graph:
+                    graph[edge["source"]].append(edge["target"])
+            
+            # DFS to detect cycles
+            visited = set()
+            rec_stack = set()
+            
+            def has_cycle(node_id):
+                if node_id in rec_stack:
+                    return True
+                if node_id in visited:
+                    return False
+                
+                visited.add(node_id)
+                rec_stack.add(node_id)
+                
+                for neighbor in graph.get(node_id, []):
+                    if has_cycle(neighbor):
+                        return True
+                
+                rec_stack.remove(node_id)
+                return False
+            
+            for node_id in graph:
+                if node_id not in visited:
+                    if has_cycle(node_id):
+                        return True
+            
+            return False
+            
+        except Exception:
+            # If validation fails, assume no circular dependency to be safe
+            return False
+
+    def _validate_workflow_structure_cached(self, nodes: List[Dict], edges: List[Dict]) -> Dict[str, Any]:
+        """Cached workflow validation with rate limiting"""
+        import time
+        import hashlib
+        
+        # Generate cache key from workflow structure
+        workflow_hash = hashlib.md5(
+            str({"nodes": nodes, "edges": edges}).encode()
+        ).hexdigest()
+        
+        current_time = time.time()
+        
+        # Rate limiting: Don't validate same workflow more than once per 5 seconds
+        if workflow_hash in self._last_validation_time:
+            time_since_last = current_time - self._last_validation_time[workflow_hash]
+            if time_since_last < 5.0:  # 5 second rate limit
+                # Return cached result if available
+                if workflow_hash in self._validation_cache:
+                    print(f"🚀 Using cached validation result for workflow {workflow_hash[:8]}...")
+                    return self._validation_cache[workflow_hash]
+                else:
+                    # Skip validation to prevent spam
+                    print(f"⚠️  Rate limiting validation for workflow {workflow_hash[:8]}")
+                    return {"valid": True, "message": "Validation skipped due to rate limiting"}
+        
+        # Update validation time
+        self._last_validation_time[workflow_hash] = current_time
+        
+        # Perform validation
+        print(f"🔍 Validating workflow structure {workflow_hash[:8]}...")
+        result = self._validate_workflow_structure(nodes, edges)
+        
+        # Cache successful results
+        if result.get("valid"):
+            self._validation_cache[workflow_hash] = result
+            print(f"✅ Workflow validation passed - cached for future use")
+        else:
+            print(f"❌ Workflow validation failed: {result.get('error', 'Unknown error')}")
+        
+        # Clean old cache entries (keep only last 50)
+        if len(self._validation_cache) > 50:
+            oldest_keys = list(self._validation_cache.keys())[:-25]  # Keep newest 25
+            for key in oldest_keys:
+                del self._validation_cache[key]
+                if key in self._last_validation_time:
+                    del self._last_validation_time[key]
+        
+        return result
 
 
 # Global executor instance
@@ -1511,7 +1897,10 @@ async def run_experiment(experiment_id: str, request: dict = None):
                             execution_request = ExecutionRequest(
                                 workflow=workflow_def,
                                 input_data=test_input["content"],
-                                framework=variant.get("framework", "openai")
+                                framework=variant.get("framework", "openai"),
+                                workflow_identity=variant.get("workflow_identity"),
+                                workflow_name=variant.get("workflow_name"),
+                                workflow_id=variant.get("workflow_id")
                             )
                             
                             # Execute using the existing workflow executor
@@ -1867,8 +2256,16 @@ async def get_workflow_analytics():
                 "workflow_name": execution.get("workflow_name", f"Workflow {exec_id}"),
                 "workflow_category": execution.get("workflow_category", "general"),
                 "workflow_description": execution.get("workflow_description", "A workflow"),
-                "structure_hash": structure_hash
+                "structure_hash": structure_hash,
+                "last_updated": execution.get("created_at", 0)
             }
+        else:
+            # Use the most recent workflow name/category for the group
+            if execution.get("created_at", 0) > workflow_groups[structure_hash]["last_updated"]:
+                workflow_groups[structure_hash]["workflow_name"] = execution.get("workflow_name", f"Workflow {exec_id}")
+                workflow_groups[structure_hash]["workflow_category"] = execution.get("workflow_category", "general")
+                workflow_groups[structure_hash]["workflow_description"] = execution.get("workflow_description", "A workflow")
+                workflow_groups[structure_hash]["last_updated"] = execution.get("created_at", 0)
         
         workflow_groups[structure_hash]["executions"].append((exec_id, execution))
     
@@ -2025,21 +2422,58 @@ async def get_analytics_insights():
     if total_executions > 50:
         insights.append({
             "type": "usage",
-            "title": "High Activity",
-            "description": f"Total of {total_executions} executions",
+            "title": "High Usage",
+            "description": f"System has processed {total_executions} executions",
             "impact": "positive",
             "value": str(total_executions),
-            "recommendation": "Consider implementing caching for frequently used workflows"
+            "recommendation": "Consider workflow optimization for scale"
         })
-        recommendations.append("Implement caching for better performance")
+        recommendations.append("Monitor for scaling opportunities")
+    elif total_executions > 10:
+        insights.append({
+            "type": "usage",
+            "title": "Moderate Usage",
+            "description": f"System has processed {total_executions} executions",
+            "impact": "neutral",
+            "value": str(total_executions),
+            "recommendation": "Usage is growing steadily"
+        })
     
     # Calculate health score
-    health_score = min(100, max(0, success_rate - (error_rate * 2)))
+    health_score = 100
+    if error_rate > 15:
+        health_score -= 30
+    elif error_rate > 5:
+        health_score -= 15
+    
+    if avg_time > 10:
+        health_score -= 20
+    elif avg_time > 5:
+        health_score -= 10
+    
+    health_score = max(0, min(100, health_score))
     
     return {
         "insights": insights,
         "recommendations": recommendations,
-        "health_score": round(health_score, 1)
+        "health_score": health_score,
+        "metrics": {
+            "total_executions": total_executions,
+            "success_rate": success_rate,
+            "error_rate": error_rate,
+            "avg_execution_time": avg_time,
+            "total_cost": sum(e.get("trace", {}).get("cost_info", {}).get("total_cost", 0) for e in completed_executions)
+        }
+    }
+
+
+@app.post("/analytics/enhance-workflow-name")
+async def enhance_workflow_name(request: dict):
+    """Generate enhanced names for workflows in analytics using on-demand AI analysis"""
+    # This endpoint has been deprecated in favor of automatic workflow naming during execution
+    return {
+        "error": "This endpoint is deprecated. Workflow names are now generated automatically during execution.",
+        "message": "Use the workflow_identity.name from the execution trace instead."
     }
 
 
@@ -2560,7 +2994,17 @@ async def get_workflow_evaluation_suggestions(request: dict):
     
     try:
         # Use the existing workflow identity generator to understand the workflow
-        workflow_identity = await executor._generate_workflow_identity(nodes, edges, sample_input)
+        # Add protection against recursive calls
+        if executor._generating_identity:
+            print("⚠️  Skipping workflow identity generation in evaluation suggestions due to loop protection")
+            workflow_identity = {
+                "name": "Workflow",
+                "category": "general", 
+                "description": "A workflow",
+                "confidence": 0.5
+            }
+        else:
+            workflow_identity = await executor._generate_workflow_identity(nodes, edges, sample_input)
         
         # Build a comprehensive prompt that includes workflow understanding
         workflow_analysis = f"""

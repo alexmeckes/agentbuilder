@@ -1,8 +1,6 @@
 // Workflow execution service - integrates with any-agent backend
 
 import { WorkflowIdentity } from '../types/workflow'
-import { Workflow, WorkflowExecution, WorkflowExecutionStep } from '../types/workflow'
-import { WorkflowNode, WorkflowEdge } from '../components/WorkflowEditor'
 
 export interface WorkflowNode {
   id: string
@@ -76,7 +74,7 @@ export class WorkflowService {
    * Execute a workflow using any-agent
    */
   static async executeWorkflow(request: ExecutionRequest): Promise<ExecutionResponse> {
-    const response = await fetch(`${BACKEND_URL}/execute`, {
+    const response = await fetch('/api/execute', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -86,7 +84,7 @@ export class WorkflowService {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.detail || 'Failed to execute workflow')
+      throw new Error(error.error || 'Failed to execute workflow')
     }
 
     return response.json()

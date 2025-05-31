@@ -2,6 +2,16 @@
 
 This guide will walk you through deploying your Any-Agent Workflow Composer using Render for the backend and Vercel for the frontend.
 
+## 🚨 Critical: Environment Variables Required
+
+**IMPORTANT**: The frontend uses a proxy architecture that requires **TWO environment variables** to work properly. Without these, workflow executions from the Designer won't reach your backend Analytics.
+
+### Required Variables:
+- **`BACKEND_URL`** - For server-side API routes (proxying)
+- **`NEXT_PUBLIC_BACKEND_URL`** - For client-side API calls
+
+**Both must point to your Render backend URL!**
+
 ## Prerequisites
 
 1. **GitHub Repository**: Push your code to GitHub
@@ -59,14 +69,20 @@ npm install -g vercel
 cd frontend
 ```
 
-2. Create environment file:
+2. **🚨 CRITICAL: Create environment file with BOTH variables:**
 ```bash
-# Create .env.local file with your Render backend URL
+# Create .env.local file with BOTH required environment variables
 echo "BACKEND_URL=https://your-app-name.onrender.com" > .env.local
 echo "NEXT_PUBLIC_BACKEND_URL=https://your-app-name.onrender.com" >> .env.local
 ```
 
-**Replace `your-app-name.onrender.com` with your actual Render URL!**
+**⚠️ Replace `your-app-name.onrender.com` with your actual Render URL!**
+
+**Why both variables?**
+- `BACKEND_URL`: Used by `/api/execute` route to proxy Designer requests to backend
+- `NEXT_PUBLIC_BACKEND_URL`: Used by client-side code for direct API calls
+
+**Without both variables**: Workflows will execute but won't appear in Analytics!
 
 ### 2.3 Deploy to Vercel
 
@@ -89,7 +105,7 @@ Follow the prompts:
 
 1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
 2. Find your project → **Settings** → **Environment Variables**
-3. Add these variables:
+3. **🚨 CRITICAL: Add BOTH variables:**
    - **Name**: `BACKEND_URL`, **Value**: `https://your-app-name.onrender.com`
    - **Name**: `NEXT_PUBLIC_BACKEND_URL`, **Value**: `https://your-app-name.onrender.com`
 
@@ -107,11 +123,12 @@ You should see: `{"status": "Any-Agent Workflow Composer Backend is running!"}`
 Visit your Vercel URL: `https://your-frontend.vercel.app`
 Your workflow composer should load and be able to communicate with the backend.
 
-### 3.3 Test Full Workflow
+### 3.3 Test Full Workflow & Analytics Integration
 
-1. Create a simple workflow in the frontend
-2. Execute it to verify frontend-backend communication
-3. Check that all features work (evaluations, analytics, etc.)
+1. Create a simple workflow in the Designer
+2. Execute it and note the execution ID (e.g., exec_5)
+3. **Check Analytics tab** - the execution should appear there
+4. **If Analytics shows 0 workflows**: Environment variables are not set correctly
 
 ## Step 4: Custom Domain (Optional)
 
@@ -129,14 +146,20 @@ Your workflow composer should load and be able to communicate with the backend.
 
 ### Common Issues
 
+**🚨 Workflows Execute But Don't Appear in Analytics:**
+- **Symptom**: Designer shows exec_123 but Analytics shows 0 total workflows
+- **Cause**: Missing or incorrect environment variables in Vercel
+- **Fix**: Ensure BOTH `BACKEND_URL` and `NEXT_PUBLIC_BACKEND_URL` are set
+- **Verify**: Check browser network tab for successful `/api/execute` calls
+
 **Backend fails to start:**
 - Check Render logs for errors
 - Verify all environment variables are set
 - Ensure requirements.txt includes all dependencies
 
 **Frontend can't connect to backend:**
-- Verify environment variables in Vercel
-- Check that BACKEND_URL points to your Render service
+- Verify BOTH environment variables in Vercel
+- Check that URLs point to your Render service (no trailing slash)
 - Ensure CORS is properly configured in backend
 
 **"Module not found" errors:**
@@ -150,15 +173,16 @@ Your workflow composer should load and be able to communicate with the backend.
 # In Render dashboard, go to your service → Logs
 ```
 
-**Test backend locally with production URL:**
+**Test backend directly:**
 ```bash
 curl https://your-app-name.onrender.com/
 ```
 
-**Check frontend build locally:**
+**Test frontend proxy route:**
 ```bash
-cd frontend
-npm run build
+curl -X POST https://your-frontend.vercel.app/api/execute \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_name": "test", "nodes": [], "edges": []}'
 ```
 
 ## Cost Estimates
@@ -193,4 +217,4 @@ npm run build
 Your Any-Agent Workflow Composer is now live! 🎉
 
 **Frontend**: https://your-frontend.vercel.app
-**Backend**: https://your-app-name.onrender.com 
+**Backend**: https://your-app-name.onrender.com
