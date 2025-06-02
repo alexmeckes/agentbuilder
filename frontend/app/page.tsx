@@ -43,6 +43,44 @@ export default function Home() {
     // Keep track of node mappings for connections
     const nodeIdMap = new Map<string, string>() // original name -> actual ID
 
+    // Advanced spacing algorithm (same as drag-and-drop)
+    const nodeWidth = 500 // Much larger width to account for any expanded state
+    const nodeHeight = 400 // Much larger height for any expanded content  
+    const padding = 200 // Very large padding between nodes
+
+    const findAvailablePosition = (existingNodes: Node[], startX: number = 100, startY: number = 100) => {
+      const position = { x: startX, y: startY }
+      let attempts = 0
+      const maxAttempts = 30
+
+      while (attempts < maxAttempts) {
+        const hasOverlap = existingNodes.some(node => {
+          const dx = Math.abs(node.position.x - position.x)
+          const dy = Math.abs(node.position.y - position.y)
+          return dx < nodeWidth + padding && dy < nodeHeight + padding
+        })
+
+        if (!hasOverlap) break
+
+        // Try different positions with very generous spacing
+        if (attempts < 10) {
+          // Try to the right with much more spacing
+          position.x += nodeWidth + padding
+        } else if (attempts < 20) {
+          // Try below with much more spacing
+          position.x = startX
+          position.y += nodeHeight + padding
+        } else {
+          // Try diagonal positioning with very generous spacing
+          position.x = startX + (attempts - 20) * (nodeWidth + padding)
+          position.y = startY + (attempts - 20) * (nodeHeight + padding)
+        }
+        attempts++
+      }
+
+      return position
+    }
+
     // Create nodes from actions
     actions.forEach((action, index) => {
       if (action.type === 'CREATE_NODE') {
@@ -56,10 +94,14 @@ export default function Home() {
           model: action.model
         })
         
+        // Find available position using advanced spacing
+        const allExistingNodes = [...nodes, ...newNodes]
+        const position = findAvailablePosition(allExistingNodes, 100, 100)
+        
         const newNode: Node = {
           id: nodeId,
           type: 'agent',
-          position: { x: 100 + index * 300, y: 100 },
+          position: position,
           data: {
             label: action.name || `${action.nodeType} Node`,
             type: action.nodeType,
