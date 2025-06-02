@@ -3360,14 +3360,35 @@ async def list_available_servers():
     return {"servers": available_servers}
 
 if __name__ == "__main__":
+    # Production MCP setup
+    try:
+        # Run production setup if we have the setup script
+        import subprocess
+        result = subprocess.run([sys.executable, "setup_production_mcp.py"], 
+                              capture_output=True, text=True, cwd=os.getcwd())
+        if result.returncode == 0:
+            print("✅ Production MCP setup completed")
+        else:
+            print(f"⚠️  MCP setup warnings: {result.stdout}")
+    except Exception as e:
+        print(f"ℹ️  MCP setup skipped: {e}")
+    
     # Check for required environment variables
     if not os.getenv("OPENAI_API_KEY"):
         print("⚠️  Warning: OPENAI_API_KEY not set. OpenAI agents will not work.")
         print("🔧 Please set your OpenAI API key: export OPENAI_API_KEY='your_key_here'")
     
+    # Determine deployment environment
+    is_production = os.getenv("RENDER", "").lower() == "true"
+    port = int(os.getenv("PORT", "8000"))
+    
     print("🔥 Starting any-agent Workflow Composer Backend...")
-    print("📡 Backend will be available at: http://localhost:8000")
-    print("📖 API docs will be available at: http://localhost:8000/docs")
+    if is_production:
+        print(f"📡 Production backend starting on port {port}")
+        print("🌐 Frontend should set BACKEND_URL to this service URL")
+    else:
+        print("📡 Backend will be available at: http://localhost:8000")
+        print("📖 API docs will be available at: http://localhost:8000/docs")
     
     # Print MCP status
     if MCP_AVAILABLE:
@@ -3397,7 +3418,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=port,
+        reload=not is_production,  # Disable reload in production
         log_level="info"
     ) 

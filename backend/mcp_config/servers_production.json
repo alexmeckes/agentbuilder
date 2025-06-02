@@ -1,0 +1,34 @@
+{
+  "servers": [
+    {
+      "id": "web_search",
+      "name": "Web Search Tool",
+      "description": "Search the web for real-time information using DuckDuckGo",
+      "command": ["python3", "simple_mcp_server.py"],
+      "args": [],
+      "env": {},
+      "working_dir": "./",
+      "host": null,
+      "port": null,
+      "credentials": {},
+      "status": "disconnected",
+      "last_error": null,
+      "capabilities": []
+    },
+    {
+      "id": "github",
+      "name": "GitHub Integration",
+      "description": "Comprehensive GitHub repository management, issues, pull requests, and more",
+      "command": ["./github-mcp-server"],
+      "args": [],
+      "env": {},
+      "working_dir": "./",
+      "host": null,
+      "port": null,
+      "credentials": {},
+      "status": "disconnected",
+      "last_error": null,
+      "capabilities": []
+    }
+  ]
+} 
