@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "description": "Visual workflow composer for the any-agent framework",
   "private": true,
-  "workspaces": [
-    "frontend"
-  ],
   "scripts": {
     "setup": "./scripts/setup.sh",
     "dev": "./scripts/dev.sh",
