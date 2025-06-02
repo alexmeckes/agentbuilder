@@ -1,0 +1,34 @@
+{
+  "servers": [
+    {
+      "id": "filesystem",
+      "name": "File System Access",
+      "description": "Read, write, and manage local files and directories safely",
+      "command": ["python", "-m", "mcp", "server", "filesystem"],
+      "args": ["--base-dir", "./"],
+      "env": {},
+      "working_dir": null,
+      "host": null,
+      "port": null,
+      "credentials": {},
+      "status": "disconnected",
+      "last_error": null,
+      "capabilities": []
+    },
+    {
+      "id": "web_search",
+      "name": "Web Search Tool",
+      "description": "Search the web for real-time information using DuckDuckGo",
+      "command": ["/opt/homebrew/bin/python3", "simple_mcp_server.py"],
+      "args": [],
+      "env": {},
+      "working_dir": "/Users/ameckes/Downloads/any-agent-main 2/backend",
+      "host": null,
+      "port": null,
+      "credentials": {},
+      "status": "disconnected",
+      "last_error": null,
+      "capabilities": []
+    }
+  ]
+} 
