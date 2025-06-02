@@ -360,6 +360,11 @@ export default function Home() {
                 <h1 className="text-lg font-bold text-slate-900">any-agent Composer</h1>
                 <p className="text-xs text-slate-500">Build AI workflows visually</p>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium">
+                  ✨ Latest
+                </span>
+              </div>
             </div>
             
             {/* Main Navigation */}
