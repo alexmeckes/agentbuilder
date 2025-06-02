@@ -43,6 +43,14 @@ def search_web(query: str):
 # Import our NEW visual-to-anyagent translator (replacing custom workflow engine)
 from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent
 
+# Import MCP manager (with fallback for backwards compatibility)
+try:
+    from mcp_manager import get_mcp_manager, is_mcp_enabled, MCPServerConfig
+    MCP_AVAILABLE = True
+except ImportError:
+    logging.warning("MCP integration not available")
+    MCP_AVAILABLE = False
+
 
 class WorkflowNode(BaseModel):
     """Represents a node in the visual workflow"""
@@ -3168,6 +3176,181 @@ RESPOND ONLY WITH THE JSON OBJECT - NO ADDITIONAL TEXT OR MARKDOWN."""
         })
 
 
+# ============================================================================
+# MCP SERVER MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.get("/mcp/enabled")
+async def check_mcp_enabled():
+    """Check if MCP features are enabled"""
+    return {
+        "enabled": is_mcp_enabled() if MCP_AVAILABLE else False,
+        "available": MCP_AVAILABLE
+    }
+
+@app.get("/mcp/servers")
+async def list_mcp_servers():
+    """List all configured MCP servers"""
+    if not is_mcp_enabled() or not MCP_AVAILABLE:
+        return {"servers": [], "message": "MCP not enabled"}
+    
+    try:
+        mcp_manager = get_mcp_manager()
+        status = mcp_manager.get_server_status()
+        return {"servers": status}
+    except Exception as e:
+        logging.error(f"Failed to list MCP servers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/mcp/servers")
+async def add_mcp_server(server_config: dict):
+    """Add a new MCP server"""
+    if not is_mcp_enabled() or not MCP_AVAILABLE:
+        raise HTTPException(status_code=400, detail="MCP not enabled")
+    
+    try:
+        # Validate required fields
+        required_fields = ['id', 'name', 'description', 'command']
+        for field in required_fields:
+            if field not in server_config:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        # Create server config
+        config = MCPServerConfig(
+            id=server_config['id'],
+            name=server_config['name'],
+            description=server_config['description'],
+            command=server_config['command'],
+            args=server_config.get('args', []),
+            env=server_config.get('env', {}),
+            working_dir=server_config.get('working_dir'),
+            host=server_config.get('host'),
+            port=server_config.get('port'),
+            credentials=server_config.get('credentials', {})
+        )
+        
+        mcp_manager = get_mcp_manager()
+        success = await mcp_manager.add_server(config)
+        
+        if success:
+            return {"message": "Server added successfully", "server_id": config.id}
+        else:
+            error_msg = config.last_error or "Failed to connect to server"
+            raise HTTPException(status_code=400, detail=error_msg)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Failed to add MCP server: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/mcp/servers/{server_id}")
+async def remove_mcp_server(server_id: str):
+    """Remove an MCP server"""
+    if not is_mcp_enabled() or not MCP_AVAILABLE:
+        raise HTTPException(status_code=400, detail="MCP not enabled")
+    
+    try:
+        mcp_manager = get_mcp_manager()
+        success = mcp_manager.remove_server(server_id)
+        
+        if success:
+            return {"message": "Server removed successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Server not found")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Failed to remove MCP server: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/mcp/servers/{server_id}/test")
+async def test_mcp_server(server_id: str):
+    """Test connection to an MCP server"""
+    if not is_mcp_enabled() or not MCP_AVAILABLE:
+        raise HTTPException(status_code=400, detail="MCP not enabled")
+    
+    try:
+        mcp_manager = get_mcp_manager()
+        result = await mcp_manager.test_server_connection(server_id)
+        return result
+        
+    except Exception as e:
+        logging.error(f"Failed to test MCP server: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/mcp/tools")
+async def list_available_tools():
+    """List all available tools (built-in + MCP)"""
+    try:
+        from visual_to_anyagent_translator import VisualToAnyAgentTranslator
+        translator = VisualToAnyAgentTranslator()
+        tool_info = translator.get_available_tool_info()
+        return {"tools": tool_info}
+        
+    except Exception as e:
+        logging.error(f"Failed to list available tools: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/mcp/servers/available")
+async def list_available_servers():
+    """List popular MCP servers that can be installed"""
+    # Hardcoded list of popular MCP servers for Phase 1
+    available_servers = [
+        {
+            "id": "postgresql",
+            "name": "PostgreSQL Database",
+            "description": "Connect to PostgreSQL databases for querying and data management",
+            "command": ["npx", "@modelcontextprotocol/server-postgres"],
+            "config_schema": {
+                "host": {"type": "string", "default": "localhost", "required": True},
+                "port": {"type": "integer", "default": 5432, "required": True},
+                "database": {"type": "string", "required": True},
+                "username": {"type": "string", "required": True},
+                "password": {"type": "password", "required": True},
+                "ssl": {"type": "boolean", "default": False}
+            },
+            "category": "database"
+        },
+        {
+            "id": "filesystem",
+            "name": "File System Access",
+            "description": "Read, write, and manage local files and directories",
+            "command": ["npx", "@modelcontextprotocol/server-filesystem"],
+            "config_schema": {
+                "root_path": {"type": "string", "default": "./", "required": True},
+                "read_only": {"type": "boolean", "default": True}
+            },
+            "category": "files"
+        },
+        {
+            "id": "github",
+            "name": "GitHub Integration",
+            "description": "Manage GitHub repositories, issues, and pull requests",
+            "command": ["npx", "@modelcontextprotocol/server-github"],
+            "config_schema": {
+                "token": {"type": "password", "required": True},
+                "owner": {"type": "string", "required": True},
+                "repo": {"type": "string", "required": True}
+            },
+            "category": "development"
+        },
+        {
+            "id": "slack",
+            "name": "Slack Integration",
+            "description": "Send messages and manage Slack workspaces",
+            "command": ["npx", "@modelcontextprotocol/server-slack"],
+            "config_schema": {
+                "token": {"type": "password", "required": True},
+                "channel": {"type": "string", "required": False}
+            },
+            "category": "communication"
+        }
+    ]
+    
+    return {"servers": available_servers}
+
 if __name__ == "__main__":
     # Check for required environment variables
     if not os.getenv("OPENAI_API_KEY"):
@@ -3177,6 +3360,20 @@ if __name__ == "__main__":
     print("🔥 Starting any-agent Workflow Composer Backend...")
     print("📡 Backend will be available at: http://localhost:8000")
     print("📖 API docs will be available at: http://localhost:8000/docs")
+    
+    # Print MCP status
+    if MCP_AVAILABLE:
+        mcp_enabled = is_mcp_enabled()
+        print(f"🔌 MCP Integration: {'Enabled' if mcp_enabled else 'Available (set ENABLE_MCP_SERVERS=true to enable)'}")
+        if mcp_enabled:
+            try:
+                mcp_manager = get_mcp_manager()
+                server_count = len(mcp_manager.get_server_status())
+                print(f"   - {server_count} MCP servers configured")
+            except:
+                print("   - MCP manager initialization pending")
+    else:
+        print(f"🔌 MCP Integration: Not available (install with: pip install mcp)")
     
     execution_mode = os.getenv("USE_MOCK_EXECUTION", "false").lower()
     if execution_mode == "true":

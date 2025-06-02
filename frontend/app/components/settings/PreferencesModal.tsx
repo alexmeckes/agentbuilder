@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Settings, Zap, DollarSign, Brain, Sparkles } from 'lucide-react'
+import { X, Settings, Zap, DollarSign, Brain, Sparkles, Server } from 'lucide-react'
 import { POPULAR_MODELS, ModelInfo, AgentFramework } from '../../types/workflow'
+import MCPServersPanel from './MCPServersPanel'
 
 interface PreferencesModalProps {
   isOpen: boolean
@@ -40,7 +41,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 
 export default function PreferencesModal({ isOpen, onClose }: PreferencesModalProps) {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES)
-  const [activeTab, setActiveTab] = useState<'models' | 'performance' | 'cost'>('models')
+  const [activeTab, setActiveTab] = useState<'models' | 'performance' | 'cost' | 'mcp'>('models')
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -190,6 +191,19 @@ export default function PreferencesModal({ isOpen, onClose }: PreferencesModalPr
           >
             Cost Management
           </button>
+          <button
+            onClick={() => setActiveTab('mcp')}
+            className={`px-6 py-3 font-medium text-sm transition-colors ${
+              activeTab === 'mcp'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Server className="w-4 h-4" />
+              MCP Servers
+            </div>
+          </button>
         </div>
 
         {/* Content */}
@@ -336,6 +350,19 @@ export default function PreferencesModal({ isOpen, onClose }: PreferencesModalPr
                   <li>• Enable "Prefer Cost Efficiency" for automatic cost optimization</li>
                 </ul>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'mcp' && (
+            <div className="space-y-6">
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-2">MCP Server Integration</h3>
+                <p className="text-gray-600">
+                  Manage Model Context Protocol (MCP) servers to extend your workflow capabilities with external integrations.
+                </p>
+              </div>
+
+              <MCPServersPanel />
             </div>
           )}
         </div>

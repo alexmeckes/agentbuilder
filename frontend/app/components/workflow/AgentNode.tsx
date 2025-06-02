@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { NodeEditorModal } from './NodeEditorModal'
 import { EnhancedNodeData, AgentFramework, POPULAR_MODELS, FRAMEWORK_INFO } from '../../types/workflow'
+import EnhancedToolSelector from './EnhancedToolSelector'
 
 interface AgentNodeProps {
   data: EnhancedNodeData
@@ -534,25 +535,20 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate }: AgentNodeProps
             {/* Tool-specific content */}
             {data.type === 'tool' && (
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Tool Type</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <Wrench className="w-4 h-4" />
+                  Tool Selection
+                </h4>
                 
                 {editingTool ? (
                   <div className="flex items-center gap-2">
-                    <select
-                      ref={toolSelectRef}
+                    <EnhancedToolSelector
                       value={tempTool}
-                      onChange={(e) => setTempTool(e.target.value)}
+                      onChange={setTempTool}
                       onKeyDown={(e) => handleKeyPress(e, handleToolSave, handleToolCancel)}
                       onBlur={handleToolSave}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select a tool type</option>
-                      {toolOptions.map(tool => (
-                        <option key={tool} value={tool}>
-                          {tool.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        </option>
-                      ))}
-                    </select>
+                      className="flex-1"
+                    />
                     <button onClick={handleToolSave} className="text-green-600 hover:text-green-700">
                       <Save className="w-4 h-4" />
                     </button>
@@ -562,17 +558,15 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate }: AgentNodeProps
                   </div>
                 ) : (
                   <div 
-                    className="p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                    className="cursor-pointer"
                     onDoubleClick={() => setEditingTool(true)}
                     title="Double-click to edit"
                   >
-                    {data.tool_type ? (
-                      <span className="font-medium text-gray-900">
-                        {data.tool_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </span>
-                    ) : (
-                      <span className="text-gray-500 italic">No tool type selected</span>
-                    )}
+                    <EnhancedToolSelector
+                      value={data.tool_type || ''}
+                      onChange={() => {}} // Read-only when not editing
+                      disabled={true}
+                    />
                   </div>
                 )}
               </div>

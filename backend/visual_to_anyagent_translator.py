@@ -12,8 +12,25 @@ from any_agent import AgentConfig, AgentFramework, AnyAgent, TracingConfig
 import multiprocessing
 import json
 import traceback
+import os
+import logging
 
-# Mock tool functions
+# Import MCP manager (with fallback for backwards compatibility)
+try:
+    from mcp_manager import get_mcp_manager, is_mcp_enabled
+    MCP_INTEGRATION_AVAILABLE = True
+except ImportError:
+    logging.warning("MCP integration not available")
+    MCP_INTEGRATION_AVAILABLE = False
+    
+    # Fallback functions
+    def get_mcp_manager():
+        return None
+    
+    def is_mcp_enabled():
+        return False
+
+# Mock tool functions (unchanged for backwards compatibility)
 def search_web(query: str):
     return f"Mock search results for: {query}"
 
@@ -41,10 +58,62 @@ class VisualToAnyAgentTranslator:
     """Translates visual workflows to any-agent multi-agent configurations"""
     
     def __init__(self):
+        # Initialize with existing tools (backwards compatible)
         self.available_tools = {
             "search_web": search_web,
             "visit_webpage": visit_webpage,
         }
+        
+        # Add MCP tools if available and enabled
+        self._update_available_tools()
+    
+    def _update_available_tools(self):
+        """Safely add MCP tools to existing tool set"""
+        if not is_mcp_enabled() or not MCP_INTEGRATION_AVAILABLE:
+            logging.debug("MCP tools not enabled or not available")
+            return
+        
+        try:
+            mcp_manager = get_mcp_manager()
+            if mcp_manager:
+                mcp_tools = mcp_manager.get_available_tools()
+                self.available_tools.update(mcp_tools)
+                logging.info(f"Added {len(mcp_tools)} MCP tools to available tools")
+        except Exception as e:
+            logging.warning(f"Failed to load MCP tools, continuing with built-in tools only: {e}")
+    
+    def get_available_tool_info(self) -> Dict[str, Dict[str, Any]]:
+        """Get information about all available tools for UI display"""
+        tool_info = {}
+        
+        # Built-in tools
+        built_in_tools = {
+            "search_web": {"type": "built-in", "description": "Search the web", "category": "web"},
+            "visit_webpage": {"type": "built-in", "description": "Visit and read webpage content", "category": "web"}
+        }
+        tool_info.update(built_in_tools)
+        
+        # MCP tools (if available)
+        if is_mcp_enabled() and MCP_INTEGRATION_AVAILABLE:
+            try:
+                mcp_manager = get_mcp_manager()
+                if mcp_manager:
+                    server_status = mcp_manager.get_server_status()
+                    for server_id, status in server_status.items():
+                        for capability in status.get('capabilities', []):
+                            tool_key = f"mcp_{server_id}_{capability}"
+                            tool_info[tool_key] = {
+                                "type": "mcp",
+                                "description": f"{capability} (via {status['name']})",
+                                "category": "integration",
+                                "server_id": server_id,
+                                "server_name": status['name'],
+                                "server_status": status['status']
+                            }
+            except Exception as e:
+                logging.warning(f"Failed to get MCP tool info: {e}")
+        
+        return tool_info
     
     def translate_workflow(self, 
                           nodes: List[Dict], 
