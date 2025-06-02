@@ -24,70 +24,112 @@ def download_github_mcp_server():
     system = platform.system().lower()
     machine = platform.machine().lower()
     
-    # Map to GitHub release naming convention
+    # Map to GitHub release naming convention (tar.gz format)
     if system == "linux":
         if "x86_64" in machine or "amd64" in machine:
-            platform_name = "linux-x64"
+            platform_name = "Linux_x86_64"
+            archive_extension = "tar.gz"
         elif "aarch64" in machine or "arm64" in machine:
-            platform_name = "linux-arm64"
+            platform_name = "Linux_arm64"
+            archive_extension = "tar.gz"
         else:
             print(f"❌ Unsupported Linux architecture: {machine}")
             return None
     elif system == "darwin":
         if "arm64" in machine or "aarch64" in machine:
-            platform_name = "macos-arm64"
+            platform_name = "Darwin_arm64"
         else:
-            platform_name = "macos-x64"
+            platform_name = "Darwin_x86_64"
+        archive_extension = "tar.gz"
     elif system == "windows":
-        platform_name = "windows-x64"
+        platform_name = "Windows_x86_64"
+        archive_extension = "zip"
     else:
         print(f"❌ Unsupported operating system: {system}")
         return None
     
     # GitHub MCP server details
     version = "v0.4.0"
-    binary_name = f"github-mcp-server-{platform_name}"
+    archive_name = f"github-mcp-server_{platform_name}.{archive_extension}"
     local_binary_name = "github-mcp-server"
     
     # Check if binary already exists and is executable
     if Path(local_binary_name).exists():
         try:
             # Test if it's executable
-            os.access(local_binary_name, os.X_OK)
-            print(f"✅ GitHub MCP server binary already exists: {local_binary_name}")
-            return f"./{local_binary_name}"
+            if os.access(local_binary_name, os.X_OK):
+                print(f"✅ GitHub MCP server binary already exists: {local_binary_name}")
+                return f"./{local_binary_name}"
         except:
-            print("⚠️  Existing binary not executable, re-downloading...")
+            pass
+        print("⚠️  Existing binary not executable, re-downloading...")
     
     # Download URL
-    download_url = f"https://github.com/github/github-mcp-server/releases/download/{version}/{binary_name}"
+    download_url = f"https://github.com/github/github-mcp-server/releases/download/{version}/{archive_name}"
     
     try:
         print(f"📥 Downloading GitHub MCP server from: {download_url}")
         print(f"🔍 Platform detected: {system}-{machine} -> {platform_name}")
-        print(f"🎯 Target binary name: {local_binary_name}")
+        print(f"🎯 Target archive: {archive_name}")
         
-        # Download with more detailed error handling
-        urllib.request.urlretrieve(download_url, local_binary_name)
+        # Download archive with more detailed error handling
+        urllib.request.urlretrieve(download_url, archive_name)
         
         # Verify download
-        downloaded_size = Path(local_binary_name).stat().st_size
+        downloaded_size = Path(archive_name).stat().st_size
         print(f"📊 Downloaded {downloaded_size} bytes")
         
         if downloaded_size == 0:
             print("❌ Downloaded file is empty")
             return None
         
-        # Make executable
-        st = os.stat(local_binary_name)
-        os.chmod(local_binary_name, st.st_mode | stat.S_IEXEC)
+        # Extract archive
+        import tarfile
+        import zipfile
+        
+        if archive_extension == "tar.gz":
+            print(f"📦 Extracting tar.gz archive...")
+            with tarfile.open(archive_name, 'r:gz') as tar:
+                # Find the binary inside the archive
+                for member in tar.getmembers():
+                    if member.name.endswith('github-mcp-server') and not member.name.startswith('.'):
+                        # Extract to local name
+                        member.name = local_binary_name
+                        tar.extract(member)
+                        break
+                else:
+                    print("❌ GitHub MCP server binary not found in archive")
+                    return None
+        elif archive_extension == "zip":
+            print(f"📦 Extracting zip archive...")
+            with zipfile.ZipFile(archive_name, 'r') as zip_file:
+                # Find the binary inside the archive
+                for name in zip_file.namelist():
+                    if name.endswith('github-mcp-server.exe') and not name.startswith('.'):
+                        # Extract and rename
+                        zip_file.extract(name)
+                        Path(name).rename(local_binary_name)
+                        break
+                else:
+                    print("❌ GitHub MCP server binary not found in zip")
+                    return None
+        
+        # Clean up archive
+        Path(archive_name).unlink()
+        
+        # Make executable (Unix-like systems)
+        if system != "windows":
+            st = os.stat(local_binary_name)
+            os.chmod(local_binary_name, st.st_mode | stat.S_IEXEC)
         
         # Verify it's executable
-        if not os.access(local_binary_name, os.X_OK):
+        if system != "windows" and not os.access(local_binary_name, os.X_OK):
             print("❌ Binary is not executable after chmod")
             return None
         
-        print(f"✅ Downloaded and configured: {local_binary_name} ({downloaded_size} bytes)")
+        # Final verification
+        final_size = Path(local_binary_name).stat().st_size
+        print(f"✅ Extracted and configured: {local_binary_name} ({final_size} bytes)")
         return f"./{local_binary_name}"
         
     except urllib.error.HTTPError as e:
