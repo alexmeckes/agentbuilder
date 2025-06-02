@@ -959,6 +959,20 @@ stored_evaluation_runs = {}  # Add storage for evaluation runs
 async def lifespan(app: FastAPI):
     """Application lifespan management"""
     print("🚀 any-agent Workflow Composer Backend starting...")
+    
+    # Setup MCP servers for production if enabled
+    if os.getenv('ENABLE_MCP_SERVERS', '').lower() == 'true':
+        try:
+            from setup_production_mcp import setup_production_mcp
+            print("🔧 Setting up MCP servers...")
+            setup_success = setup_production_mcp()
+            if setup_success:
+                print("✅ MCP setup completed successfully")
+            else:
+                print("⚠️  MCP setup completed with warnings")
+        except Exception as e:
+            print(f"❌ MCP setup failed: {e}")
+    
     yield
     print("🛑 any-agent Workflow Composer Backend shutting down...")
 

@@ -11,6 +11,7 @@ import os
 import shutil
 import sys
 import urllib.request
+import urllib.error
 import platform
 import stat
 from pathlib import Path
@@ -63,17 +64,41 @@ def download_github_mcp_server():
     
     try:
         print(f"📥 Downloading GitHub MCP server from: {download_url}")
+        print(f"🔍 Platform detected: {system}-{machine} -> {platform_name}")
+        print(f"🎯 Target binary name: {local_binary_name}")
+        
+        # Download with more detailed error handling
         urllib.request.urlretrieve(download_url, local_binary_name)
+        
+        # Verify download
+        downloaded_size = Path(local_binary_name).stat().st_size
+        print(f"📊 Downloaded {downloaded_size} bytes")
+        
+        if downloaded_size == 0:
+            print("❌ Downloaded file is empty")
+            return None
         
         # Make executable
         st = os.stat(local_binary_name)
         os.chmod(local_binary_name, st.st_mode | stat.S_IEXEC)
         
-        print(f"✅ Downloaded and configured: {local_binary_name}")
+        # Verify it's executable
+        if not os.access(local_binary_name, os.X_OK):
+            print("❌ Binary is not executable after chmod")
+            return None
+        
+        print(f"✅ Downloaded and configured: {local_binary_name} ({downloaded_size} bytes)")
         return f"./{local_binary_name}"
         
+    except urllib.error.HTTPError as e:
+        print(f"❌ HTTP Error downloading GitHub MCP server: {e.code} {e.reason}")
+        print(f"🔗 URL was: {download_url}")
+        return None
+    except urllib.error.URLError as e:
+        print(f"❌ URL Error downloading GitHub MCP server: {e.reason}")
+        return None
     except Exception as e:
-        print(f"❌ Failed to download GitHub MCP server: {e}")
+        print(f"❌ Unexpected error downloading GitHub MCP server: {e}")
         return None
 
 def setup_production_mcp():
