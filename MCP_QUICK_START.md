@@ -23,6 +23,7 @@ We've successfully built **full MCP integration** with live server connections:
 
 ### 🔌 **Live MCP Servers**
 - **Web Search Server**: Working DuckDuckGo search integration
+- **GitHub Server**: Official GitHub MCP server with 35+ tools (ready for auth)
 - **Echo Server**: Testing tool for verification
 - **Server Management**: Add, remove, test server connections
 - **Tool Discovery**: Automatic tool detection and integration
@@ -45,10 +46,10 @@ We've successfully built **full MCP integration** with live server connections:
 
 ### 3. **Available MCP Tools** (Live and Working!)
 - 🔍 **Web Search**: Real-time web search using DuckDuckGo
+- 🐙 **GitHub Integration**: Official GitHub MCP server with 35+ tools (ready for auth)
 - 🔄 **Echo Tool**: Testing tool for verification
 - 📁 **File System Access**: Ready to configure (server available)
 - 🗄️ **PostgreSQL Database**: Ready to configure
-- 🐙 **GitHub Integration**: Ready to configure
 - 💬 **Slack Integration**: Ready to configure
 
 ## 🛠️ **MCP is Enabled and Ready!**
