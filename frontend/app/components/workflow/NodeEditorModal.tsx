@@ -31,6 +31,7 @@ import {
   ModelInfo,
   FrameworkInfo
 } from '../../types/workflow'
+import EnhancedToolSelector from './EnhancedToolSelector'
 
 interface AgentNodeData {
   label: string
@@ -438,6 +439,31 @@ export function NodeEditorModal({ isOpen, nodeData, onSave, onClose }: NodeEdito
                   <p className="mt-1 text-sm text-gray-500">
                     This will be used as the system prompt for the AI agent
                   </p>
+                </div>
+              )}
+
+              {formData.type === 'tool' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tool Type *
+                  </label>
+                  <EnhancedToolSelector
+                    value={formData.tool_type || ''}
+                    onChange={(toolId) => setFormData(prev => ({ 
+                      ...prev, 
+                      tool_type: toolId 
+                    }))}
+                    className="w-full"
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    Select the type of tool this node will use. You can enhance it with AI capabilities in the AI Enhancement tab.
+                  </p>
+                  {errors.tool_type && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.tool_type}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
