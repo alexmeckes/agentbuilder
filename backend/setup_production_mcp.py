@@ -10,7 +10,71 @@ import json
 import os
 import shutil
 import sys
+import urllib.request
+import platform
+import stat
 from pathlib import Path
+
+def download_github_mcp_server():
+    """Download the appropriate GitHub MCP server binary for the current platform"""
+    print("🔄 Setting up GitHub MCP server binary...")
+    
+    # Determine platform and architecture
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    
+    # Map to GitHub release naming convention
+    if system == "linux":
+        if "x86_64" in machine or "amd64" in machine:
+            platform_name = "linux-x64"
+        elif "aarch64" in machine or "arm64" in machine:
+            platform_name = "linux-arm64"
+        else:
+            print(f"❌ Unsupported Linux architecture: {machine}")
+            return None
+    elif system == "darwin":
+        if "arm64" in machine or "aarch64" in machine:
+            platform_name = "macos-arm64"
+        else:
+            platform_name = "macos-x64"
+    elif system == "windows":
+        platform_name = "windows-x64"
+    else:
+        print(f"❌ Unsupported operating system: {system}")
+        return None
+    
+    # GitHub MCP server details
+    version = "v0.4.0"
+    binary_name = f"github-mcp-server-{platform_name}"
+    local_binary_name = "github-mcp-server"
+    
+    # Check if binary already exists and is executable
+    if Path(local_binary_name).exists():
+        try:
+            # Test if it's executable
+            os.access(local_binary_name, os.X_OK)
+            print(f"✅ GitHub MCP server binary already exists: {local_binary_name}")
+            return f"./{local_binary_name}"
+        except:
+            print("⚠️  Existing binary not executable, re-downloading...")
+    
+    # Download URL
+    download_url = f"https://github.com/github/github-mcp-server/releases/download/{version}/{binary_name}"
+    
+    try:
+        print(f"📥 Downloading GitHub MCP server from: {download_url}")
+        urllib.request.urlretrieve(download_url, local_binary_name)
+        
+        # Make executable
+        st = os.stat(local_binary_name)
+        os.chmod(local_binary_name, st.st_mode | stat.S_IEXEC)
+        
+        print(f"✅ Downloaded and configured: {local_binary_name}")
+        return f"./{local_binary_name}"
+        
+    except Exception as e:
+        print(f"❌ Failed to download GitHub MCP server: {e}")
+        return None
 
 def setup_production_mcp():
     """Set up MCP configuration for production"""
@@ -60,25 +124,31 @@ def setup_production_mcp():
     # Add GitHub server if token is available
     github_token = os.getenv('GITHUB_PERSONAL_ACCESS_TOKEN')
     if github_token and github_token != 'your_github_token_here':
-        github_server = {
-            "id": "github",
-            "name": "GitHub Integration",
-            "description": "Comprehensive GitHub repository management, issues, pull requests, and more",
-            "command": ["./github-mcp-server"],
-            "args": [],
-            "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": github_token
-            },
-            "working_dir": working_dir,
-            "host": None,
-            "port": None,
-            "credentials": {},
-            "status": "disconnected", 
-            "last_error": None,
-            "capabilities": []
-        }
-        production_config["servers"].append(github_server)
-        print("✅ GitHub MCP server configured with environment token")
+        # Download GitHub MCP server if needed
+        github_binary = download_github_mcp_server()
+        
+        if github_binary and Path(github_binary).exists():
+            github_server = {
+                "id": "github",
+                "name": "GitHub Integration",
+                "description": "Comprehensive GitHub repository management, issues, pull requests, and more",
+                "command": [github_binary],
+                "args": [],
+                "env": {
+                    "GITHUB_PERSONAL_ACCESS_TOKEN": github_token
+                },
+                "working_dir": working_dir,
+                "host": None,
+                "port": None,
+                "credentials": {},
+                "status": "disconnected", 
+                "last_error": None,
+                "capabilities": []
+            }
+            production_config["servers"].append(github_server)
+            print("✅ GitHub MCP server configured with environment token")
+        else:
+            print("❌ Failed to setup GitHub MCP server binary")
     else:
         print("⚠️  GitHub MCP server skipped (no GITHUB_PERSONAL_ACCESS_TOKEN set)")
     
@@ -99,9 +169,6 @@ def setup_production_mcp():
         "simple_mcp_server.py",
         "mcp_manager.py"
     ]
-    
-    if github_token:
-        required_files.append("github-mcp-server")
     
     missing_files = []
     for file in required_files:
