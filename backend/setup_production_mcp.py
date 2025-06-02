@@ -188,8 +188,17 @@ def setup_production_mcp():
         ]
     }
     
-    # Always download GitHub MCP server binary (for UI token management)
+    # Always ensure GitHub MCP server binary is available (for UI token management)
     github_binary = download_github_mcp_server()
+    
+    # Fallback to pre-built binary if download fails
+    if not github_binary or not Path(github_binary).exists():
+        if is_production and Path("github-mcp-server-linux").exists():
+            github_binary = "./github-mcp-server-linux"
+            print("✅ Using pre-built Linux GitHub MCP server binary")
+        elif not is_production and Path("github-mcp-server").exists():
+            github_binary = "./github-mcp-server"
+            print("✅ Using existing GitHub MCP server binary")
     
     if github_binary and Path(github_binary).exists():
         print("✅ GitHub MCP server binary ready for UI configuration")
