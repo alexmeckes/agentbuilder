@@ -146,13 +146,15 @@ def setup_production_mcp():
         ]
     }
     
-    # Add GitHub server if token is available
-    github_token = os.getenv('GITHUB_PERSONAL_ACCESS_TOKEN')
-    if github_token and github_token != 'your_github_token_here':
-        # Download GitHub MCP server if needed
-        github_binary = download_github_mcp_server()
+    # Always download GitHub MCP server binary (for UI token management)
+    github_binary = download_github_mcp_server()
+    
+    if github_binary and Path(github_binary).exists():
+        print("✅ GitHub MCP server binary ready for UI configuration")
         
-        if github_binary and Path(github_binary).exists():
+        # Add GitHub server if token is available via environment
+        github_token = os.getenv('GITHUB_PERSONAL_ACCESS_TOKEN')
+        if github_token and github_token != 'your_github_token_here':
             github_server = {
                 "id": "github",
                 "name": "GitHub Integration",
@@ -171,11 +173,11 @@ def setup_production_mcp():
                 "capabilities": []
             }
             production_config["servers"].append(github_server)
-            print("✅ GitHub MCP server configured with environment token")
+            print("✅ GitHub MCP server auto-configured with environment token")
         else:
-            print("❌ Failed to setup GitHub MCP server binary")
+            print("ℹ️  GitHub MCP server binary downloaded - ready for UI token configuration")
     else:
-        print("⚠️  GitHub MCP server skipped (no GITHUB_PERSONAL_ACCESS_TOKEN set)")
+        print("❌ Failed to setup GitHub MCP server binary")
     
     # Ensure mcp_config directory exists
     mcp_config_dir = Path("mcp_config")
