@@ -3307,6 +3307,41 @@ async def list_available_tools():
         logging.error(f"Failed to list available tools: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/mcp/debug")
+async def debug_mcp_setup():
+    """Debug MCP setup - check if files exist"""
+    import os
+    from pathlib import Path
+    
+    debug_info = {
+        "working_directory": os.getcwd(),
+        "github_binary_exists": os.path.exists("./github-mcp-server"),
+        "github_binary_executable": False,
+        "github_binary_size": None,
+        "environment": {
+            "RENDER": os.getenv("RENDER", "not_set"),
+            "ENABLE_MCP_SERVERS": os.getenv("ENABLE_MCP_SERVERS", "not_set"),
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "***" if os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN") else "not_set"
+        },
+        "files_in_directory": []
+    }
+    
+    # Check binary details
+    binary_path = Path("./github-mcp-server")
+    if binary_path.exists():
+        debug_info["github_binary_executable"] = os.access(binary_path, os.X_OK)
+        debug_info["github_binary_size"] = binary_path.stat().st_size
+    
+    # List relevant files
+    try:
+        for file in os.listdir("."):
+            if "github" in file.lower() or file.endswith((".py", ".json")):
+                debug_info["files_in_directory"].append(file)
+    except:
+        pass
+    
+    return debug_info
+
 @app.get("/mcp/servers/available")
 async def list_available_servers():
     """List popular MCP servers that can be installed"""
