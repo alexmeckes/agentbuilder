@@ -29,6 +29,23 @@
       "status": "disconnected",
       "last_error": null,
       "capabilities": []
+    },
+    {
+      "id": "github",
+      "name": "GitHub Integration",
+      "description": "Comprehensive GitHub repository management, issues, pull requests, and more",
+      "command": ["./github-mcp-server"],
+      "args": [],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_github_token_here"
+      },
+      "working_dir": "/Users/ameckes/Downloads/any-agent-main 2/backend",
+      "host": null,
+      "port": null,
+      "credentials": {},
+      "status": "disconnected",
+      "last_error": null,
+      "capabilities": []
     }
   ]
 } 

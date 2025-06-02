@@ -3326,15 +3326,23 @@ async def list_available_servers():
         },
         {
             "id": "github",
-            "name": "GitHub Integration",
-            "description": "Manage GitHub repositories, issues, and pull requests",
-            "command": ["npx", "@modelcontextprotocol/server-github"],
+            "name": "GitHub Integration (Official)",
+            "description": "Comprehensive GitHub integration: repositories, issues, PRs, code scanning, notifications, and more",
+            "command": ["./github-mcp-server"],
             "config_schema": {
-                "token": {"type": "password", "required": True},
-                "owner": {"type": "string", "required": True},
-                "repo": {"type": "string", "required": True}
+                "GITHUB_PERSONAL_ACCESS_TOKEN": {"type": "password", "required": True, "description": "GitHub Personal Access Token for authentication"}
             },
-            "category": "development"
+            "category": "development",
+            "official": True,
+            "features": [
+                "Repository management", 
+                "Issues and Pull Requests", 
+                "Code and secret scanning", 
+                "Notifications", 
+                "Search capabilities",
+                "File operations",
+                "Branch management"
+            ]
         },
         {
             "id": "slack",
