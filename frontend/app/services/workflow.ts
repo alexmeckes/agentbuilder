@@ -108,27 +108,53 @@ export class WorkflowService {
     nodes: any[],
     edges: any[]
   ): WorkflowDefinition {
-    const workflowNodes: WorkflowNode[] = nodes.map((node) => ({
-      id: node.id,
-      type: node.type === 'agent' ? 'agent' : 
-            node.data.type === 'tool' ? 'tool' :
-            node.data.type === 'input' ? 'input' :
-            node.data.type === 'output' ? 'output' : 'agent',
-      data: {
-        ...node.data,
-        // Add default values for agent nodes
-        model_id: node.data.model_id || 'gpt-3.5-turbo',
-        instructions: node.data.instructions || 'You are a helpful assistant.',
-        name: node.data.name || node.data.label || 'Agent',
-      },
-      position: node.position,
-    }))
+    console.log('🔄 Converting to workflow definition:', {
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+      nodes: nodes.map(n => ({ id: n.id, type: n.type, dataType: n.data?.type }))
+    })
+    
+    const workflowNodes: WorkflowNode[] = nodes.map((node) => {
+      const nodeType: 'agent' | 'tool' | 'input' | 'output' = 
+        node.type === 'agent' ? 'agent' : 
+        node.data.type === 'tool' ? 'tool' :
+        node.data.type === 'input' ? 'input' :
+        node.data.type === 'output' ? 'output' : 'agent'
+      
+      const convertedNode: WorkflowNode = {
+        id: node.id,
+        type: nodeType,
+        data: {
+          ...node.data,
+          // Add default values for agent nodes
+          model_id: node.data.model_id || 'gpt-3.5-turbo',
+          instructions: node.data.instructions || 'You are a helpful assistant.',
+          name: node.data.name || node.data.label || 'Agent',
+        },
+        position: node.position,
+      }
+      
+      console.log(`🔧 Converted node ${node.id}:`, {
+        originalType: node.type,
+        originalDataType: node.data?.type,
+        convertedType: convertedNode.type,
+        finalDataType: convertedNode.data.type
+      })
+      
+      return convertedNode
+    })
 
     const workflowEdges: WorkflowEdge[] = edges.map((edge) => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
     }))
+
+    console.log('✅ Final workflow definition:', {
+      nodeCount: workflowNodes.length,
+      edgeCount: workflowEdges.length,
+      executableNodes: workflowNodes.filter(n => n.type === 'agent' || n.type === 'tool').length
+    })
 
     return {
       nodes: workflowNodes,

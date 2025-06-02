@@ -1,10 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from 'react'
-import type { Node, Edge } from 'reactflow'
 import { Message } from './chat/Message'
 import { ChatInput } from './chat/ChatInput'
 import { useChat } from '../hooks/useChat'
+import { extractWorkflowContext } from '../lib/workflowExtractor'
 import { AlertCircle, Bot, Workflow, RotateCcw } from 'lucide-react'
 
 interface ChatInterfaceProps {
@@ -12,18 +12,13 @@ interface ChatInterfaceProps {
   onExecuteActions?: (actions: any[]) => void
   onSuggestionToWorkflow?: (suggestion: string) => void
   onUseWorkflow?: (actions: any[], smartContext?: string) => void
-  onWorkflowCreated?: (workflowNodes: Node[], workflowEdges: Edge[], identity?: any) => void
 }
 
-export default function ChatInterface({ 
-  workflowContext, 
-  onExecuteActions, 
-  onSuggestionToWorkflow,
-  onUseWorkflow,
-  onWorkflowCreated
-}: ChatInterfaceProps) {
+export default function ChatInterface({ workflowContext, onExecuteActions, onSuggestionToWorkflow, onUseWorkflow }: ChatInterfaceProps) {
   const { messages, isTyping, error, sendMessage, clearMessages } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [currentSuggestion, setCurrentSuggestion] = useState<string>('')
+  const [currentWorkflowType, setCurrentWorkflowType] = useState<string>('')
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -33,31 +28,47 @@ export default function ChatInterface({
     scrollToBottom()
   }, [messages])
 
+  // Extract workflow context from the latest assistant message
+  useEffect(() => {
+    const extractContext = async () => {
+      const lastAssistantMessage = messages
+        .filter(msg => msg.role === 'assistant')
+        .slice(-1)[0]
+
+      if (lastAssistantMessage?.content) {
+        try {
+          console.log('🔍 Debug - AI Response:', lastAssistantMessage.content.substring(0, 200) + '...')
+          const workflowCtx = await extractWorkflowContext(lastAssistantMessage.content)
+          console.log('🔍 Debug - Extracted Context:', workflowCtx)
+          
+          if (workflowCtx) {
+            console.log('🔍 Debug - Setting suggestion:', workflowCtx.suggestion)
+            setCurrentSuggestion(workflowCtx.suggestion)
+            setCurrentWorkflowType(workflowCtx.workflowType || '')
+          } else {
+            console.log('🔍 Debug - No workflow context extracted, clearing suggestion')
+            setCurrentSuggestion('')
+            setCurrentWorkflowType('')
+          }
+        } catch (error) {
+          console.error('❌ Error extracting workflow context:', error)
+          setCurrentSuggestion('')
+          setCurrentWorkflowType('')
+        }
+      }
+    }
+
+    extractContext()
+  }, [messages])
+
   const handleSendMessage = (message: string) => {
     sendMessage(message, workflowContext)
   }
 
   const handleClearChat = () => {
     clearMessages()
-  }
-
-  const handleUseWorkflow = (actions: any[], smartContext?: string) => {
-    console.log('🎯 ChatInterface - Using workflow with:', { actions, smartContext })
-    console.log('🎯 ChatInterface - Smart context type:', typeof smartContext)
-    console.log('🎯 ChatInterface - Smart context value:', JSON.stringify(smartContext))
-    
-    if (onUseWorkflow) {
-      console.log('🎯 ChatInterface - Calling onUseWorkflow from page.tsx')
-      onUseWorkflow(actions, smartContext)
-    } else if (onExecuteActions) {
-      console.log('🎯 ChatInterface - Fallback to onExecuteActions')
-      onExecuteActions(actions)
-      
-      if (smartContext && onSuggestionToWorkflow) {
-        console.log('🎯 ChatInterface - Also calling onSuggestionToWorkflow with:', smartContext)
-        onSuggestionToWorkflow(smartContext)
-      }
-    }
+    setCurrentSuggestion('')
+    setCurrentWorkflowType('')
   }
 
   return (
@@ -67,6 +78,11 @@ export default function ChatInterface({
         <div className="flex items-center gap-2">
           <Bot className="h-5 w-5 text-blue-600" />
           <h2 className="text-lg font-semibold text-gray-900">AI Workflow Assistant</h2>
+          {currentWorkflowType && (
+            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+              {currentWorkflowType.replace('-', ' ')}
+            </span>
+          )}
         </div>
         <button
           onClick={handleClearChat}
@@ -106,7 +122,7 @@ export default function ChatInterface({
             key={message.id} 
             message={message} 
             onExecuteActions={onExecuteActions}
-            onUseWorkflow={handleUseWorkflow}
+            onUseWorkflow={onUseWorkflow}
           />
         ))}
         
@@ -118,7 +134,6 @@ export default function ChatInterface({
               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
             </div>
-            <span className="text-xs text-gray-400">AI is thinking...</span>
           </div>
         )}
         
@@ -132,12 +147,12 @@ export default function ChatInterface({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area - Simplified since Smart Context is now pre-generated */}
+      {/* Input Area */}
       <ChatInput 
         onSend={handleSendMessage} 
         disabled={isTyping}
-        suggestion=""
-        workflowContext=""
+        suggestion={currentSuggestion}
+        workflowContext={currentWorkflowType}
         onSuggestionToWorkflow={onSuggestionToWorkflow}
       />
     </div>

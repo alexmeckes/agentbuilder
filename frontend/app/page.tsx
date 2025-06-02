@@ -10,17 +10,15 @@ import EvaluationsPage from './components/EvaluationsPage'
 import PreferencesModal from './components/settings/PreferencesModal'
 import type { Node, Edge } from 'reactflow'
 import { Workflow, MessageSquare, Settings, BarChart3, Beaker, FlaskConical } from 'lucide-react'
-import { WorkflowManager } from './services/workflowManager'
 
 export default function Home() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [activeTab, setActiveTab] = useState<'design' | 'chat' | 'analytics' | 'experiments' | 'evaluations'>('chat')
-  const [isExecuting, setIsExecuting] = useState(false)
+
   const [workflowExecutionInput, setWorkflowExecutionInput] = useState('Hello, please analyze this data and provide insights.')
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false)
-  const [workflowIdentity, setWorkflowIdentity] = useState<any>(null)
 
   const handleWorkflowChange = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     setNodes(newNodes)
@@ -35,283 +33,275 @@ export default function Home() {
     }
   }, [nodes.length])
 
-  const handleWorkflowCreated = useCallback((workflowNodes: Node[], workflowEdges: Edge[], identity?: any) => {
-    console.log(`🎯 Main page received workflow: "${identity?.name || 'Unknown'}"`)
-    setNodes(workflowNodes)
-    setEdges(workflowEdges)
-    if (identity) {
-      setWorkflowIdentity(identity)
-    }
+  const handleUseWorkflow = useCallback(async (actions: any[], smartContext?: string) => {
+    console.log('🎯 Using workflow from chat:', actions)
+    
+    // Create the visual nodes using existing logic
+    const newNodes: Node[] = []
+    const newEdges: Edge[] = []
+    
+    // Keep track of node mappings for connections
+    const nodeIdMap = new Map<string, string>() // original name -> actual ID
+
+    // Create nodes from actions
+    actions.forEach((action, index) => {
+      if (action.type === 'CREATE_NODE') {
+        const nodeId = `${action.nodeType}-${Date.now()}-${index}`
+        
+        console.log(`🔧 Creating node for action:`, {
+          actionType: action.type,
+          nodeType: action.nodeType,
+          name: action.name,
+          instructions: action.instructions,
+          model: action.model
+        })
+        
+        const newNode: Node = {
+          id: nodeId,
+          type: 'agent',
+          position: { x: 100 + index * 300, y: 100 },
+          data: {
+            label: action.name || `${action.nodeType} Node`,
+            type: action.nodeType,
+            name: action.name,
+            instructions: action.instructions,
+            model_id: action.model || 'gpt-4.1',
+            description: `AI-generated ${action.nodeType} node`,
+            // Auto-detect tool_type for tool nodes
+            ...(action.nodeType === 'tool' && {
+              tool_type: action.name?.toLowerCase().includes('search') || action.name?.toLowerCase().includes('web') 
+                ? 'web_search'
+                : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('read')
+                ? 'file_read'
+                : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('write')
+                ? 'file_write'
+                : action.name?.toLowerCase().includes('api')
+                ? 'api_call'
+                : action.name?.toLowerCase().includes('database')
+                ? 'database_query'
+                : action.name?.toLowerCase().includes('image')
+                ? 'image_generation'
+                : 'web_search' // default to web_search for tool nodes
+            })
+          }
+        }
+        newNodes.push(newNode)
+        
+        // Map the original name to the actual node ID for connections
+        if (action.name) {
+          nodeIdMap.set(action.name, nodeId)
+        }
+        nodeIdMap.set(`${action.nodeType}-${index}`, nodeId)
+      }
+    })
+
+    // Create connections
+    actions.forEach((action) => {
+      if (action.type === 'CONNECT_NODES' && action.sourceId && action.targetId) {
+        let sourceNodeId = action.sourceId
+        let targetNodeId = action.targetId
+        
+        if (nodeIdMap.has(action.sourceId)) {
+          sourceNodeId = nodeIdMap.get(action.sourceId)!
+        }
+        if (nodeIdMap.has(action.targetId)) {
+          targetNodeId = nodeIdMap.get(action.targetId)!
+        }
+        
+        const edgeId = `edge-${sourceNodeId}-${targetNodeId}`
+        const newEdge: Edge = {
+          id: edgeId,
+          source: sourceNodeId,
+          target: targetNodeId,
+          type: 'default'
+        }
+        newEdges.push(newEdge)
+      }
+    })
+
+    // Update the state with new nodes and edges
+    const allNodes = [...nodes, ...newNodes]
+    const allEdges = [...edges, ...newEdges]
+    
+    console.log(`🎯 Created ${newNodes.length} new nodes:`, newNodes.map(n => ({
+      id: n.id,
+      type: n.type,
+      dataType: n.data.type,
+      name: n.data.name
+    })))
+    
+    setNodes(allNodes)
+    setEdges(allEdges)
+
+    // Switch to design tab so user can review the created workflow
     setActiveTab('design')
-  }, [])
+    
+    // Update execution input with smart context if provided
+    if (smartContext) {
+      setWorkflowExecutionInput(smartContext)
+    }
+    
+    // Show success notification
+    alert(`✅ Workflow created successfully! Switch to the Design tab to review and execute it.`)
+  }, [nodes, edges])
 
   const handleExecuteActions = useCallback((actions: any[]) => {
-    console.log('🔧 Executing actions:', actions)
-    
-    // 🎯 Clear existing nodes when creating a new workflow from AI
-    setNodes([])
-    setEdges([])
+    console.log('Executing actions:', actions)
     
     const newNodes: Node[] = []
     const newEdges: Edge[] = []
     
-    // Keep track of node mappings for connections (name -> nodeId)
-    const nodeIdMap = new Map<string, string>()
+    // Keep track of node mappings for connections
+    const nodeIdMap = new Map<string, string>() // original name -> actual ID
 
-    // Simpler positioning - just arrange nodes in a horizontal line
-    const nodeWidth = 300
-    const nodeSpacing = 600
+    // Advanced spacing algorithm (same as drag-and-drop)
+    const nodeWidth = 500 // Much larger width to account for any expanded state
+    const nodeHeight = 400 // Much larger height for any expanded content  
+    const padding = 200 // Very large padding between nodes
 
-    console.log('🔧 Processing CREATE_NODE actions...')
+    const findAvailablePosition = (existingNodes: Node[], startX: number = 100, startY: number = 100) => {
+      const position = { x: startX, y: startY }
+      let attempts = 0
+      const maxAttempts = 30
 
-    // 🎯 STEP 1: Process CREATE_NODE actions first
-    actions
-      .filter(action => action.type === 'CREATE_NODE')
-      .forEach((action, index) => {
-        const nodeId = `${action.nodeType}_${action.name}_${index}`.replace(/\s+/g, '_')
-        
-        const position = {
-          x: 150 + (index * nodeSpacing),
-          y: 250
-        }
-        
-        const newNode: Node = {
-          id: nodeId,
-          type: 'agent', // All nodes use the same AgentNode component
-          position: position,
-          data: {
-            label: action.name || `${action.nodeType} Node`,
-            type: action.nodeType,
-            name: action.name,
-            instructions: action.instructions || `This is a ${action.nodeType} node`,
-            model_id: action.model || 'gpt-4o-mini',
-            description: `AI-generated ${action.nodeType} node`,
-            // Set tool_type for tool nodes
-            ...(action.nodeType === 'tool' && {
-              tool_type: action.name?.toLowerCase().includes('search') || action.name?.toLowerCase().includes('web') 
-                ? 'web_search'
-                : action.name?.toLowerCase().includes('file')
-                ? 'file_read'
-                : action.name?.toLowerCase().includes('api')
-                ? 'api_call'
-                : action.name?.toLowerCase().includes('database')
-                ? 'database_query'
-                : action.name?.toLowerCase().includes('email')
-                ? 'email_send'
-                : 'web_search' // default for tool nodes
-            })
-          }
-        }
-        
-        newNodes.push(newNode)
-        
-        // Map the action name to the node ID for connections
-        nodeIdMap.set(action.name, nodeId)
-        
-        console.log(`🔧 Created node: ${action.name} -> ${nodeId}`)
-      })
+      while (attempts < maxAttempts) {
+        const hasOverlap = existingNodes.some(node => {
+          const dx = Math.abs(node.position.x - position.x)
+          const dy = Math.abs(node.position.y - position.y)
+          return dx < nodeWidth + padding && dy < nodeHeight + padding
+        })
 
-    console.log('🔧 Processing CONNECT_NODES actions...')
-    console.log('🔧 Available nodes in map:', Array.from(nodeIdMap.keys()))
+        if (!hasOverlap) break
 
-    // 🎯 STEP 2: Process CONNECT_NODES actions
-    actions
-      .filter(action => action.type === 'CONNECT_NODES')
-      .forEach((action, index) => {
-        const sourceNodeId = nodeIdMap.get(action.sourceId)
-        const targetNodeId = nodeIdMap.get(action.targetId)
-        
-        if (sourceNodeId && targetNodeId) {
-          const edgeId = `edge_${sourceNodeId}_to_${targetNodeId}`
-          const newEdge: Edge = {
-            id: edgeId,
-            source: sourceNodeId,
-            target: targetNodeId,
-            type: 'default'
-          }
-          newEdges.push(newEdge)
-          console.log(`🔧 Created connection: ${action.sourceId} -> ${action.targetId}`)
+        // Try different positions with very generous spacing
+        if (attempts < 10) {
+          // Try to the right with much more spacing
+          position.x += nodeWidth + padding
+        } else if (attempts < 20) {
+          // Try below with much more spacing
+          position.x = startX
+          position.y += nodeHeight + padding
         } else {
-          console.warn(`🔧 ⚠️ Failed to connect: ${action.sourceId} -> ${action.targetId}`)
-          console.warn(`🔧 Source ID: ${sourceNodeId}, Target ID: ${targetNodeId}`)
+          // Try diagonal positioning with very generous spacing
+          position.x = startX + (attempts - 20) * (nodeWidth + padding)
+          position.y = startY + (attempts - 20) * (nodeHeight + padding)
         }
-      })
-
-    // 🎯 STEP 3: Update state
-    console.log(`🔧 Final result: ${newNodes.length} nodes, ${newEdges.length} edges`)
-    setNodes(newNodes)
-    setEdges(newEdges)
-
-    // Success notification
-    if (newNodes.length > 0) {
-      console.log('🔧 Created nodes:', newNodes.map(n => n.data.name))
-      console.log('🔧 Created edges:', newEdges.map(e => `${e.source} -> ${e.target}`))
-    }
-  }, [])
-
-  // 🎯 CONTEXT-FIRST APPROACH: Unified workflow creation handler
-  const handleUseWorkflow = useCallback(async (actions: any[], smartContext?: string) => {
-    console.log('🎯 Using unified workflow with:', { actions, smartContext })
-    console.log('🎯 Smart context type:', typeof smartContext)
-    console.log('🎯 Smart context value:', JSON.stringify(smartContext))
-    
-    // 🎯 FIRST: Apply the smart context to the execution input (before anything else!)
-    if (smartContext) {
-      // Remove surrounding quotes if they exist
-      const cleanedContext = smartContext.replace(/^"(.*)"$/, '$1')
-      console.log('✨ About to set workflow execution input to:', cleanedContext)
-      setWorkflowExecutionInput(cleanedContext)
-      console.log('✨ Applied smart context to execution input:', cleanedContext)
-      console.log('✨ Current workflowExecutionInput state will be:', cleanedContext)
-    } else {
-      console.log('❌ No smart context provided - smartContext is:', smartContext)
-    }
-    
-    // 🎯 SECOND: Execute the actions to create nodes and edges
-    const { newNodes, newEdges } = handleExecuteActionsAndReturn(actions)
-    
-    // 🎯 THIRD: Generate workflow identity
-    let workflowIdentity = null
-    if (newNodes.length > 0) {
-      try {
-        console.log('🎯 Generating workflow identity for new workflow...')
-        const workflowDefinition = await WorkflowManager.createOrUpdateWorkflow(
-          newNodes, 
-          newEdges, 
-          smartContext || 'AI-generated workflow'
-        )
-        workflowIdentity = workflowDefinition.identity
-        console.log(`🎯 Generated workflow identity: "${workflowIdentity.name}"`)
-      } catch (error) {
-        console.error('Error generating workflow identity:', error)
+        attempts++
       }
+
+      return position
     }
-    
-    // 🎯 FOURTH: Call the workflow created callback with all the data
-    if (handleWorkflowCreated && newNodes.length > 0) {
-      handleWorkflowCreated(newNodes, newEdges, workflowIdentity)
-    }
-    
-    // 🎯 FIFTH: Switch to design tab to show the complete workflow (with correct input)
-    setActiveTab('design')
-    
-    // Show enhanced success notification
-    const nodeCount = actions.filter(a => a.type === 'CREATE_NODE').length
-    const edgeCount = actions.filter(a => a.type === 'CONNECT_NODES').length
-    
-    if (nodeCount > 0 || edgeCount > 0) {
-      const contextMessage = smartContext ? ` with input "${smartContext.replace(/^"(.*)"$/, '$1')}"` : ''
-      const workflowName = workflowIdentity?.name || 'New Workflow'
-      alert(`🎯 "${workflowName}" ready! Created ${nodeCount} nodes and ${edgeCount} connections${contextMessage}`)
-    }
-  }, [handleWorkflowCreated])
 
-  // Helper function to execute actions and return the created nodes and edges
-  const handleExecuteActionsAndReturn = useCallback((actions: any[]) => {
-    console.log('🔧 Executing actions:', actions)
-    
-    // 🎯 Clear existing nodes when creating a new workflow from AI
-    setNodes([])
-    setEdges([])
-    
-    const newNodes: Node[] = []
-    const newEdges: Edge[] = []
-    
-    // Keep track of node mappings for connections (name -> nodeId)
-    const nodeIdMap = new Map<string, string>()
-
-    // Simpler positioning - just arrange nodes in a horizontal line
-    const nodeWidth = 300
-    const nodeSpacing = 600
-
-    console.log('🔧 Processing CREATE_NODE actions...')
-
-    // 🎯 STEP 1: Process CREATE_NODE actions first
-    actions
-      .filter(action => action.type === 'CREATE_NODE')
-      .forEach((action, index) => {
-        const nodeId = `${action.nodeType}_${action.name}_${index}`.replace(/\s+/g, '_')
+    // Process CREATE_NODE actions first
+    actions.forEach((action, index) => {
+      if (action.type === 'CREATE_NODE') {
+        const nodeId = `${action.nodeType}-${Date.now()}-${index}`
         
-        const position = {
-          x: 150 + (index * nodeSpacing),
-          y: 200
-        }
+        // Find available position using advanced spacing
+        const allExistingNodes = [...nodes, ...newNodes]
+        const position = findAvailablePosition(allExistingNodes, 100, 100)
         
         const newNode: Node = {
           id: nodeId,
-          type: 'agent', // All nodes use the same AgentNode component
+          type: 'agent',
           position: position,
           data: {
             label: action.name || `${action.nodeType} Node`,
             type: action.nodeType,
             name: action.name,
-            instructions: action.instructions || `This is a ${action.nodeType} node`,
-            model_id: action.model || 'gpt-4o-mini',
+            instructions: action.instructions,
+            model_id: action.model || 'gpt-4.1',
             description: `AI-generated ${action.nodeType} node`,
-            // Set tool_type for tool nodes
+            // Auto-detect tool_type for tool nodes
             ...(action.nodeType === 'tool' && {
               tool_type: action.name?.toLowerCase().includes('search') || action.name?.toLowerCase().includes('web') 
                 ? 'web_search'
-                : action.name?.toLowerCase().includes('file')
+                : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('read')
                 ? 'file_read'
+                : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('write')
+                ? 'file_write'
                 : action.name?.toLowerCase().includes('api')
                 ? 'api_call'
                 : action.name?.toLowerCase().includes('database')
                 ? 'database_query'
-                : action.name?.toLowerCase().includes('email')
-                ? 'email_send'
-                : 'web_search' // default for tool nodes
+                : action.name?.toLowerCase().includes('image')
+                ? 'image_generation'
+                : 'web_search' // default to web_search for tool nodes
             })
           }
         }
-        
         newNodes.push(newNode)
         
-        // Map the action name to the node ID for connections
-        nodeIdMap.set(action.name, nodeId)
-        
-        console.log(`🔧 Created node: ${action.name} -> ${nodeId}`)
-      })
-
-    console.log('🔧 Processing CONNECT_NODES actions...')
-    console.log('🔧 Available nodes in map:', Array.from(nodeIdMap.keys()))
-
-    // 🎯 STEP 2: Process CONNECT_NODES actions
-    actions
-      .filter(action => action.type === 'CONNECT_NODES')
-      .forEach((action, index) => {
-        const sourceNodeId = nodeIdMap.get(action.sourceId)
-        const targetNodeId = nodeIdMap.get(action.targetId)
-        
-        if (sourceNodeId && targetNodeId) {
-          const edgeId = `edge_${sourceNodeId}_to_${targetNodeId}`
-          const newEdge: Edge = {
-            id: edgeId,
-            source: sourceNodeId,
-            target: targetNodeId,
-            type: 'default'
-          }
-          newEdges.push(newEdge)
-          console.log(`🔧 Created connection: ${action.sourceId} -> ${action.targetId}`)
-        } else {
-          console.warn(`🔧 ⚠️ Failed to connect: ${action.sourceId} -> ${action.targetId}`)
-          console.warn(`🔧 Source ID: ${sourceNodeId}, Target ID: ${targetNodeId}`)
+        // Map the original name to the actual node ID for connections
+        if (action.name) {
+          nodeIdMap.set(action.name, nodeId)
         }
-      })
+        // Also map the nodeType for fallback
+        nodeIdMap.set(`${action.nodeType}-${index}`, nodeId)
+      }
+    })
 
-    // 🎯 STEP 3: Update state
-    console.log(`🔧 Final result: ${newNodes.length} nodes, ${newEdges.length} edges`)
-    setNodes(newNodes)
-    setEdges(newEdges)
+    // Process CONNECT_NODES actions after all nodes are created
+    actions.forEach((action) => {
+      if (action.type === 'CONNECT_NODES' && action.sourceId && action.targetId) {
+        // Try to resolve the actual node IDs
+        let sourceNodeId = action.sourceId
+        let targetNodeId = action.targetId
+        
+        // Check if these are node names that need to be mapped to actual IDs
+        if (nodeIdMap.has(action.sourceId)) {
+          sourceNodeId = nodeIdMap.get(action.sourceId)!
+        } else {
+          // Check existing nodes for a match
+          const existingSourceNode = [...nodes, ...newNodes].find(n => 
+            n.data.name === action.sourceId || n.id === action.sourceId
+          )
+          if (existingSourceNode) {
+            sourceNodeId = existingSourceNode.id
+          }
+        }
+        
+        if (nodeIdMap.has(action.targetId)) {
+          targetNodeId = nodeIdMap.get(action.targetId)!
+        } else {
+          // Check existing nodes for a match
+          const existingTargetNode = [...nodes, ...newNodes].find(n => 
+            n.data.name === action.targetId || n.id === action.targetId
+          )
+          if (existingTargetNode) {
+            targetNodeId = existingTargetNode.id
+          }
+        }
+        
+        const edgeId = `edge-${sourceNodeId}-${targetNodeId}`
+        const newEdge: Edge = {
+          id: edgeId,
+          source: sourceNodeId,
+          target: targetNodeId,
+          type: 'default'
+        }
+        newEdges.push(newEdge)
+        
+        console.log('Created edge:', newEdge)
+      }
+    })
 
-    // Success notification
     if (newNodes.length > 0) {
-      console.log('🔧 Created nodes:', newNodes.map(n => n.data.name))
-      console.log('🔧 Created edges:', newEdges.map(e => `${e.source} -> ${e.target}`))
+      setNodes(prevNodes => [...prevNodes, ...newNodes])
+      setActiveTab('design') // Switch to design view to show created nodes
+    }
+    
+    if (newEdges.length > 0) {
+      setEdges(prevEdges => [...prevEdges, ...newEdges])
     }
 
-    return { newNodes, newEdges }
-  }, [])
+    // Show success notification
+    if (newNodes.length > 0 || newEdges.length > 0) {
+      console.log('Created nodes:', newNodes)
+      console.log('Created edges:', newEdges)
+      alert(`✅ Created ${newNodes.length} nodes and ${newEdges.length} connections!`)
+    }
+  }, [nodes])
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col">
@@ -439,7 +429,6 @@ export default function Home() {
               onExecuteActions={handleExecuteActions}
               onSuggestionToWorkflow={handleSuggestionToWorkflow}
               onUseWorkflow={handleUseWorkflow}
-              onWorkflowCreated={handleWorkflowCreated}
             />
           </div>
         ) : activeTab === 'experiments' ? (
@@ -502,7 +491,6 @@ export default function Home() {
                 onWorkflowChange={handleWorkflowChange}
                 executionInput={workflowExecutionInput}
                 onExecutionInputChange={setWorkflowExecutionInput}
-                workflowIdentity={workflowIdentity}
               />
             )}
           </div>

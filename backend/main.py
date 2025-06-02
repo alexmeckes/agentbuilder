@@ -158,6 +158,8 @@ class WorkflowExecutor:
             # Validate workflow structure before execution with caching
             validation_result = self._validate_workflow_structure_cached(nodes, edges)
             if not validation_result["valid"]:
+                print(f"❌ Workflow validation failed: {validation_result['error']}")
+                print(f"🔍 Nodes received: {[{'id': n.get('id'), 'type': n.get('type'), 'data_type': n.get('data', {}).get('type')} for n in nodes]}")
                 raise ValueError(f"Invalid workflow structure: {validation_result['error']}")
 
             # Use provided workflow identity from Designer, or generate new one
@@ -579,20 +581,7 @@ class WorkflowExecutor:
             if not nodes:
                 return {"valid": False, "error": "Workflow must contain at least one node"}
             
-            # Check for required node types
-            node_types = [node.get("type") for node in nodes]
-            agent_nodes_by_type = [n for n in nodes if n.get("type") == "agent"]
-            tool_nodes_by_type = [n for n in nodes if n.get("type") == "tool"]
-            agent_nodes_by_data = [n for n in nodes if n.get("data", {}).get("type") == "agent"]
-            tool_nodes_by_data = [n for n in nodes if n.get("data", {}).get("type") == "tool"]
-            
-            # Accept either node.type OR data.type format for agent/tool nodes
-            all_executable_nodes = agent_nodes_by_type + tool_nodes_by_type + agent_nodes_by_data + tool_nodes_by_data
-            
-            if not all_executable_nodes:
-                return {"valid": False, "error": "Workflow must contain at least one agent or tool node"}
-            
-            # Validate node structure
+            # Validate node structure first
             for i, node in enumerate(nodes):
                 if not node.get("id"):
                     return {"valid": False, "error": f"Node {i} missing required 'id' field"}
@@ -601,13 +590,26 @@ class WorkflowExecutor:
                 if not node.get("data"):
                     return {"valid": False, "error": f"Node {node.get('id', i)} missing required 'data' field"}
             
-            # Separate validation for different node types (check data.type, not node.type)
-            agent_nodes = [n for n in nodes if n.get("data", {}).get("type") == "agent"]
-            tool_nodes = [n for n in nodes if n.get("data", {}).get("type") == "tool"]
+            # Unified approach: check for executable nodes using BOTH node.type and data.type
+            # This ensures compatibility between AI Assistant (uses data.type) and Visual Designer (may use node.type)
+            def is_agent_node(node):
+                return (node.get("type") == "agent" or 
+                       node.get("data", {}).get("type") == "agent")
             
-            # Ensure we have at least one executable node (agent OR tool)
-            executable_nodes = agent_nodes + tool_nodes
-            if not executable_nodes:
+            def is_tool_node(node):
+                return (node.get("type") == "tool" or 
+                       node.get("data", {}).get("type") == "tool")
+            
+            def is_executable_node(node):
+                return is_agent_node(node) or is_tool_node(node)
+            
+            # Find all executable nodes (agents and tools)
+            agent_nodes = [n for n in nodes if is_agent_node(n)]
+            tool_nodes = [n for n in nodes if is_tool_node(n)]
+            all_executable_nodes = [n for n in nodes if is_executable_node(n)]
+            
+            # Must have at least one executable node
+            if not all_executable_nodes:
                 return {"valid": False, "error": "Workflow must contain at least one agent or tool node"}
             
             print(f"🔍 Found {len(agent_nodes)} agent nodes and {len(tool_nodes)} tool nodes")
