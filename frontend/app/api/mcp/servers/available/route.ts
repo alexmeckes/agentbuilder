@@ -51,15 +51,23 @@ export async function GET() {
         },
         {
           id: 'github',
-          name: 'GitHub Integration',
-          description: 'Access GitHub repositories, issues, and pull requests',
-          command: ['npx', '@modelcontextprotocol/server-github'],
+          name: 'GitHub Integration (Official)',
+          description: 'Comprehensive GitHub integration: repositories, issues, PRs, code scanning, notifications, and more',
+          command: ['./github-mcp-server'],
           config_schema: {
-            github_token: { type: 'password', required: true, description: 'GitHub personal access token' },
-            owner: { type: 'string', required: true, description: 'Repository owner' },
-            repo: { type: 'string', required: true, description: 'Repository name' }
+            GITHUB_PERSONAL_ACCESS_TOKEN: { type: 'password', required: true, description: 'GitHub Personal Access Token for authentication' }
           },
-          category: 'development'
+          category: 'development',
+          official: true,
+          features: [
+            'Repository management', 
+            'Issues and Pull Requests', 
+            'Code and secret scanning', 
+            'Notifications', 
+            'Search capabilities',
+            'File operations',
+            'Branch management'
+          ]
         }
       ]
     });
