@@ -391,7 +391,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
             </div>
           </div>
           
-          <div className="flex items-center gap-2 flex-shrink-0 nodrag">
+          <div className="flex items-center gap-2 flex-shrink-0 nodrag group">
             <button
               onClick={handleEditClick}
               onMouseDown={(e) => e.stopPropagation()}
@@ -401,7 +401,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
               <Settings className="w-4 h-4" />
             </button>
             
-            {onNodeDelete ? (
+            {onNodeDelete && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -412,15 +412,11 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
                   }
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-red-200 hover:border-red-300"
+                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                 title="Delete node"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-            ) : (
-              <div className="p-2 text-gray-300" title="Delete not available">
-                <Trash2 className="w-4 h-4" />
-              </div>
             )}
             
             <button
