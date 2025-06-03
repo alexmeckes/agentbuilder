@@ -633,6 +633,7 @@ export interface WorkflowExecutionState {
   startTime: number
   totalCost: number
   progress: number // Overall completion percentage
+  currentActivity?: string // Current execution activity description
 }
 
 export interface ExecutionProgressMessage {

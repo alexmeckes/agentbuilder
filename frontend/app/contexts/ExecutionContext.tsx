@@ -4,6 +4,22 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { WorkflowService } from '../services/workflow'
 import { WorkflowExecutionState, NodeExecutionState, NodeExecutionStatus } from '../types/workflow'
 
+// Helper function to map backend node status to frontend status
+function mapBackendStatusToFrontend(backendStatus: string): NodeExecutionStatus {
+  switch (backendStatus) {
+    case 'pending':
+      return 'idle'
+    case 'running':
+      return 'running'
+    case 'completed':
+      return 'completed'
+    case 'failed':
+      return 'failed'
+    default:
+      return 'idle'
+  }
+}
+
 interface ExecutionContextType {
   executionState: WorkflowExecutionState | null
   isExecuting: boolean
@@ -130,16 +146,31 @@ export function ExecutionProvider({
         console.log('📡 WebSocket message received:', data)
         
         // Parse execution updates and map to node states
-        if (data.status === 'running') {
-          // Set first node to running (simplified for Phase 1)
-          if (nodeIds.length > 0) {
-            updateNodeStatus(nodeIds[0], { 
-              status: 'running',
-              startTime: Date.now()
+        if (data.status === 'running' && data.progress) {
+          // Update individual node status from backend progress data
+          const nodeStatusMap = data.progress.node_status || {}
+          
+          Object.keys(nodeStatusMap).forEach(nodeId => {
+            const backendNodeStatus = nodeStatusMap[nodeId]
+            const frontendStatus = mapBackendStatusToFrontend(backendNodeStatus.status)
+            
+            updateNodeStatus(nodeId, {
+              status: frontendStatus,
+              startTime: frontendStatus === 'running' ? Date.now() : undefined,
+              endTime: ['completed', 'failed'].includes(frontendStatus) ? Date.now() : undefined,
+              progress: data.progress.percentage || 0
             })
-          }
+          })
+          
+          // Update overall execution state
+          setExecutionState(prev => prev ? {
+            ...prev,
+            progress: data.progress.percentage || 0,
+            currentActivity: data.progress.current_activity || 'Processing...'
+          } : prev)
+          
         } else if (data.status === 'completed') {
-          // Mark all nodes as completed (simplified for Phase 1)
+          // Mark all nodes as completed
           nodeIds.forEach(nodeId => {
             updateNodeStatus(nodeId, {
               status: 'completed',
@@ -152,17 +183,17 @@ export function ExecutionProvider({
             onExecutionComplete(data)
           }
         } else if (data.status === 'failed') {
-          // Mark current running node as failed
-          const runningNodeId = nodeIds.find(nodeId => {
-            const state = executionState?.nodes.get(nodeId)
-            return state?.status === 'running'
-          })
-          
-          if (runningNodeId) {
-            updateNodeStatus(runningNodeId, {
-              status: 'failed',
-              endTime: Date.now(),
-              error: data.error
+          // Mark failed nodes based on backend data
+          if (data.progress && data.progress.node_status) {
+            Object.keys(data.progress.node_status).forEach(nodeId => {
+              const backendNodeStatus = data.progress.node_status[nodeId]
+              if (backendNodeStatus.status === 'failed') {
+                updateNodeStatus(nodeId, {
+                  status: 'failed',
+                  endTime: Date.now(),
+                  error: data.error
+                })
+              }
             })
           }
           

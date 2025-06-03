@@ -124,17 +124,24 @@ class WorkflowExecutor:
         self._last_validation_time = {}  # Track validation timing
 
     async def execute_workflow(self, request: ExecutionRequest) -> ExecutionResponse:
-        """Execute a workflow definition using any-agent's native multi-agent capabilities"""
+        """Execute a workflow definition using any-agent's native multi-agent capabilities with async progress tracking"""
         execution_id = f"exec_{len(self.executions) + 1}"
         start_time = time.time()
         
-        # Initialize execution record EARLY to prevent KeyError in error handlers
+        # Initialize execution record EARLY with progress tracking
         self.executions[execution_id] = {
-            "status": "initializing",
+            "status": "running",  # Changed from "initializing" to "running"
             "input": request.input_data,
             "created_at": start_time,
             "workflow": request.workflow,
-            "framework": request.framework
+            "framework": request.framework,
+            "progress": {
+                "current_step": 0,
+                "total_steps": 0,
+                "current_activity": "Starting workflow execution...",
+                "percentage": 0,
+                "node_status": {}  # Track individual node progress
+            }
         }
         
         try:
@@ -169,7 +176,13 @@ class WorkflowExecutor:
             if not validation_result["valid"]:
                 print(f"❌ Workflow validation failed: {validation_result['error']}")
                 print(f"🔍 Nodes received: {[{'id': n.get('id'), 'type': n.get('type'), 'data_type': n.get('data', {}).get('type')} for n in nodes]}")
-                raise ValueError(f"Invalid workflow structure: {validation_result['error']}")
+                self.executions[execution_id]["status"] = "failed"
+                self.executions[execution_id]["error"] = f"Invalid workflow structure: {validation_result['error']}"
+                return ExecutionResponse(
+                    execution_id=execution_id,
+                    status="failed",
+                    error=f"Invalid workflow structure: {validation_result['error']}"
+                )
 
             # Use provided workflow identity from Designer, or generate new one
             if request.workflow_identity:
@@ -190,119 +203,49 @@ class WorkflowExecutor:
             
             # Update execution record with complete workflow information
             self.executions[execution_id].update({
-                "status": "running",
                 "workflow_identity": workflow_identity,
                 "workflow_name": workflow_identity["name"],
                 "workflow_category": workflow_identity["category"],
                 "workflow_description": workflow_identity["description"]
             })
             
-            # Execute using any-agent's native multi-agent orchestration with enhanced error handling
-            try:
-                workflow_result = await execute_visual_workflow_with_anyagent(
-                    nodes=nodes,
-                    edges=edges,
-                    input_data=request.input_data,
-                    framework=request.framework
-                )
-            except Exception as exec_error:
-                # Enhanced error handling for execution failures
-                error_details = {
-                    "error_type": type(exec_error).__name__,
-                    "error_message": str(exec_error),
-                    "nodes_count": len(nodes),
-                    "framework": request.framework,
-                    "input_length": len(request.input_data)
-                }
-                print(f"❌ Workflow execution failed: {error_details['error_type']}: {error_details['error_message']}")
-                
-                # Store failed execution with detailed error info
-                completion_time = time.time()
-                self.executions[execution_id].update({
-                    "status": "failed",
-                    "error": str(exec_error),
-                    "error_details": error_details,
-                    "completed_at": completion_time,
-                    "execution_time": completion_time - start_time,
-                    "trace": {
-                        "error": str(exec_error),
-                        "error_details": error_details,
-                        "framework_used": request.framework,
-                        "workflow_identity": workflow_identity
-                    }
-                })
-                
-                return ExecutionResponse(
-                    execution_id=execution_id,
-                    status="failed",
-                    error=f"Execution failed: {error_details['error_type']}: {error_details['error_message']}",
-                    trace=self.executions[execution_id]["trace"]
-                )
+            # Initialize progress tracking for nodes
+            executable_nodes = [n for n in nodes if n.get("type") in ["agent", "tool"]]
+            total_steps = len(executable_nodes)
             
-            # Store execution details with completion timestamp
-            completion_time = time.time()
-            
-            # Check if there was an error in workflow result
-            if "error" in workflow_result:
-                error_details = {
-                    "error_type": "WorkflowResultError",
-                    "error_message": workflow_result["error"],
-                    "result_data": workflow_result.get("final_output", "No output")
-                }
-                
-                self.executions[execution_id].update({
-                    "status": "failed",
-                    "result": workflow_result["final_output"],
-                    "error": workflow_result["error"],
-                    "error_details": error_details,
-                    "completed_at": completion_time,
-                    "execution_time": completion_time - start_time,
-                    "trace": {
-                        "error": workflow_result["error"],
-                        "error_details": error_details,
-                        "framework_used": request.framework,
-                        "workflow_identity": workflow_identity
-                    }
-                })
-                
-                return ExecutionResponse(
-                    execution_id=execution_id,
-                    status="failed",
-                    error=workflow_result["error"],
-                    trace=self.executions[execution_id]["trace"]
-                )
-            
-            # Success case - validate result structure
-            final_output = workflow_result.get("final_output")
-            if not final_output:
-                print("⚠️  Warning: Workflow completed but produced no output")
-                final_output = "Workflow completed successfully but produced no output."
-            
-            self.executions[execution_id].update({
-                "status": "completed",
-                "result": final_output,
-                "completed_at": completion_time,
-                "execution_time": completion_time - start_time,
-                "trace": {
-                    "final_output": final_output,
-                    "execution_pattern": workflow_result.get("execution_pattern", "unknown"),
-                    "main_agent": workflow_result.get("main_agent", "unknown"),
-                    "managed_agents": workflow_result.get("managed_agents", []),
-                    "framework_used": workflow_result.get("framework_used", request.framework),
-                    "agent_trace": self._serialize_agent_trace(workflow_result.get("agent_trace")),
-                    "execution_time": completion_time - start_time,
-                    "cost_info": self._extract_cost_info_from_trace(workflow_result.get("agent_trace")),
-                    "performance": self._extract_performance_metrics(workflow_result.get("agent_trace"), completion_time - start_time),
-                    "spans": self._extract_spans_from_trace(workflow_result.get("agent_trace")),
-                    "workflow_identity": workflow_identity
-                }
+            self.executions[execution_id]["progress"].update({
+                "total_steps": total_steps,
+                "current_activity": f"Preparing to execute {total_steps} nodes..."
             })
             
+            # Initialize node status tracking
+            for node in nodes:
+                node_id = node.get("id")
+                node_type = node.get("type")
+                if node_type in ["agent", "tool"]:
+                    self.executions[execution_id]["progress"]["node_status"][node_id] = {
+                        "status": "pending",
+                        "name": node.get("data", {}).get("name", node_id),
+                        "type": node_type
+                    }
+                else:
+                    # Input/output nodes are considered instantly completed
+                    self.executions[execution_id]["progress"]["node_status"][node_id] = {
+                        "status": "completed",
+                        "name": node.get("data", {}).get("name", node_id),
+                        "type": node_type
+                    }
+            
+            # Start background execution task
+            import asyncio
+            asyncio.create_task(self._execute_workflow_async(
+                execution_id, nodes, edges, request.input_data, request.framework, workflow_identity
+            ))
+            
+            # Return immediately with running status
             return ExecutionResponse(
                 execution_id=execution_id,
-                status="completed",
-                result=final_output,
-                trace=self.executions[execution_id]["trace"]
+                status="running"
             )
             
         except Exception as e:
@@ -328,6 +271,189 @@ class WorkflowExecutor:
                 status="failed",
                 error=f"Critical error: {error_details['error_type']}: {error_details['error_message']}"
             )
+
+    async def _execute_workflow_async(self, execution_id: str, nodes: List[Dict], edges: List[Dict], 
+                                     input_data: str, framework: str, workflow_identity: Dict[str, Any]):
+        """Background execution method with progress tracking"""
+        start_time = time.time()
+        
+        try:
+            print(f"🚀 Starting background execution for {execution_id}")
+            
+            # Update progress: Starting execution
+            self._update_execution_progress(execution_id, 0, "Initializing agents...")
+            
+            # Simulate some progress steps for better UX (since any-agent executes internally)
+            executable_nodes = [n for n in nodes if n.get("type") in ["agent", "tool"]]
+            
+            # Step 1: Mark first executable node as running
+            if executable_nodes:
+                first_node = executable_nodes[0]
+                self._update_node_status(execution_id, first_node["id"], "running")
+                self._update_execution_progress(execution_id, 10, f"Executing {first_node.get('data', {}).get('name', 'first node')}...")
+                
+                # Small delay for visual feedback
+                await asyncio.sleep(0.5)
+            
+            # Execute the actual workflow
+            self._update_execution_progress(execution_id, 25, "Running AI agents...")
+            
+            workflow_result = await execute_visual_workflow_with_anyagent(
+                nodes=nodes,
+                edges=edges,
+                input_data=input_data,
+                framework=framework
+            )
+            
+            # Update progress through remaining nodes
+            completed_nodes = 0
+            for i, node in enumerate(executable_nodes):
+                node_id = node["id"]
+                
+                # Mark previous node as completed and current as running
+                if i > 0:
+                    prev_node_id = executable_nodes[i-1]["id"]
+                    self._update_node_status(execution_id, prev_node_id, "completed")
+                
+                if i < len(executable_nodes) - 1:  # Not the last node
+                    self._update_node_status(execution_id, node_id, "running")
+                    completed_nodes = i + 1
+                    progress = 25 + (completed_nodes / len(executable_nodes)) * 65  # 25% to 90%
+                    self._update_execution_progress(execution_id, progress, f"Processing {node.get('data', {}).get('name', node_id)}...")
+                    await asyncio.sleep(0.3)  # Brief delay for visual feedback
+            
+            # Mark last node as completed
+            if executable_nodes:
+                last_node_id = executable_nodes[-1]["id"]
+                self._update_node_status(execution_id, last_node_id, "completed")
+            
+            self._update_execution_progress(execution_id, 95, "Finalizing results...")
+            
+            # Handle execution results
+            completion_time = time.time()
+            
+            if "error" in workflow_result:
+                # Handle workflow error
+                error_details = {
+                    "error_type": "WorkflowResultError",
+                    "error_message": workflow_result["error"],
+                    "result_data": workflow_result.get("final_output", "No output")
+                }
+                
+                # Mark any running nodes as failed
+                for node in executable_nodes:
+                    node_id = node["id"]
+                    current_status = self.executions[execution_id]["progress"]["node_status"][node_id]["status"]
+                    if current_status in ["pending", "running"]:
+                        self._update_node_status(execution_id, node_id, "failed")
+                
+                self.executions[execution_id].update({
+                    "status": "failed",
+                    "result": workflow_result["final_output"],
+                    "error": workflow_result["error"],
+                    "error_details": error_details,
+                    "completed_at": completion_time,
+                    "execution_time": completion_time - start_time,
+                    "trace": {
+                        "error": workflow_result["error"],
+                        "error_details": error_details,
+                        "framework_used": framework,
+                        "workflow_identity": workflow_identity
+                    }
+                })
+                
+                self._update_execution_progress(execution_id, 100, f"Failed: {workflow_result['error']}")
+                print(f"❌ Workflow {execution_id} failed: {workflow_result['error']}")
+                
+            else:
+                # Success case
+                final_output = workflow_result.get("final_output")
+                if not final_output:
+                    print("⚠️  Warning: Workflow completed but produced no output")
+                    final_output = "Workflow completed successfully but produced no output."
+                
+                # Mark all remaining nodes as completed
+                for node in executable_nodes:
+                    node_id = node["id"]
+                    self._update_node_status(execution_id, node_id, "completed")
+                
+                self.executions[execution_id].update({
+                    "status": "completed",
+                    "result": final_output,
+                    "completed_at": completion_time,
+                    "execution_time": completion_time - start_time,
+                    "trace": {
+                        "final_output": final_output,
+                        "execution_pattern": workflow_result.get("execution_pattern", "unknown"),
+                        "main_agent": workflow_result.get("main_agent", "unknown"),
+                        "managed_agents": workflow_result.get("managed_agents", []),
+                        "framework_used": workflow_result.get("framework_used", framework),
+                        "agent_trace": self._serialize_agent_trace(workflow_result.get("agent_trace")),
+                        "execution_time": completion_time - start_time,
+                        "cost_info": self._extract_cost_info_from_trace(workflow_result.get("agent_trace")),
+                        "performance": self._extract_performance_metrics(workflow_result.get("agent_trace"), completion_time - start_time),
+                        "spans": self._extract_spans_from_trace(workflow_result.get("agent_trace")),
+                        "workflow_identity": workflow_identity
+                    }
+                })
+                
+                self._update_execution_progress(execution_id, 100, "Completed successfully!")
+                print(f"✅ Workflow {execution_id} completed successfully")
+                
+        except Exception as e:
+            # Handle execution exceptions
+            completion_time = time.time()
+            error_details = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "nodes_count": len(nodes),
+                "framework": framework,
+                "input_length": len(input_data)
+            }
+            
+            print(f"❌ Background execution failed for {execution_id}: {error_details['error_type']}: {error_details['error_message']}")
+            
+            # Mark any running nodes as failed
+            for node in nodes:
+                if node.get("type") in ["agent", "tool"]:
+                    node_id = node["id"]
+                    current_status = self.executions[execution_id]["progress"]["node_status"][node_id]["status"]
+                    if current_status in ["pending", "running"]:
+                        self._update_node_status(execution_id, node_id, "failed")
+            
+            self.executions[execution_id].update({
+                "status": "failed",
+                "error": str(e),
+                "error_details": error_details,
+                "completed_at": completion_time,
+                "execution_time": completion_time - start_time,
+                "trace": {
+                    "error": str(e),
+                    "error_details": error_details,
+                    "framework_used": framework,
+                    "workflow_identity": workflow_identity
+                }
+            })
+            
+            self._update_execution_progress(execution_id, 100, f"Failed: {str(e)}")
+
+    def _update_execution_progress(self, execution_id: str, percentage: float, activity: str):
+        """Update execution progress"""
+        if execution_id in self.executions:
+            self.executions[execution_id]["progress"].update({
+                "percentage": min(100, max(0, percentage)),
+                "current_activity": activity
+            })
+
+    def _update_node_status(self, execution_id: str, node_id: str, status: str):
+        """Update individual node status"""
+        if execution_id in self.executions and node_id in self.executions[execution_id]["progress"]["node_status"]:
+            self.executions[execution_id]["progress"]["node_status"][node_id]["status"] = status
+            
+            # Update current step count
+            completed_count = sum(1 for node_status in self.executions[execution_id]["progress"]["node_status"].values() 
+                                if node_status["status"] == "completed")
+            self.executions[execution_id]["progress"]["current_step"] = completed_count
     
     def _serialize_agent_trace(self, agent_trace) -> Dict[str, Any]:
         """Serialize any-agent's AgentTrace object for storage/transmission"""
