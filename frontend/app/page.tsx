@@ -513,20 +513,39 @@ export default function Home() {
             {/* Empty State for Visual Designer */}
             {nodes.length === 0 ? (
               <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-md">
-                  <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Workflow className="w-10 h-10 text-slate-400" />
+                <div className="text-center max-w-lg">
+                  <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Workflow className="w-10 h-10 text-blue-600" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No workflow yet</h3>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">Ready to build your workflow</h3>
                   <p className="text-slate-600 mb-6">
-                    Start by asking the AI Assistant to create a workflow for you, or drag nodes from the sidebar to begin building.
+                    Choose your preferred way to create workflows: drag nodes manually from the sidebar, or let the AI Assistant build one for you.
                   </p>
-                  <button
-                    onClick={() => setActiveTab('chat')}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    Go to AI Assistant
-                  </button>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                        <Settings className="w-6 h-6 text-green-600" />
+                      </div>
+                      <h4 className="text-sm font-medium text-slate-900 mb-1">Manual Design</h4>
+                      <p className="text-xs text-slate-600">Drag & drop nodes for precise control</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
+                        <MessageSquare className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <h4 className="text-sm font-medium text-slate-900 mb-1">AI Assistant</h4>
+                      <p className="text-xs text-slate-600">Describe your workflow in natural language</p>
+                    </div>
+                  </div>
+                  <div className="mt-6">
+                    <button
+                      onClick={() => setActiveTab('chat')}
+                      className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors mr-3"
+                    >
+                      Try AI Assistant
+                    </button>
+                    <span className="text-slate-400">or use the mode toggle and sidebar to build manually</span>
+                  </div>
                 </div>
               </div>
             ) : (

@@ -25,21 +25,7 @@ const nodeTypes = {
   output: AgentNode,
 }
 
-const initialNodes: Node[] = [
-  {
-    id: '1',
-    type: 'agent',
-    data: { 
-      label: 'Input Agent', 
-      type: 'input',
-      model_id: 'gpt-3.5-turbo',
-      instructions: 'You are a helpful assistant that processes input data.',
-      name: 'InputAgent',
-      description: 'Processes and validates incoming data for the workflow'
-    },
-    position: { x: 100, y: 100 },
-  },
-]
+const initialNodes: Node[] = []
 
 const initialEdges: Edge[] = []
 
@@ -830,41 +816,7 @@ export default function WorkflowEditor({
             </div>
           </Panel>
           
-          {/* Enhanced Template Section - Top Left (Second Panel) */}
-          {!useManualMode && (
-            <Panel position="top-left" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-40 mt-32">
-            <h3 className="text-sm font-medium text-gray-900 mb-3">Multi-Step Workflow Templates</h3>
-            <div className="flex gap-2 flex-wrap mb-3">
-              <button
-                onClick={() => addExampleWorkflow('research')}
-                className="px-3 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
-              >
-                🔍 Research Pipeline
-              </button>
-              <button
-                onClick={() => addExampleWorkflow('analysis')}
-                className="px-3 py-1 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 transition-colors"
-              >
-                📊 Data Analysis
-              </button>
-              <button
-                onClick={() => addExampleWorkflow('content')}
-                className="px-3 py-1 text-xs bg-purple-100 text-purple-800 rounded hover:bg-purple-200 transition-colors"
-              >
-                ✍️ Content Creation
-              </button>
-              <button
-                onClick={() => { setInternalNodes([]); setInternalEdges([]) }}
-                className="px-3 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
-              >
-                🗑️ Clear All
-              </button>
-            </div>
-              <p className="text-xs text-gray-600">
-                Select a template to see multi-step workflow execution in action
-              </p>
-            </Panel>
-          )}
+
           
           {/* Floating Execution Panel - Top Right */}
           <Panel position="top-right" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-50">
