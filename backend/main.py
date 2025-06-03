@@ -242,7 +242,7 @@ class WorkflowExecutor:
                 execution_id, nodes, edges, request.input_data, request.framework, workflow_identity
             ))
             
-            # Return immediately with running status
+            # Return immediately with running status (workflow identity will be sent via WebSocket)
             return ExecutionResponse(
                 execution_id=execution_id,
                 status="running"
@@ -632,12 +632,12 @@ class WorkflowExecutor:
         current_time = time.time()
         cache_key = f"identity_{structure_hash}"
         
-        # Reduced rate limiting for better user experience (once per 2 seconds instead of 10)
+        # Only use rate limiting for identical requests within 30 seconds (allow for real use)
         if cache_key in self._last_validation_time:
             time_since_last = current_time - self._last_validation_time[cache_key]
-            if time_since_last < 2.0:  # Reduced to 2 second rate limit
-                print(f"🔄 Recent identity generation for structure {structure_hash[:8]}, using cached approach")
-                # Instead of blocking, generate a simple pattern-based name without AI
+            if time_since_last < 30.0:
+                print(f"🔄 Recent identity generation for structure {structure_hash[:8]}, using enhanced pattern matching")
+                # Use enhanced pattern matching for recent duplicates
                 return self._generate_simple_workflow_identity(nodes, edges, input_data, structure_hash)
         
         self._last_validation_time[cache_key] = current_time

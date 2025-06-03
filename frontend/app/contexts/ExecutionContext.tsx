@@ -45,13 +45,15 @@ interface ExecutionProviderProps {
   onExecutionComplete?: (result: any) => void
   onExecutionError?: (error: string) => void
   onNodeStatusChange?: (nodeId: string, status: NodeExecutionStatus) => void
+  onWorkflowIdentityReceived?: (identity: any) => void
 }
 
 export function ExecutionProvider({ 
   children, 
   onExecutionComplete, 
   onExecutionError, 
-  onNodeStatusChange 
+  onNodeStatusChange,
+  onWorkflowIdentityReceived
 }: ExecutionProviderProps) {
   const [executionState, setExecutionState] = useState<WorkflowExecutionState | null>(null)
   const [isExecuting, setIsExecuting] = useState(false)
@@ -168,6 +170,14 @@ export function ExecutionProvider({
             progress: data.progress.percentage || 0,
             currentActivity: data.progress.current_activity || 'Processing...'
           } : prev)
+          
+          // Trigger workflow identity update if we have it
+          if (data.workflow_identity && data.workflow_identity.name && data.workflow_identity.name !== 'Unknown Workflow') {
+            console.log('🏷️ Received workflow identity via WebSocket:', data.workflow_identity)
+            if (onWorkflowIdentityReceived) {
+              onWorkflowIdentityReceived(data.workflow_identity)
+            }
+          }
           
         } else if (data.status === 'completed') {
           // Mark all nodes as completed

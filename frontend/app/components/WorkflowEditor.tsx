@@ -42,6 +42,7 @@ interface WorkflowEditorProps {
   workflowIdentity?: any
   initialManualMode?: boolean
   onManualModeChange?: (manualMode: boolean) => void
+  receivedWorkflowIdentity?: any
 }
 
 function WorkflowEditorInner({ 
@@ -54,7 +55,8 @@ function WorkflowEditorInner({
   onExecutionInputChange,
   workflowIdentity: externalWorkflowIdentity,
   initialManualMode = false,
-  onManualModeChange
+  onManualModeChange,
+  receivedWorkflowIdentity
 }: WorkflowEditorProps) {
   // Get execution context
   const { 
@@ -111,6 +113,14 @@ function WorkflowEditorInner({
       setCurrentWorkflowIdentity(externalWorkflowIdentity)
     }
   }, [externalWorkflowIdentity])
+  
+  // Update workflow identity when received from backend via WebSocket
+  useEffect(() => {
+    if (receivedWorkflowIdentity) {
+      console.log(`🏷️ Updating workflow identity from backend: "${receivedWorkflowIdentity.name}"`)
+      setCurrentWorkflowIdentity(receivedWorkflowIdentity)
+    }
+  }, [receivedWorkflowIdentity])
 
   // Listen for execution completion from context to update results
   useEffect(() => {
@@ -149,7 +159,7 @@ function WorkflowEditorInner({
           })
       }
     }
-  }, [executionState?.status, executionState?.id, executionResult?.result])
+      }, [executionState?.status, executionState?.id, executionResult?.result])
 
   // Manual node creation mode state
   const [useManualMode, setUseManualMode] = useState(initialManualMode)
@@ -635,35 +645,21 @@ function WorkflowEditorInner({
           }
         }
       } else {
-        // Try to generate new workflow identity using frontend WorkflowManager
-        console.log('🏷️ Generating new workflow identity using WorkflowManager...')
-        try {
-          workflowDefinition = await WorkflowManager.createOrUpdateWorkflow(
-            nodes, 
-            edges, 
-            inputData // Use input as context for naming
-          )
-          
-          // Store the new workflow identity for UI display
-          console.log(`✨ Generated workflow identity: "${workflowDefinition.identity.name}"`)
-          setCurrentWorkflowIdentity(workflowDefinition.identity)
-        } catch (error) {
-          console.warn('⚠️ Frontend WorkflowManager failed, backend will generate identity:', error)
-          // Let backend generate the identity by setting to null
-          workflowDefinition = {
-            identity: null, // Backend will generate this
-            nodes,
-            edges,
-            metadata: {
-              node_count: nodes.length,
-              edge_count: edges.length,
-              agent_count: nodes.filter(n => n.data?.type === 'agent').length,
-              tool_count: nodes.filter(n => n.data?.type === 'tool').length,
-              input_count: nodes.filter(n => n.data?.type === 'input').length,
-              output_count: nodes.filter(n => n.data?.type === 'output').length,
-              complexity_score: Math.min(nodes.length + edges.length, 10),
-              estimated_cost: 0
-            }
+        // Let backend handle all AI naming for better reliability
+        console.log('🏷️ Letting backend generate intelligent workflow identity...')
+        workflowDefinition = {
+          identity: null, // Backend will generate this using AI
+          nodes,
+          edges,
+          metadata: {
+            node_count: nodes.length,
+            edge_count: edges.length,
+            agent_count: nodes.filter(n => n.data?.type === 'agent').length,
+            tool_count: nodes.filter(n => n.data?.type === 'tool').length,
+            input_count: nodes.filter(n => n.data?.type === 'input').length,
+            output_count: nodes.filter(n => n.data?.type === 'output').length,
+            complexity_score: Math.min(nodes.length + edges.length, 10),
+            estimated_cost: 0
           }
         }
       }
@@ -1395,14 +1391,12 @@ function WorkflowEditorInner({
 }
 
 export default function WorkflowEditor(props: WorkflowEditorProps) {
+  const [receivedWorkflowIdentity, setReceivedWorkflowIdentity] = useState<any>(null)
+  
   return (
     <ExecutionProvider
       onExecutionComplete={(result) => {
         console.log('✅ Execution completed:', result)
-        
-        // This callback is triggered when execution completes through WebSocket/polling
-        // The WorkflowEditorInner component will handle the state updates
-        // We could add additional completion logic here if needed
       }}
       onExecutionError={(error) => {
         console.error('❌ Execution failed:', error)
@@ -1410,8 +1404,12 @@ export default function WorkflowEditor(props: WorkflowEditorProps) {
       onNodeStatusChange={(nodeId, status) => {
         console.log(`📍 Node ${nodeId} status changed to: ${status}`)
       }}
+      onWorkflowIdentityReceived={(identity) => {
+        console.log('🏷️ Workflow identity received from backend:', identity)
+        setReceivedWorkflowIdentity(identity)
+      }}
     >
-      <WorkflowEditorInner {...props} />
+      <WorkflowEditorInner {...props} receivedWorkflowIdentity={receivedWorkflowIdentity} />
     </ExecutionProvider>
   )
 } 
