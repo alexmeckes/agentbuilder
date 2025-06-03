@@ -3777,6 +3777,132 @@ async def get_fallback_tool_recommendations(node_data: dict, mcp_tools: dict):
         "source": "rule_based_fallback"
     }
 
+# Add this new endpoint after the MCP debug endpoint but before the main execution block
+
+@app.post("/debug/create-test-executions")
+async def create_test_executions():
+    """Create test executions for debugging analytics (REMOVE IN PRODUCTION)"""
+    import time
+    import uuid
+    
+    test_executions = []
+    
+    # Create multiple test executions with different workflow types
+    test_workflows = [
+        {
+            "name": "Grizzly Bear Research",
+            "category": "research",
+            "description": "Research grizzly bear viewing locations in Yellowstone",
+            "input": "Find the best places to see grizzly bears in Yellowstone National Park"
+        },
+        {
+            "name": "Customer Service Bot",
+            "category": "automation",
+            "description": "Automated customer support workflow",
+            "input": "How do I reset my password?"
+        },
+        {
+            "name": "Content Creator",
+            "category": "content",
+            "description": "AI content generation workflow",
+            "input": "Write a blog post about sustainable energy"
+        }
+    ]
+    
+    for i, workflow in enumerate(test_workflows):
+        # Create multiple executions per workflow
+        for j in range(2, 5):  # 2-4 executions per workflow
+            execution_id = f"test_exec_{i}_{j}_{int(time.time())}"
+            created_at = time.time() - (i * 3600) - (j * 1800)  # Spread out over time
+            
+            # Generate test workflow identity
+            workflow_identity = {
+                "name": workflow["name"],
+                "category": workflow["category"],
+                "description": workflow["description"],
+                "confidence": 0.9,
+                "structure_hash": f"test_hash_{i}",
+                "auto_generated": True
+            }
+            
+            # Create test execution data
+            execution_data = {
+                "status": "completed" if j % 4 != 0 else "failed",  # Some failures
+                "input": workflow["input"],
+                "created_at": created_at,
+                "completed_at": created_at + 5.5,  # 5.5 second execution
+                "execution_time": 5.5,
+                "workflow_identity": workflow_identity,
+                "workflow_name": workflow["name"],
+                "workflow_category": workflow["category"],
+                "workflow_description": workflow["description"],
+                "framework": "openai",
+                "result": f"Test result for {workflow['name']} execution #{j}",
+                "trace": {
+                    "final_output": f"Test result for {workflow['name']} execution #{j}",
+                    "execution_pattern": "single_agent",
+                    "main_agent": "TestAgent",
+                    "framework_used": "openai",
+                    "execution_time": 5.5,
+                    "cost_info": {
+                        "total_cost": 0.001 * j,  # Small test cost
+                        "total_tokens": 100 * j,
+                        "input_tokens": 50 * j,
+                        "output_tokens": 50 * j
+                    },
+                    "performance": {
+                        "total_duration_ms": 5500,
+                        "total_cost": 0.001 * j
+                    },
+                    "spans": [],
+                    "workflow_identity": workflow_identity
+                }
+            }
+            
+            # Add failure details for failed executions
+            if execution_data["status"] == "failed":
+                execution_data["error"] = "Test execution failure for debugging"
+                execution_data["trace"]["error"] = "Test execution failure for debugging"
+            
+            # Store in executor
+            executor.executions[execution_id] = execution_data
+            test_executions.append({
+                "execution_id": execution_id,
+                "workflow_name": workflow["name"],
+                "status": execution_data["status"]
+            })
+    
+    return {
+        "success": True,
+        "message": f"Created {len(test_executions)} test executions for analytics debugging",
+        "test_executions": test_executions,
+        "note": "These are test executions for debugging purposes. Remove this endpoint in production."
+    }
+
+@app.post("/debug/clear-test-executions")
+async def clear_test_executions():
+    """Clear test executions from the executor (REMOVE IN PRODUCTION)"""
+    # Get current execution count
+    total_before = len(executor.executions)
+    test_executions_before = [eid for eid in executor.executions.keys() if eid.startswith("test_exec_")]
+    
+    # Remove only test executions
+    for execution_id in list(executor.executions.keys()):
+        if execution_id.startswith("test_exec_"):
+            del executor.executions[execution_id]
+    
+    total_after = len(executor.executions)
+    test_executions_removed = len(test_executions_before)
+    
+    return {
+        "success": True,
+        "message": f"Cleared {test_executions_removed} test executions",
+        "executions_before": total_before,
+        "executions_after": total_after,
+        "test_executions_removed": test_executions_removed,
+        "note": "Only test executions were removed. Real workflow executions are preserved."
+    }
+
 if __name__ == "__main__":
     # Production MCP setup
     try:
