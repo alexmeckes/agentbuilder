@@ -304,6 +304,23 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         }}
 
       >
+        {/* Delete Button - Top Right Corner Overlay */}
+        {onNodeDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              if (window.confirm(`Delete "${data.label}" node?`)) {
+                onNodeDelete(id)
+              }
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-110 z-10 nodrag"
+            title="Delete node"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
 
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
@@ -391,7 +408,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
             </div>
           </div>
           
-          <div className="flex items-center gap-2 flex-shrink-0 nodrag group">
+          <div className="flex items-center gap-2 flex-shrink-0 nodrag">
             <button
               onClick={handleEditClick}
               onMouseDown={(e) => e.stopPropagation()}
@@ -400,24 +417,6 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
             >
               <Settings className="w-4 h-4" />
             </button>
-            
-            {onNodeDelete && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  // Add confirmation for better UX
-                  if (window.confirm(`Delete "${data.label}" node?`)) {
-                    onNodeDelete(id)
-                  }
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                title="Delete node"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
             
             <button
               onClick={handleExpansionToggle}
