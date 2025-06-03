@@ -3704,7 +3704,7 @@ async def get_fallback_tool_recommendations(node_data: dict, mcp_tools: dict):
     # Rule-based recommendations based on keywords
     if any(word in context_text for word in ['issue', 'bug', 'problem', 'report']):
         # Recommend issue-related tools
-        issue_tools = [k for k in mcp_tools.keys() if 'issue' in k.lower()]
+        issue_tools = [k for k in mcp_tools.keys() if 'issue' in k.lower() or 'bug' in k.lower()]
         for tool_id in issue_tools[:3]:
             tool_name = mcp_tools[tool_id].get("name", tool_id.split("_")[-1])
             recommendations.append({
@@ -3712,25 +3712,25 @@ async def get_fallback_tool_recommendations(node_data: dict, mcp_tools: dict):
                 "tool_name": tool_name,
                 "confidence": 0.8,
                 "reasoning": "Detected issue-related context in node",
-                "use_case": "Manage GitHub issues and bug reports"
+                "use_case": "Search and manage GitHub issues and bug reports"
             })
     
-    elif any(word in context_text for word in ['file', 'code', 'content', 'read', 'write']):
-        # Recommend file-related tools
-        file_tools = [k for k in mcp_tools.keys() if any(word in k.lower() for word in ['file', 'content', 'create', 'update'])]
-        for tool_id in file_tools[:3]:
+    elif any(word in context_text for word in ['file', 'code', 'content', 'read', 'write', 'search']):
+        # Recommend code/file-related tools (prioritize search_code since it's commonly available)
+        code_tools = [k for k in mcp_tools.keys() if any(word in k.lower() for word in ['code', 'file', 'content'])]
+        for tool_id in code_tools[:3]:
             tool_name = mcp_tools[tool_id].get("name", tool_id.split("_")[-1])
             recommendations.append({
                 "tool_id": tool_id,
                 "tool_name": tool_name,
-                "confidence": 0.75,
-                "reasoning": "Detected file operation context in node",
-                "use_case": "Read, create, or modify repository files"
+                "confidence": 0.8,
+                "reasoning": "Detected code/file operation context in node",
+                "use_case": "Search code, read files, or manage repository content"
             })
     
     elif any(word in context_text for word in ['repo', 'repository', 'project']):
-        # Recommend repository management tools
-        repo_tools = [k for k in mcp_tools.keys() if any(word in k.lower() for word in ['repo', 'create', 'fork'])]
+        # Recommend repository search tools (since search_repositories is available)
+        repo_tools = [k for k in mcp_tools.keys() if any(word in k.lower() for word in ['repo', 'search_repo'])]
         for tool_id in repo_tools[:3]:
             tool_name = mcp_tools[tool_id].get("name", tool_id.split("_")[-1])
             recommendations.append({
@@ -3738,31 +3738,37 @@ async def get_fallback_tool_recommendations(node_data: dict, mcp_tools: dict):
                 "tool_name": tool_name,
                 "confidence": 0.85,
                 "reasoning": "Detected repository management context in node",
-                "use_case": "Create, manage, or analyze repositories"
+                "use_case": "Search and discover GitHub repositories"
             })
     
     # If no specific context, recommend most commonly used tools
     if not recommendations:
-        common_tools = [
-            'get_file_contents',
-            'list_repository_contents', 
+        # Look for common GitHub operations in the actual available tools
+        common_patterns = [
             'search_repositories',
-            'create_issue',
-            'get_repository'
+            'search_code', 
+            'search_issues',
+            'get_file_contents',
+            'list_repository_contents',
+            'create_issue'
         ]
         
-        for tool_name in common_tools:
-            matching_tool = next((k for k in mcp_tools.keys() if tool_name in k.lower()), None)
-            if matching_tool:
+        for pattern in common_patterns:
+            matching_tools = [k for k in mcp_tools.keys() if pattern in k.lower()]
+            for tool_id in matching_tools[:1]:  # Take first match for each pattern
+                tool_name = mcp_tools[tool_id].get("name", tool_id.split("_")[-1])
                 recommendations.append({
-                    "tool_id": matching_tool,
-                    "tool_name": mcp_tools[matching_tool].get("name", tool_name),
+                    "tool_id": tool_id,
+                    "tool_name": tool_name,
                     "confidence": 0.7,
                     "reasoning": "Commonly used GitHub operation",
                     "use_case": "General GitHub workflow support"
                 })
                 if len(recommendations) >= 3:
                     break
+            
+            if len(recommendations) >= 3:
+                break
     
     return {
         "success": True,
