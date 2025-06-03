@@ -43,6 +43,14 @@ cd any-agent-main
 - **Templates**: Pre-built experiment templates for common use cases
 - **Results Dashboard**: Visual analytics and recommendations
 
+### 📊 Progress Visualization
+- **Real-time Node Status**: Visual indicators showing execution progress for each workflow node
+- **Live Execution Tracking**: Dynamic border colors and animations during workflow execution
+- **Status Icons**: Clear visual feedback (idle → pending → running → completed/failed)
+- **Progress Bars**: Real-time progress indicators for running nodes
+- **Execution Dashboard**: Comprehensive progress panel with cost tracking and performance metrics
+- **WebSocket Integration**: Live updates via WebSocket connection for instant feedback
+
 ### 📊 Trace Viewer Tab
 - Detailed execution logs and traces
 - Step-by-step workflow debugging
@@ -107,6 +115,9 @@ any-agent-main/
 - ✅ **Production Analytics**: Fixed cost tracking in Vercel/Render deployment
 - ✅ **Dual Convention Support**: Compatible with both GenAI and OpenInference formats
 - ✅ **Real-time Cost Aggregation**: Accurate span-level cost extraction
+- ✅ **Progress Visualization**: Real-time node status indicators and execution tracking
+- ✅ **WebSocket Integration**: Live workflow execution updates with visual feedback
+- ✅ **Enhanced UI Components**: Dynamic node styling and progress dashboard
 
 ### Environment Setup
 
