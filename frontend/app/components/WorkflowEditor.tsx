@@ -618,7 +618,7 @@ function WorkflowEditorInner({
       
       // Use existing workflow identity if available, otherwise generate new one
       if (currentWorkflowIdentity) {
-        console.log(`Using existing workflow identity: "${currentWorkflowIdentity.name}"`)
+        console.log(`🎯 Using existing workflow identity: "${currentWorkflowIdentity.name}"`)
         workflowDefinition = {
           identity: currentWorkflowIdentity,
           nodes,
@@ -635,19 +635,41 @@ function WorkflowEditorInner({
           }
         }
       } else {
-        // Generate new workflow identity using AI naming
-        console.log('Generating new workflow identity...')
-        workflowDefinition = await WorkflowManager.createOrUpdateWorkflow(
-          nodes, 
-          edges, 
-          inputData // Use input as context for naming
-        )
-        
-        // Store the new workflow identity for UI display
-        setCurrentWorkflowIdentity(workflowDefinition.identity)
+        // Try to generate new workflow identity using frontend WorkflowManager
+        console.log('🏷️ Generating new workflow identity using WorkflowManager...')
+        try {
+          workflowDefinition = await WorkflowManager.createOrUpdateWorkflow(
+            nodes, 
+            edges, 
+            inputData // Use input as context for naming
+          )
+          
+          // Store the new workflow identity for UI display
+          console.log(`✨ Generated workflow identity: "${workflowDefinition.identity.name}"`)
+          setCurrentWorkflowIdentity(workflowDefinition.identity)
+        } catch (error) {
+          console.warn('⚠️ Frontend WorkflowManager failed, backend will generate identity:', error)
+          // Let backend generate the identity by setting to null
+          workflowDefinition = {
+            identity: null, // Backend will generate this
+            nodes,
+            edges,
+            metadata: {
+              node_count: nodes.length,
+              edge_count: edges.length,
+              agent_count: nodes.filter(n => n.data?.type === 'agent').length,
+              tool_count: nodes.filter(n => n.data?.type === 'tool').length,
+              input_count: nodes.filter(n => n.data?.type === 'input').length,
+              output_count: nodes.filter(n => n.data?.type === 'output').length,
+              complexity_score: Math.min(nodes.length + edges.length, 10),
+              estimated_cost: 0
+            }
+          }
+        }
       }
 
-      console.log(`Executing workflow: "${workflowDefinition.identity.name}"`)
+      const workflowName = workflowDefinition.identity?.name || 'Unnamed Workflow'
+      console.log(`🚀 Executing workflow: "${workflowName}"`)
       
       // Convert to the format expected by the execution service
       const workflow = WorkflowService.convertToWorkflowDefinition(nodes, edges)
@@ -661,14 +683,14 @@ function WorkflowEditorInner({
         framework: 'openai'
       })
       
-      // Execute with workflow identity context
+      // Execute with workflow identity context (if available)
       const result = await WorkflowService.executeWorkflow({
         workflow,
         input_data: inputData,
         framework: 'openai',
-        // Add workflow identity context
+        // Add workflow identity context if available, otherwise let backend generate it
         workflow_identity: workflowDefinition.identity,
-        workflow_name: workflowDefinition.identity.name
+        workflow_name: workflowDefinition.identity?.name
       })
       
       console.log('📥 Backend response:', {
@@ -680,17 +702,19 @@ function WorkflowEditorInner({
         fullResult: result
       })
 
-      // Update execution statistics
-      if (result.status === 'completed') {
-        WorkflowManager.updateExecutionStats(workflowDefinition.identity.id, true)
-      } else if (result.status === 'failed') {
-        WorkflowManager.updateExecutionStats(workflowDefinition.identity.id, false)
+      // Update execution statistics (if identity is available)
+      if (workflowDefinition.identity) {
+        if (result.status === 'completed') {
+          WorkflowManager.updateExecutionStats(workflowDefinition.identity.id, true)
+        } else if (result.status === 'failed') {
+          WorkflowManager.updateExecutionStats(workflowDefinition.identity.id, false)
+        }
       }
 
       const finalResult = {
         ...result,
-        workflow_name: workflowDefinition.identity.name,
-        workflow_id: workflowDefinition.identity.id
+        workflow_name: workflowDefinition.identity?.name || result.workflow_name,
+        workflow_id: workflowDefinition.identity?.id || result.workflow_id
       }
 
       setExecutionResult(finalResult)
@@ -701,9 +725,9 @@ function WorkflowEditorInner({
         
         const executionData = {
           execution_id: result.execution_id,
-          workflow_name: workflowDefinition.identity.name,
-          workflow_category: workflowDefinition.identity.category,
-          workflow_description: workflowDefinition.identity.description,
+          workflow_name: workflowDefinition.identity?.name || result.workflow_name || 'Unnamed Workflow',
+          workflow_category: workflowDefinition.identity?.category || 'general',
+          workflow_description: workflowDefinition.identity?.description || 'A workflow',
           workflow: workflow,
           input_data: inputData,
           created_at: Date.now(),
@@ -715,14 +739,14 @@ function WorkflowEditorInner({
         const trimmedExecutions = recentExecutions.slice(0, 10)
         
         localStorage.setItem('recentWorkflowExecutions', JSON.stringify(trimmedExecutions))
-        console.log(`💾 Saved execution to localStorage: "${workflowDefinition.identity.name}"`)
+        console.log(`💾 Saved execution to localStorage: "${executionData.workflow_name}"`)
       } catch (error) {
         console.error('Failed to save execution to localStorage:', error)
       }
       
       // If execution is still running, start progress tracking
       if (result.status === 'running') {
-        console.log(`🚀 Execution started for "${workflowDefinition.identity.name}":`, result.execution_id)
+        console.log(`🚀 Execution started for "${workflowName}":`, result.execution_id)
         console.log('📊 Starting progress tracking with nodes:', baseNodes.map(n => ({ id: n.id, type: n.data.type, name: n.data.name })))
         
         // Start progress tracking with WebSocket
@@ -1185,7 +1209,6 @@ function WorkflowEditorInner({
                 </div>
                 <div className="flex items-center justify-between text-xs text-blue-600">
                   <span>{Array.from(executionState.nodes.values()).filter(s => s.status === 'completed').length}/{executionState.nodes.size} nodes</span>
-                  <span>${executionState.totalCost.toFixed(4)} cost</span>
                 </div>
               </div>
             )}

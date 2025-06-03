@@ -632,20 +632,13 @@ class WorkflowExecutor:
         current_time = time.time()
         cache_key = f"identity_{structure_hash}"
         
-        # Rate limiting for identity generation (once per 10 seconds for same structure)
+        # Reduced rate limiting for better user experience (once per 2 seconds instead of 10)
         if cache_key in self._last_validation_time:
             time_since_last = current_time - self._last_validation_time[cache_key]
-            if time_since_last < 10.0:  # 10 second rate limit for identity generation
-                print(f"⚠️  Rate limiting identity generation for structure {structure_hash[:8]}")
-                return {
-                    "name": f"Workflow {len(self.executions) + 1}",
-                    "description": "Rate-limited workflow generation",
-                    "category": "general",
-                    "confidence": 0.7,
-                    "alternatives": [],
-                    "auto_generated": True,
-                    "structure_hash": structure_hash
-                }
+            if time_since_last < 2.0:  # Reduced to 2 second rate limit
+                print(f"🔄 Recent identity generation for structure {structure_hash[:8]}, using cached approach")
+                # Instead of blocking, generate a simple pattern-based name without AI
+                return self._generate_simple_workflow_identity(nodes, edges, input_data, structure_hash)
         
         self._last_validation_time[cache_key] = current_time
         self._generating_identity = True
@@ -746,6 +739,87 @@ class WorkflowExecutor:
             }
         finally:
             self._generating_identity = False
+
+    def _generate_simple_workflow_identity(self, nodes: List[Dict], edges: List[Dict], input_data: str, structure_hash: str) -> Dict[str, Any]:
+        """Generate workflow identity using simple pattern matching without AI calls"""
+        input_lower = input_data.lower()
+        workflow_name = "Custom Workflow"
+        workflow_category = "general"
+        workflow_description = "A custom workflow"
+        confidence = 0.8
+        
+        # Analyze agent names and instructions for context
+        agent_contexts = []
+        for node in nodes:
+            if node.get("type") == "agent":
+                agent_data = node.get("data", {})
+                agent_name = agent_data.get("name", "").lower()
+                agent_instructions = agent_data.get("instructions", "").lower()
+                agent_contexts.append(f"{agent_name} {agent_instructions}")
+        
+        combined_context = f"{input_data} {' '.join(agent_contexts)}".lower()
+        
+        # Advanced pattern matching for specific use cases
+        if any(word in combined_context for word in ["grizzly", "bear", "wildlife", "animal", "yellowstone", "park"]):
+            if "grizzly" in combined_context and ("yellowstone" in combined_context or "park" in combined_context):
+                workflow_name = "Grizzly Bear Viewing Guide"
+                workflow_description = "Find the best locations for grizzly bear viewing in Yellowstone"
+                confidence = 0.9
+            elif "wildlife" in combined_context:
+                workflow_name = "Wildlife Viewing Guide"
+                workflow_description = "Discover optimal wildlife viewing locations and tips"
+                confidence = 0.85
+            else:
+                workflow_name = "Animal Research Guide"
+                workflow_description = "Research and information gathering about animals"
+                confidence = 0.8
+            workflow_category = "research"
+            
+        elif any(word in combined_context for word in ["customer", "onboard", "support", "service"]):
+            workflow_name = "Customer Service Automation"
+            workflow_description = "Streamline customer onboarding and support processes"
+            workflow_category = "automation"
+            confidence = 0.85
+            
+        elif any(word in combined_context for word in ["content", "create", "generate", "write", "blog", "article"]):
+            workflow_name = "Content Creation Assistant"
+            workflow_description = "Generate and create various types of content"
+            workflow_category = "content"
+            confidence = 0.8
+            
+        elif any(word in combined_context for word in ["research", "find", "search", "discover", "information", "data"]):
+            workflow_name = "Research Assistant"
+            workflow_description = "Gather and analyze information from various sources"
+            workflow_category = "research"
+            confidence = 0.8
+            
+        elif any(word in combined_context for word in ["analyze", "analysis", "insight", "metric", "report"]):
+            workflow_name = "Data Analysis Tool"
+            workflow_description = "Analyze data and generate insights"
+            workflow_category = "analysis"
+            confidence = 0.8
+            
+        elif any(word in combined_context for word in ["workflow", "builder", "assistant", "help", "guide"]):
+            workflow_name = "Workflow Assistant"
+            workflow_description = "Help users build and design workflows"
+            workflow_category = "support"
+            confidence = 0.85
+        
+        # Enhance based on node count and structure
+        agent_count = len([n for n in nodes if n.get("type") == "agent"])
+        if agent_count > 1:
+            workflow_name = f"Multi-Agent {workflow_name}"
+            workflow_description = f"{workflow_description} using {agent_count} AI agents"
+        
+        return {
+            "name": workflow_name,
+            "description": workflow_description,
+            "category": workflow_category,
+            "confidence": confidence,
+            "alternatives": [],
+            "auto_generated": True,
+            "structure_hash": structure_hash
+        }
 
     def _validate_workflow_structure(self, nodes: List[Dict], edges: List[Dict]) -> Dict[str, Any]:
         """Enhanced workflow structure validation before execution"""
