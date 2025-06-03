@@ -545,16 +545,16 @@ class WorkflowExecutor:
                     output_tokens += int(span_output_tokens)
                     total_tokens += int(span_input_tokens) + int(span_output_tokens)
                 
-                if total_cost > 0 or total_tokens > 0:
-                    return {
-                        "total_cost": total_cost,
-                        "total_tokens": total_tokens,
-                        "input_tokens": input_tokens,
-                        "output_tokens": output_tokens
-                    }
+                # Always return extracted cost data if we have any spans
+                return {
+                    "total_cost": total_cost,
+                    "total_tokens": total_tokens,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens
+                }
                 
-                # Fallback to existing cost_info if no spans with cost data
-                return agent_trace.get("cost_info", {})
+            # Fallback to existing cost_info if no spans available
+            return agent_trace.get("cost_info", {})
             
             # Fallback to legacy method for AgentTrace objects
             return self._extract_cost_info(agent_trace)
