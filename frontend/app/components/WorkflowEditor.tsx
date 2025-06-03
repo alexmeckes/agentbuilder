@@ -794,18 +794,20 @@ export default function WorkflowEditor({
                     : 'bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700'
                 }`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   !useManualMode ? 'bg-blue-100' : 'bg-slate-100'
                 }`}>
                   <Brain className="w-4 h-4" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-medium">AI Assistant Mode</h4>
                   <p className="text-xs opacity-80">Let AI create workflows from descriptions</p>
                 </div>
-                {!useManualMode && (
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                )}
+                <div className="flex items-center justify-center w-4 h-4 flex-shrink-0">
+                  {!useManualMode && (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  )}
+                </div>
               </button>
               
               {/* Manual Mode Toggle */}
@@ -817,18 +819,20 @@ export default function WorkflowEditor({
                     : 'bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700'
                 }`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   useManualMode ? 'bg-green-100' : 'bg-slate-100'
                 }`}>
                   <Settings className="w-4 h-4" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-medium">Manual Design Mode</h4>
                   <p className="text-xs opacity-80">Drag & drop nodes to build workflows</p>
                 </div>
-                {useManualMode && (
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                )}
+                <div className="flex items-center justify-center w-4 h-4 flex-shrink-0">
+                  {useManualMode && (
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  )}
+                </div>
               </button>
             </div>
           </Panel>
