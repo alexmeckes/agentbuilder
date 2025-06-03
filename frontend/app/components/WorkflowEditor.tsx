@@ -98,6 +98,11 @@ export default function WorkflowEditor({
   // Manual node creation mode state
   const [useManualMode, setUseManualMode] = useState(initialManualMode)
   
+  // Sync external manual mode changes to internal state
+  useEffect(() => {
+    setUseManualMode(initialManualMode)
+  }, [initialManualMode])
+  
   // Sync manual mode changes to parent
   const handleManualModeChange = useCallback((newMode: boolean) => {
     setUseManualMode(newMode)
