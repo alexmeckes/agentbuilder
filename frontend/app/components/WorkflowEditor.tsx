@@ -169,7 +169,8 @@ export default function WorkflowEditor({
           ...node.data,
           onNodeUpdate: handleNodeUpdate,
           onNodeDelete: handleNodeDelete
-        }
+        },
+        draggable: true
       }))
     }
 
@@ -398,6 +399,7 @@ export default function WorkflowEditor({
         type: 'agent', // All nodes use the same component now
         position: adjustedPosition,
         data: nodeData,
+        draggable: true,
       }
 
       if (externalOnNodesChange) {
@@ -793,7 +795,8 @@ export default function WorkflowEditor({
         ...node.data,
         onNodeUpdate: handleNodeUpdate,
         onNodeDelete: handleNodeDelete
-      }
+      },
+      draggable: true
     }))
     
     setInternalNodes(nodesWithCallbacks)

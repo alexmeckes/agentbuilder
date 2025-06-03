@@ -304,7 +304,15 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getNodeColor(data.type)} flex items-center justify-center shadow-sm flex-shrink-0`}>
+            <div 
+              className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getNodeColor(data.type)} flex items-center justify-center shadow-sm flex-shrink-0 cursor-move`}
+              title="Drag to move node"
+              style={{ cursor: 'grab' }}
+              onMouseDown={(e) => {
+                // Ensure this area triggers dragging
+                e.stopPropagation()
+              }}
+            >
               <Icon className="w-5 h-5 text-white" />
             </div>
             
@@ -384,7 +392,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
             </div>
           </div>
           
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 nodrag">
             <button
               onClick={handleEditClick}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -418,7 +426,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
 
         {/* Expanded Content */}
         {expanded && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 nodrag">
             {/* Description */}
             {data.description && (
               <div>
