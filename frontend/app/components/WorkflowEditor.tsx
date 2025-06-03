@@ -15,7 +15,7 @@ import AgentNode from './workflow/AgentNode'
 import Sidebar from './workflow/Sidebar'
 import NodePalette from './workflow/NodePalette'
 import { WorkflowService, type ExecutionResponse } from '../services/workflow'
-import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain } from 'lucide-react'
+import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain, X } from 'lucide-react'
 import { WorkflowManager } from '../services/workflowManager'
 
 const nodeTypes = {
@@ -268,25 +268,52 @@ export default function WorkflowEditor({
 
   // Handle clicking on empty canvas to deselect nodes
   const onPaneClick = useCallback(() => {
-    // Deselect all nodes by updating their selected state
-    if (externalOnNodesChange) {
+    console.log('🖱️ Pane clicked - deselecting all nodes')
+    console.log('Current selected nodes:', nodes.filter(n => n.selected).map(n => n.id))
+    
+    // Try multiple approaches to clear selection
+    try {
+      // 1. Use ReactFlow's built-in way to clear selection
+      if (reactFlowInstance) {
+        const clearedNodes = nodes.map(node => ({
+          ...node,
+          selected: false
+        }))
+        reactFlowInstance.setNodes(clearedNodes)
+        console.log('✅ Applied deselection via ReactFlow instance')
+      }
+      
+      // 2. Update our state management
       const updatedNodes = nodes.map(node => ({
         ...node,
         selected: false
       }))
-      externalOnNodesChange(updatedNodes)
-      if (onWorkflowChange) {
-        onWorkflowChange(updatedNodes, edges)
+      
+      if (externalOnNodesChange) {
+        externalOnNodesChange(updatedNodes)
+        if (onWorkflowChange) {
+          onWorkflowChange(updatedNodes, edges)
+        }
+        console.log('✅ Applied deselection via external state')
+      } else {
+        setInternalNodes(currentNodes => 
+          currentNodes.map(node => ({
+            ...node,
+            selected: false
+          }))
+        )
+        console.log('✅ Applied deselection via internal state')
       }
-    } else {
-      setInternalNodes(currentNodes => 
-        currentNodes.map(node => ({
-          ...node,
-          selected: false
-        }))
-      )
+      
+      // 3. Force focus away from any selected elements
+      if (document.activeElement && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
+      
+    } catch (error) {
+      console.error('❌ Error during deselection:', error)
     }
-     }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
+  }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange, reactFlowInstance])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -889,6 +916,7 @@ export default function WorkflowEditor({
           nodesDraggable={true}
           nodesConnectable={true}
           elementsSelectable={true}
+          selectNodesOnDrag={false}
           fitView
           deleteKeyCode="Delete"
           className="bg-gradient-to-br from-slate-50 to-blue-50 workflow-editor"
@@ -957,6 +985,20 @@ export default function WorkflowEditor({
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                   )}
                 </div>
+              </button>
+            </div>
+            
+            {/* Quick Actions */}
+            <div className="mt-4 pt-3 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  console.log('🔄 Manual clear selection clicked')
+                  onPaneClick()
+                }}
+                className="w-full px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                Clear Selection
               </button>
             </div>
           </Panel>
