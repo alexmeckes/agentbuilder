@@ -1077,21 +1077,34 @@ async def get_execution_performance(execution_id: str):
     performance = trace_data.get("performance", {})
     spans = trace_data.get("spans", [])
     
-    # Enhanced performance analysis
+    # Enhanced performance analysis with GenAI semantic convention support
     span_analysis = []
     for span in spans:
+        attrs = span.get("attributes", {})
+        
+        # Extract token counts using GenAI semantic convention or fallback to old names
+        prompt_tokens = attrs.get("gen_ai.usage.input_tokens", attrs.get("llm.token_count.prompt", 0))
+        completion_tokens = attrs.get("gen_ai.usage.output_tokens", attrs.get("llm.token_count.completion", 0))
+        
+        # Extract costs using GenAI semantic convention or fallback to old names
+        prompt_cost = attrs.get("gen_ai.usage.input_cost", attrs.get("cost_prompt", 0))
+        completion_cost = attrs.get("gen_ai.usage.output_cost", attrs.get("cost_completion", 0))
+        
+        # Extract model name using GenAI semantic convention or fallback to old names
+        model_name = attrs.get("gen_ai.request.model", attrs.get("llm.model_name", "unknown"))
+        
         span_perf = {
             "name": span.get("name"),
             "duration_ms": span.get("duration_ms"),
             "token_usage": {
-                "prompt": span.get("attributes", {}).get("llm.token_count.prompt", 0),
-                "completion": span.get("attributes", {}).get("llm.token_count.completion", 0)
+                "prompt": int(prompt_tokens),
+                "completion": int(completion_tokens)
             },
             "cost": {
-                "prompt": span.get("attributes", {}).get("cost_prompt", 0),
-                "completion": span.get("attributes", {}).get("cost_completion", 0)
+                "prompt": float(prompt_cost),
+                "completion": float(completion_cost)
             },
-            "model": span.get("attributes", {}).get("llm.model_name", "unknown")
+            "model": model_name
         }
         span_analysis.append(span_perf)
     
@@ -1134,14 +1147,23 @@ async def get_execution_analytics():
         total_tokens += performance.get("total_tokens", 0)
         total_duration += performance.get("total_duration_ms", 0)
         
-        # Track model usage
+        # Track model usage with support for both GenAI and OpenInference attribute conventions
         for span in trace.get("spans", []):
-            model = span.get("attributes", {}).get("llm.model_name", "unknown")
+            attrs = span.get("attributes", {})
+            model = attrs.get("llm.model_name") or attrs.get("gen_ai.request.model", "unknown")
             if model not in model_usage:
                 model_usage[model] = {"count": 0, "total_cost": 0, "total_tokens": 0}
             model_usage[model]["count"] += 1
-            model_usage[model]["total_cost"] += span.get("attributes", {}).get("cost_prompt", 0) + span.get("attributes", {}).get("cost_completion", 0)
-            model_usage[model]["total_tokens"] += span.get("attributes", {}).get("llm.token_count.prompt", 0) + span.get("attributes", {}).get("llm.token_count.completion", 0)
+            
+            # Extract costs using GenAI semantic convention or fallback to old names
+            input_cost = attrs.get("gen_ai.usage.input_cost", attrs.get("cost_prompt", 0))
+            output_cost = attrs.get("gen_ai.usage.output_cost", attrs.get("cost_completion", 0))
+            model_usage[model]["total_cost"] += float(input_cost) + float(output_cost)
+            
+            # Extract tokens using GenAI semantic convention or fallback to old names  
+            input_tokens = attrs.get("gen_ai.usage.input_tokens", attrs.get("llm.token_count.prompt", 0))
+            output_tokens = attrs.get("gen_ai.usage.output_tokens", attrs.get("llm.token_count.completion", 0))
+            model_usage[model]["total_tokens"] += int(input_tokens) + int(output_tokens)
     
     avg_cost = total_cost / len(completed_executions) if completed_executions else 0
     avg_duration = total_duration / len(completed_executions) if completed_executions else 0
