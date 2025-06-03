@@ -1,0 +1,22 @@
+{
+  "servers": [
+    {
+      "id": "web_search",
+      "name": "Web Search Tool",
+      "description": "Search the web for real-time information using DuckDuckGo",
+      "command": [
+        "python3",
+        "simple_mcp_server.py"
+      ],
+      "args": [],
+      "env": {},
+      "working_dir": "/Users/ameckes/Downloads/any-agent-main 2",
+      "host": null,
+      "port": null,
+      "credentials": {},
+      "status": "disconnected",
+      "last_error": null,
+      "capabilities": []
+    }
+  ]
+}
