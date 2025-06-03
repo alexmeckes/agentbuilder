@@ -384,18 +384,50 @@ class WorkflowExecutor:
             return {"cost_extraction_error": str(e)}
     
     def _extract_cost_info_from_trace(self, agent_trace) -> Dict[str, Any]:
-        """Extract cost information from the new trace data structure"""
+        """Extract cost information from trace data using GenAI semantic convention"""
         if not agent_trace:
             return {}
         
         try:
-            # If it's our new dictionary structure
+            # If it's our new dictionary structure, check for spans with cost data
             if isinstance(agent_trace, dict):
+                spans = agent_trace.get("spans", [])
+                total_cost = 0.0
+                total_tokens = 0
+                input_tokens = 0
+                output_tokens = 0
+                
+                for span in spans:
+                    attributes = span.get("attributes", {})
+                    
+                    # Extract costs from GenAI semantic convention attributes
+                    input_cost = attributes.get("gen_ai.usage.input_cost", 0.0)
+                    output_cost = attributes.get("gen_ai.usage.output_cost", 0.0)
+                    
+                    # Extract token counts
+                    span_input_tokens = attributes.get("gen_ai.usage.input_tokens", 0)
+                    span_output_tokens = attributes.get("gen_ai.usage.output_tokens", 0)
+                    
+                    total_cost += float(input_cost) + float(output_cost)
+                    input_tokens += int(span_input_tokens)
+                    output_tokens += int(span_output_tokens)
+                    total_tokens += int(span_input_tokens) + int(span_output_tokens)
+                
+                if total_cost > 0 or total_tokens > 0:
+                    return {
+                        "total_cost": total_cost,
+                        "total_tokens": total_tokens,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens
+                    }
+                
+                # Fallback to existing cost_info if no spans with cost data
                 return agent_trace.get("cost_info", {})
             
-            # Fallback to legacy method
+            # Fallback to legacy method for AgentTrace objects
             return self._extract_cost_info(agent_trace)
         except Exception as e:
+            print(f"Error extracting cost info: {e}")
             return {"cost_extraction_error": str(e)}
     
     def _extract_performance_metrics(self, agent_trace, execution_time: float) -> Dict[str, Any]:
