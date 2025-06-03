@@ -3298,14 +3298,88 @@ async def test_mcp_server(server_id: str):
 async def list_available_tools():
     """List all available tools (built-in + MCP)"""
     try:
-        from visual_to_anyagent_translator import VisualToAnyAgentTranslator
-        translator = VisualToAnyAgentTranslator()
-        tool_info = translator.get_available_tool_info()
-        return {"tools": tool_info}
+        # Start with built-in tools
+        tools = {
+            "search_web": {
+                "type": "built-in",
+                "description": "Search the web for information",
+                "category": "web",
+                "server_status": "built-in"
+            },
+            "visit_webpage": {
+                "type": "built-in", 
+                "description": "Visit and read webpage content",
+                "category": "web",
+                "server_status": "built-in"
+            }
+        }
+        
+        # Add MCP tools if available
+        if MCP_INTEGRATION_AVAILABLE and mcp_manager:
+            try:
+                # Get all connected servers
+                servers = mcp_manager.list_servers()
+                
+                for server_id, server_info in servers.items():
+                    if server_info.get('status') == 'connected' and server_info.get('tools'):
+                        # Add each individual tool from the server
+                        for tool in server_info['tools']:
+                            tool_id = f"{server_id}_{tool['name']}"
+                            tools[tool_id] = {
+                                "type": "mcp",
+                                "name": tool['name'],
+                                "description": tool.get('description', f"{tool['name']} - {server_info.get('name', server_id)} tool"),
+                                "category": _categorize_tool(tool['name'], server_id),
+                                "server_id": server_id,
+                                "server_name": server_info.get('name', server_id),
+                                "server_status": server_info.get('status', 'unknown')
+                            }
+                        
+                        logging.info(f"Added {len(server_info['tools'])} tools from {server_id}")
+                        
+            except Exception as e:
+                logging.error(f"Failed to get MCP tools: {e}")
+        
+        logging.info(f"Total tools available: {len(tools)}")
+        return {"tools": tools}
         
     except Exception as e:
         logging.error(f"Failed to list available tools: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+def _categorize_tool(tool_name: str, server_id: str) -> str:
+    """Categorize a tool based on its name and server"""
+    tool_name_lower = tool_name.lower()
+    
+    # GitHub tools
+    if server_id.startswith('github') or 'github' in server_id:
+        if any(word in tool_name_lower for word in ['repo', 'repository', 'fork', 'clone']):
+            return 'repository'
+        elif any(word in tool_name_lower for word in ['issue', 'pr', 'pull']):
+            return 'issues'
+        elif any(word in tool_name_lower for word in ['file', 'content', 'create', 'update', 'delete']):
+            return 'files'
+        elif any(word in tool_name_lower for word in ['search', 'find']):
+            return 'search'
+        elif any(word in tool_name_lower for word in ['branch', 'commit']):
+            return 'version_control'
+        else:
+            return 'development'
+    
+    # Database tools
+    elif 'postgres' in server_id or 'database' in server_id:
+        return 'database'
+    
+    # File system tools
+    elif 'filesystem' in server_id or 'file' in server_id:
+        return 'files'
+    
+    # Communication tools
+    elif 'slack' in server_id or 'discord' in server_id:
+        return 'communication'
+    
+    # Default
+    return 'integration'
 
 @app.get("/mcp/debug")
 async def debug_mcp_setup():
