@@ -266,6 +266,43 @@ export default function WorkflowEditor({
     event.dataTransfer.dropEffect = 'move'
   }, [])
 
+  // Handle clicking on empty canvas to deselect nodes
+  const onPaneClick = useCallback(() => {
+    // Deselect all nodes by updating their selected state
+    if (externalOnNodesChange) {
+      const updatedNodes = nodes.map(node => ({
+        ...node,
+        selected: false
+      }))
+      externalOnNodesChange(updatedNodes)
+      if (onWorkflowChange) {
+        onWorkflowChange(updatedNodes, edges)
+      }
+    } else {
+      setInternalNodes(currentNodes => 
+        currentNodes.map(node => ({
+          ...node,
+          selected: false
+        }))
+      )
+    }
+     }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        // Deselect all nodes on Escape key
+        onPaneClick()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onPaneClick])
+
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault()
@@ -822,6 +859,7 @@ export default function WorkflowEditor({
           onInit={setReactFlowInstance}
           onDrop={onDrop}
           onDragOver={onDragOver}
+          onPaneClick={onPaneClick}
           onNodesDelete={handleNodesDelete}
           nodeTypes={nodeTypes}
           nodesDraggable={true}
@@ -888,7 +926,7 @@ export default function WorkflowEditor({
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-medium">Manual Design Mode</h4>
-                  <p className="text-xs opacity-80">Drag, move & delete nodes manually</p>
+                  <p className="text-xs opacity-80">Drag, move & delete • Click canvas or ESC to deselect</p>
                 </div>
                 <div className="flex items-center justify-center w-4 h-4 flex-shrink-0">
                   {useManualMode && (
