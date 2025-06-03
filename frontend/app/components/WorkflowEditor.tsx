@@ -112,6 +112,45 @@ function WorkflowEditorInner({
     }
   }, [externalWorkflowIdentity])
 
+  // Listen for execution completion from context to update results
+  useEffect(() => {
+    if (executionState?.status === 'completed' && !executionResult?.result) {
+      // Execution completed via WebSocket/polling, but we don't have result set
+      // This happens when the execution runs async and completes through ExecutionContext
+      console.log('🔄 Execution completed via context, updating result state')
+      
+      // We need to fetch the final execution data to get the result
+      if (executionState.id) {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+        fetch(`${backendUrl}/executions/${executionState.id}`)
+          .then(response => response.json())
+          .then(data => {
+            console.log('📦 Fetched final execution data:', data)
+            
+            // Update execution result with complete data
+            setExecutionResult({
+              execution_id: data.execution_id,
+              status: data.status,
+              result: data.result || data.trace?.final_output,
+              trace: data.trace,
+              error: data.error,
+              workflow_name: data.workflow_name,
+              workflow_id: data.workflow_id
+            })
+            
+            // Update workflow identity if we have it and it's meaningful
+            if (data.workflow_identity && data.workflow_identity.name && data.workflow_identity.name !== 'Unknown Workflow') {
+              console.log('📝 Updating workflow identity from execution result:', data.workflow_identity)
+              setCurrentWorkflowIdentity(data.workflow_identity)
+            }
+          })
+          .catch(error => {
+            console.error('❌ Failed to fetch final execution data:', error)
+          })
+      }
+    }
+  }, [executionState?.status, executionState?.id, executionResult?.result])
+
   // Manual node creation mode state
   const [useManualMode, setUseManualMode] = useState(initialManualMode)
   
@@ -1337,6 +1376,10 @@ export default function WorkflowEditor(props: WorkflowEditorProps) {
     <ExecutionProvider
       onExecutionComplete={(result) => {
         console.log('✅ Execution completed:', result)
+        
+        // This callback is triggered when execution completes through WebSocket/polling
+        // The WorkflowEditorInner component will handle the state updates
+        // We could add additional completion logic here if needed
       }}
       onExecutionError={(error) => {
         console.error('❌ Execution failed:', error)

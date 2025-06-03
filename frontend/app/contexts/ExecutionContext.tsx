@@ -178,9 +178,27 @@ export function ExecutionProvider({
             })
           })
           
+          // Update execution state with final result and workflow info
+          setExecutionState(prev => prev ? {
+            ...prev,
+            status: 'completed',
+            progress: 100,
+            currentActivity: 'Completed successfully'
+          } : prev)
+          
           setIsExecuting(false)
           if (onExecutionComplete) {
-            onExecutionComplete(data)
+            // Pass the complete data including workflow identity and result
+            onExecutionComplete({
+              ...data,
+              // Ensure result is included for display
+              result: data.result || data.trace?.final_output,
+              // Include workflow identity info for UI updates
+              workflow_identity: data.workflow_identity,
+              workflow_name: data.workflow_name,
+              workflow_category: data.workflow_category,
+              workflow_description: data.workflow_description
+            })
           }
         } else if (data.status === 'failed') {
           // Mark failed nodes based on backend data
