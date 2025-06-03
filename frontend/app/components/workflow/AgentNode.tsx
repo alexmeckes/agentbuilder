@@ -19,10 +19,13 @@ import {
   X,
   Cpu,
   Zap,
-  Trash2
+  Trash2,
+  Clock,
+  Loader2,
+  XCircle
 } from 'lucide-react'
 import { NodeEditorModal } from './NodeEditorModal'
-import { EnhancedNodeData, AgentFramework, POPULAR_MODELS, FRAMEWORK_INFO } from '../../types/workflow'
+import { EnhancedNodeData, AgentFramework, POPULAR_MODELS, FRAMEWORK_INFO, NodeExecutionStatus, NodeExecutionState } from '../../types/workflow'
 import EnhancedToolSelector from './EnhancedToolSelector'
 
 interface AgentNodeProps {
@@ -31,6 +34,7 @@ interface AgentNodeProps {
   id: string
   onNodeUpdate?: (nodeId: string, updatedData: EnhancedNodeData) => void
   onNodeDelete?: (nodeId: string) => void
+  executionState?: NodeExecutionState
 }
 
 const getNodeIcon = (type: string) => {
@@ -53,7 +57,18 @@ const getNodeColor = (type: string) => {
   }
 }
 
-const getNodeBorderColor = (type: string) => {
+const getNodeBorderColor = (type: string, executionStatus?: NodeExecutionStatus) => {
+  if (executionStatus) {
+    switch (executionStatus) {
+      case 'running': return 'border-blue-400 border-2 shadow-lg'
+      case 'completed': return 'border-green-400 border-2 shadow-lg'
+      case 'failed': return 'border-red-400 border-2 shadow-lg'
+      case 'waiting': return 'border-yellow-400 border-2 shadow-lg'
+      case 'pending': return 'border-gray-400 border-2'
+      default: break
+    }
+  }
+  
   switch (type) {
     case 'agent': return 'border-blue-200 hover:border-blue-300'
     case 'tool': return 'border-green-200 hover:border-green-300'
@@ -153,7 +168,30 @@ const toolOptions = [
   'image_generation'
 ]
 
-function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: AgentNodeProps) {
+const getExecutionStatusIcon = (status?: NodeExecutionStatus) => {
+  switch (status) {
+    case 'running': return <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+    case 'completed': return <CheckCircle className="w-4 h-4 text-green-600" />
+    case 'failed': return <XCircle className="w-4 h-4 text-red-600" />
+    case 'waiting': return <Clock className="w-4 h-4 text-yellow-600" />
+    case 'pending': return <Clock className="w-4 h-4 text-gray-400" />
+    default: return null
+  }
+}
+
+const getExecutionStatusText = (status?: NodeExecutionStatus) => {
+  switch (status) {
+    case 'running': return 'Running...'
+    case 'completed': return 'Completed'
+    case 'failed': return 'Failed'
+    case 'waiting': return 'Waiting'
+    case 'pending': return 'Pending'
+    case 'idle':
+    default: return null
+  }
+}
+
+function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete, executionState }: AgentNodeProps) {
   const [expanded, setExpanded] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
   const [editingLabel, setEditingLabel] = useState(false)
@@ -171,6 +209,8 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
   const Icon = getNodeIcon(data.type)
   const validation = getValidationStatus(data)
   const aiEnhancements = getAIEnhancementStatus(data)
+  const statusIcon = getExecutionStatusIcon(executionState?.status)
+  const statusText = getExecutionStatusText(executionState?.status)
   
   // Get current model and framework info
   const currentModelId = data.agentConfig?.model_id || data.model_id
@@ -293,17 +333,34 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
       <div 
         className={`
           relative bg-white rounded-xl shadow-lg border-2 transition-all duration-200 
-          ${getNodeBorderColor(data.type)}
+          ${getNodeBorderColor(data.type, executionState?.status)}
           ${selected ? 'ring-2 ring-blue-400 ring-opacity-75 border-blue-300' : ''}
           ${expanded ? 'min-w-[500px]' : 'min-w-[300px]'}
+          ${executionState?.status === 'running' ? 'animate-pulse' : ''}
           hover:shadow-xl
         `}
         style={{ 
           zIndex: data.zIndex || (selected ? 100 : 1),
           minHeight: expanded ? '400px' : '120px'
         }}
-
       >
+        {/* Execution Status Indicator - Top Right Corner */}
+        {statusIcon && (
+          <div className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow-lg border-2 border-gray-100 z-10">
+            {statusIcon}
+          </div>
+        )}
+
+        {/* Progress Bar - Bottom Edge */}
+        {executionState?.status === 'running' && executionState?.progress !== undefined && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 rounded-b-lg overflow-hidden">
+            <div 
+              className="h-full bg-blue-500 transition-all duration-300 ease-out"
+              style={{ width: `${executionState.progress}%` }}
+            />
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -410,6 +467,21 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
             </button>
           </div>
         </div>
+
+        {/* Execution Status Display */}
+        {statusText && (
+          <div className="px-3 py-1 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center gap-2 text-xs">
+              {statusIcon}
+              <span className="font-medium">{statusText}</span>
+              {executionState?.cost && (
+                <span className="text-gray-600 ml-auto">
+                  ${executionState.cost.toFixed(4)}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Expanded Content */}
         {expanded && (
@@ -628,8 +700,6 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
                   </div>
                 )}
               </div>
-              
-
             </div>
           </div>
         )}
@@ -661,15 +731,17 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
 export default function AgentNode(props: NodeProps<EnhancedNodeData & {
   onNodeUpdate?: (nodeId: string, updatedData: EnhancedNodeData) => void
   onNodeDelete?: (nodeId: string) => void
+  executionState?: NodeExecutionState
 }>) {
   // Extract callbacks from data and pass them as separate props
   const { data, ...otherProps } = props
-  const { onNodeUpdate, onNodeDelete, ...nodeData } = data
+  const { onNodeUpdate, onNodeDelete, executionState, ...nodeData } = data
   
   return <AgentNodeComponent 
     {...otherProps} 
     data={nodeData as EnhancedNodeData}
     onNodeUpdate={onNodeUpdate}
     onNodeDelete={onNodeDelete}
+    executionState={executionState}
   />
 } 

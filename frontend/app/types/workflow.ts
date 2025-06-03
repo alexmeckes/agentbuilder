@@ -611,4 +611,39 @@ export const SYSTEM_MODEL_CONFIGS: SystemModelConfig[] = [
     },
     description: 'Complex analysis tasks like experiment evaluation'
   }
-] 
+]
+
+// Add execution status types for progress visualization
+export type NodeExecutionStatus = 'idle' | 'pending' | 'running' | 'completed' | 'failed' | 'waiting'
+
+export interface NodeExecutionState {
+  status: NodeExecutionStatus
+  startTime?: number
+  endTime?: number
+  progress?: number // 0-100
+  cost?: number
+  output?: any
+  error?: string
+}
+
+export interface WorkflowExecutionState {
+  id: string
+  status: 'idle' | 'running' | 'completed' | 'failed'
+  nodes: Map<string, NodeExecutionState>
+  startTime: number
+  totalCost: number
+  progress: number // Overall completion percentage
+}
+
+export interface ExecutionProgressMessage {
+  executionId: string
+  nodeId?: string
+  status: NodeExecutionStatus
+  progress?: number
+  startTime?: number
+  endTime?: number
+  cost?: number
+  output?: any
+  error?: string
+  type: 'node_update' | 'workflow_update' | 'progress_update'
+} 
