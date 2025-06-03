@@ -374,23 +374,37 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         logger = logging.getLogger(__name__)
         logger.info(f"🔧 Production subprocess: Imported real tools - search_web: {search_web.__name__}, visit_webpage: {visit_webpage.__name__}")
         
-        # Recreate AgentConfig objects from dictionaries using the real any_agent classes
+        # Helper function to map tool names to actual tool functions
+        def get_actual_tools(tool_names):
+            tool_map = {
+                "search_web": search_web,
+                "visit_webpage": visit_webpage
+            }
+            return [tool_map[name] for name in tool_names if name in tool_map]
+        
+        # Recreate AgentConfig objects from dictionaries using the ACTUAL VISUAL WORKFLOW TOOLS
+        main_tools = get_actual_tools(main_agent_config_dict.get("tools", []))
+        logger.info(f"🔧 Production subprocess: Main agent '{main_agent_config_dict['name']}' assigned tools: {main_agent_config_dict.get('tools', [])}")
+        
         main_agent_config = AgentConfig(
             name=main_agent_config_dict["name"],
             model_id=main_agent_config_dict["model_id"],
             instructions=main_agent_config_dict["instructions"],
             description=main_agent_config_dict.get("description", ""),
-            tools=[search_web, visit_webpage]  # Use REAL web search and visit tools
+            tools=main_tools  # Use tools from VISUAL WORKFLOW, not hardcoded
         )
         
         managed_agents_config = []
         for agent_dict in managed_agents_config_dict:
+            agent_tools = get_actual_tools(agent_dict.get("tools", []))
+            logger.info(f"🔧 Production subprocess: Managed agent '{agent_dict['name']}' assigned tools: {agent_dict.get('tools', [])}")
+            
             managed_agent = AgentConfig(
                 name=agent_dict["name"],
                 model_id=agent_dict["model_id"],
                 instructions=agent_dict["instructions"],
                 description=agent_dict.get("description", ""),
-                tools=[search_web, visit_webpage]  # Use REAL web search and visit tools
+                tools=agent_tools  # Use tools from VISUAL WORKFLOW, not hardcoded
             )
             managed_agents_config.append(managed_agent)
         
@@ -588,23 +602,26 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
             import asyncio
             from functools import partial
             
-            # Convert AgentConfig objects to dictionaries for multiprocessing
-            main_agent_dict = {
-                "name": main_agent_config.name,
-                "model_id": main_agent_config.model_id,
-                "instructions": main_agent_config.instructions,
-                "description": main_agent_config.description
-            }
-            
-            managed_agents_dict = []
-            if managed_agents_config:
-                for agent in managed_agents_config:
-                    managed_agents_dict.append({
-                        "name": agent.name,
-                        "model_id": agent.model_id,
-                        "instructions": agent.instructions,
-                        "description": agent.description
-                    })
+                    # Convert AgentConfig objects to dictionaries for multiprocessing
+        # IMPORTANT: Include the tools information so subprocess knows what tools to assign
+        main_agent_dict = {
+            "name": main_agent_config.name,
+            "model_id": main_agent_config.model_id,
+            "instructions": main_agent_config.instructions,
+            "description": main_agent_config.description,
+            "tools": [tool.__name__ for tool in main_agent_config.tools] if main_agent_config.tools else []
+        }
+        
+        managed_agents_dict = []
+        if managed_agents_config:
+            for agent in managed_agents_config:
+                managed_agents_dict.append({
+                    "name": agent.name,
+                    "model_id": agent.model_id,
+                    "instructions": agent.instructions,
+                    "description": agent.description,
+                    "tools": [tool.__name__ for tool in agent.tools] if agent.tools else []
+                })
             
             # Run any-agent in a separate process to avoid asyncio conflicts
             logging.info(f"🔧 Production: About to execute subprocess with main_agent={main_agent_dict['name']}")
