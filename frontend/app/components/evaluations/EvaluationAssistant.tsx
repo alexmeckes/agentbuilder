@@ -130,6 +130,38 @@ What kind of workflow are you looking to evaluate today?`,
 
   const loadRecentWorkflows = async () => {
     try {
+      // First try to get workflows from the backend analytics API (which has our new naming)
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+      
+      try {
+        console.log('🔍 Loading recent workflows from backend analytics...')
+        const response = await fetch(`${backendUrl}/analytics/workflows`)
+        const analyticsData = await response.json()
+        
+        if (analyticsData.recent_executions && analyticsData.recent_executions.length > 0) {
+          // Use the intelligent workflow names from backend analytics
+          const formattedWorkflows: RecentWorkflow[] = analyticsData.recent_executions
+            .filter((exec: any) => exec.status === 'completed')
+            .slice(0, 4)
+            .map((exec: any, index: number) => ({
+              id: exec.execution_id,
+              name: exec.workflow_name || `Workflow ${index + 1}`,
+              category: exec.workflow_category || 'general', 
+              description: exec.workflow_description,
+              workflow: { nodes: [], edges: [] }, // Simplified for context
+              input_data: exec.input_data || '',
+              created_at: exec.created_at || Date.now() - (index * 3600000)
+            }))
+          
+          console.log('✨ Backend workflows with intelligent names:', formattedWorkflows)
+          setRecentWorkflows(formattedWorkflows)
+          return // Success! Use backend data
+        }
+      } catch (backendError) {
+        console.log('⚠️ Backend analytics unavailable, falling back to localStorage:', backendError)
+      }
+      
+      // Fallback to localStorage (old approach)
       const recentWorkflowsData = localStorage.getItem('recentWorkflowExecutions')
       console.log('🔍 Loading recent workflows from localStorage:', recentWorkflowsData)
       
@@ -137,20 +169,46 @@ What kind of workflow are you looking to evaluate today?`,
         const workflows = JSON.parse(recentWorkflowsData)
         console.log('📊 Parsed workflows:', workflows)
         
-        // Get the last 4 workflows with proper metadata
-        const formattedWorkflows: RecentWorkflow[] = workflows
-          .slice(0, 4)
-          .map((w: any, index: number) => ({
-            id: w.execution_id || `workflow-${index}`,
-            name: w.workflow_name || `Workflow ${index + 1}`,
-            category: w.workflow_category || 'general',
-            description: w.workflow_description,
-            workflow: w.workflow,
-            input_data: w.input_data || '',
-            created_at: w.created_at || Date.now() - (index * 3600000) // Recent first
-          }))
+        // Enhanced: Try to get intelligent names for localStorage workflows
+        const formattedWorkflows: RecentWorkflow[] = await Promise.all(
+          workflows
+            .slice(0, 4)
+            .map(async (w: any, index: number) => {
+              let workflowName = w.workflow_name || `Workflow ${index + 1}`
+              let workflowCategory = w.workflow_category || 'general'
+              let workflowDescription = w.workflow_description
+              
+              // If the stored name is generic, try to generate a better one
+              if (workflowName.startsWith('Workflow ') || workflowName === 'Unknown Workflow') {
+                if (w.workflow && w.input_data) {
+                  try {
+                    console.log(`🎯 Generating intelligent name for stored workflow ${index + 1}...`)
+                    const enhancedContext = await generateIntelligentWorkflowContext(w.workflow, w.input_data)
+                    if (enhancedContext) {
+                      workflowName = enhancedContext.name
+                      workflowCategory = enhancedContext.category
+                      workflowDescription = enhancedContext.description
+                      console.log(`✨ Enhanced workflow ${index + 1}: ${workflowName} (${workflowCategory})`)
+                    }
+                  } catch (error) {
+                    console.log(`⚠️ Failed to enhance workflow ${index + 1} name:`, error)
+                  }
+                }
+              }
+              
+              return {
+                id: w.execution_id || `workflow-${index}`,
+                name: workflowName,
+                category: workflowCategory,
+                description: workflowDescription,
+                workflow: w.workflow,
+                input_data: w.input_data || '',
+                created_at: w.created_at || Date.now() - (index * 3600000)
+              }
+            })
+        )
         
-        console.log('✨ Formatted workflows for pills:', formattedWorkflows)
+        console.log('✨ Enhanced workflows for pills:', formattedWorkflows)
         setRecentWorkflows(formattedWorkflows)
       } else {
         console.log('📭 No recent workflows found in localStorage')
@@ -158,6 +216,37 @@ What kind of workflow are you looking to evaluate today?`,
     } catch (error) {
       console.log('❌ Error loading recent workflows:', error)
     }
+  }
+
+  // Helper function to generate intelligent workflow context using our backend naming
+  const generateIntelligentWorkflowContext = async (workflow: any, inputData: string) => {
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+      
+      // Use the same workflow-aware endpoint that analyzes workflow structure
+      const response = await fetch(`${backendUrl}/ai/workflow-evaluation-suggestions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_request: "Generate workflow context", 
+          workflow: workflow,
+          sample_input: inputData,
+          context: {}
+        })
+      })
+      
+      const data = await response.json()
+      if (data.success && data.workflow_identity) {
+        return {
+          name: data.workflow_identity.name,
+          category: data.workflow_identity.category,
+          description: data.workflow_identity.description
+        }
+      }
+    } catch (error) {
+      console.log('Failed to generate intelligent context:', error)
+    }
+    return null
   }
 
   // Get category emoji for workflow pills
@@ -676,44 +765,86 @@ I can suggest relevant criteria, test cases, and best practices based on your ne
         
         {/* Dynamic Quick Actions */}
         <div className="flex gap-2 mt-2 flex-wrap">
-          {/* Recent Workflow Pills */}
+          {/* Recent Workflow Pills with Smart Context */}
           {recentWorkflows.map((workflow) => (
             <button
               key={workflow.id}
               onClick={() => setInput(generateWorkflowPrompt(workflow))}
               className="px-2 py-1 text-xs bg-gradient-to-r from-blue-50 to-purple-50 text-blue-800 border border-blue-200 rounded hover:from-blue-100 hover:to-purple-100 transition-colors flex items-center gap-1"
-              title={`Generate evaluation for: ${workflow.name}`}
+              title={`Generate evaluation for: ${workflow.name}${workflow.description ? ' - ' + workflow.description : ''}`}
             >
               {getCategoryEmoji(workflow.category)}
-              <span className="truncate max-w-[80px]">{workflow.name.replace('Workflow', '').trim()}</span>
+              <span className="truncate max-w-[100px]">
+                {workflow.name === 'Unknown Workflow' 
+                  ? workflow.category.charAt(0).toUpperCase() + workflow.category.slice(1)
+                  : workflow.name.replace(/^(Multi-Agent |Workflow |The )/i, '').trim()
+                }
+              </span>
             </button>
           ))}
           
-          {/* Fallback static pills if no recent workflows */}
-          {recentWorkflows.length === 0 && (
+          {/* Smart Context Pills - Show different options based on what workflows exist */}
+          {recentWorkflows.length > 0 && (
             <>
+              {/* Workflow Analysis - Always useful */}
               <button
-                onClick={() => setInput("Help me create evaluation criteria for a research workflow")}
-                className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                onClick={() => setInput("Analyze my recent workflows and suggest comprehensive evaluation criteria that cover different workflow types and potential failure modes")}
+                className="px-2 py-1 text-xs bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 border border-purple-200 rounded hover:from-purple-100 hover:to-pink-100 transition-colors"
               >
-                Research Eval
+                🔍 Analyze Workflow
               </button>
-              <button
-                onClick={() => setInput("Suggest test cases for Q&A evaluation")}
-                className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
-              >
-                Q&A Tests
-              </button>
+              
+              {/* Failure Modes - Based on workflow complexity */}
+              {recentWorkflows.some(w => w.name.includes('Multi-Agent') || w.category === 'research') && (
+                <button
+                  onClick={() => setInput("Help me identify potential failure modes and edge cases for complex multi-step workflows")}
+                  className="px-2 py-1 text-xs bg-gradient-to-r from-orange-50 to-red-50 text-orange-700 border border-orange-200 rounded hover:from-orange-100 hover:to-red-100 transition-colors"
+                >
+                  ⚠️ Failure Modes
+                </button>
+              )}
+              
+              {/* Multi-Agent specific suggestions if any multi-agent workflows exist */}
+              {recentWorkflows.some(w => w.name.includes('Multi-Agent')) && (
+                <button
+                  onClick={() => setInput("Create evaluation criteria specifically for multi-agent workflows, focusing on agent coordination and handoff quality")}
+                  className="px-2 py-1 text-xs bg-gradient-to-r from-green-50 to-teal-50 text-green-700 border border-green-200 rounded hover:from-green-100 hover:to-teal-100 transition-colors"
+                >
+                  🤝 Multi-Agent
+                </button>
+              )}
             </>
           )}
           
-          {/* Universal quick actions */}
-          <button
-            onClick={() => setInput("Analyze my workflow and suggest specific evaluation criteria")}
-            className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"
-          >
-            🔍 Analyze Workflow
-          </button>
+          {/* Fallback enhanced pills if no recent workflows */}
+          {recentWorkflows.length === 0 && (
+            <>
+              <button
+                onClick={() => setInput("Help me create comprehensive evaluation criteria for a research and analysis workflow")}
+                className="px-2 py-1 text-xs bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-700 border border-blue-200 rounded hover:from-blue-100 hover:to-cyan-100 transition-colors"
+              >
+                🔍 Research Eval
+              </button>
+              <button
+                onClick={() => setInput("Suggest evaluation criteria and test cases for question-answering workflows")}
+                className="px-2 py-1 text-xs bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200 rounded hover:from-green-100 hover:to-emerald-100 transition-colors"
+              >
+                ❓ Q&A Eval
+              </button>
+              <button
+                onClick={() => setInput("Create evaluation framework for content generation and creative workflows")}
+                className="px-2 py-1 text-xs bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 border border-purple-200 rounded hover:from-purple-100 hover:to-pink-100 transition-colors"
+              >
+                ✍️ Content Eval
+              </button>
+              <button
+                onClick={() => setInput("Design evaluation criteria for multi-agent coordination and complex workflow patterns")}
+                className="px-2 py-1 text-xs bg-gradient-to-r from-orange-50 to-yellow-50 text-orange-700 border border-orange-200 rounded hover:from-orange-100 hover:to-yellow-100 transition-colors"
+              >
+                🤝 Multi-Agent
+              </button>
+            </>
+          )}
           <button
             onClick={() => setInput("What could go wrong with this workflow and how should I test for it?")}
             className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
