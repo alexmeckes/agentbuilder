@@ -303,6 +303,30 @@ export default function WorkflowEditor({
     }
   }, [onPaneClick])
 
+  // Add custom CSS for proper cursor states
+  useEffect(() => {
+    const style = document.createElement('style')
+    style.textContent = `
+      .workflow-editor .react-flow__node {
+        cursor: grab;
+      }
+      .workflow-editor .react-flow__node.dragging {
+        cursor: grabbing !important;
+      }
+      .workflow-editor .react-flow__node .nodrag {
+        cursor: default !important;
+      }
+      .workflow-editor .react-flow__node .nodrag button {
+        cursor: pointer !important;
+      }
+    `
+    document.head.appendChild(style)
+    
+    return () => {
+      document.head.removeChild(style)
+    }
+  }, [])
+
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault()
@@ -867,7 +891,7 @@ export default function WorkflowEditor({
           elementsSelectable={true}
           fitView
           deleteKeyCode="Delete"
-          className="bg-gradient-to-br from-slate-50 to-blue-50"
+          className="bg-gradient-to-br from-slate-50 to-blue-50 workflow-editor"
         >
           <Background color="#e2e8f0" />
           <Controls className="bg-white border border-slate-200 shadow-sm" />
