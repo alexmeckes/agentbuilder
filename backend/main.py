@@ -565,11 +565,8 @@ class WorkflowExecutor:
                 # Always return extracted cost data if we have any spans
                 return cost_result
                 
-            # Fallback to existing cost_info if no spans available
-            print(f"⚠️  Cost extraction: agent_trace is not dict, falling back to cost_info")
-            return agent_trace.get("cost_info", {})
-            
             # Fallback to legacy method for AgentTrace objects
+            print(f"⚠️  Cost extraction: agent_trace is not dict, using legacy extraction method")
             return self._extract_cost_info(agent_trace)
         except Exception as e:
             print(f"❌ Error extracting cost info: {e}")
