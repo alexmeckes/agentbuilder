@@ -37,10 +37,6 @@ from lightweight_evaluation import evaluate_workflow_output
 # Import the REAL any-agent framework (but not evaluation components)
 from any_agent import AgentFramework
 
-# Mock search_web function
-def search_web(query: str):
-    return f"Mock search results for: {query}"
-
 # Import our NEW visual-to-anyagent translator (replacing custom workflow engine)
 from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent
 

@@ -30,12 +30,21 @@ except ImportError:
     def is_mcp_enabled():
         return False
 
-# Mock tool functions (unchanged for backwards compatibility)
-def search_web(query: str):
-    return f"Mock search results for: {query}"
+# Import REAL any-agent tools
+try:
+    from any_agent.tools import search_web as real_search_web, visit_webpage as real_visit_webpage
+    # Use real tools when available
+    search_web = real_search_web
+    visit_webpage = real_visit_webpage
+    print("✅ Using REAL any-agent web search tools")
+except ImportError:
+    # Fallback to mock functions for backwards compatibility
+    def search_web(query: str):
+        return f"Mock search results for: {query}"
 
-def visit_webpage(url: str):
-    return f"Mock webpage content for: {url}"
+    def visit_webpage(url: str):
+        return f"Mock webpage content for: {url}"
+    print("⚠️  Using MOCK web search tools (any-agent not available)")
 
 @dataclass
 class VisualWorkflowNode:
@@ -350,13 +359,16 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         # Now import any_agent
         from any_agent import AgentConfig, AgentFramework, AnyAgent, TracingConfig
         
+        # Import the real tools for agent configuration
+        from any_agent.tools import search_web, visit_webpage
+        
         # Recreate AgentConfig objects from dictionaries using the real any_agent classes
         main_agent_config = AgentConfig(
             name=main_agent_config_dict["name"],
             model_id=main_agent_config_dict["model_id"],
             instructions=main_agent_config_dict["instructions"],
             description=main_agent_config_dict.get("description", ""),
-            tools=[]  # We'll handle tools separately for now
+            tools=[search_web, visit_webpage]  # Use REAL web search and visit tools
         )
         
         managed_agents_config = []
@@ -366,7 +378,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
                 model_id=agent_dict["model_id"],
                 instructions=agent_dict["instructions"],
                 description=agent_dict.get("description", ""),
-                tools=[]  # We'll handle tools separately for now
+                tools=[search_web, visit_webpage]  # Use REAL web search and visit tools
             )
             managed_agents_config.append(managed_agent)
         
