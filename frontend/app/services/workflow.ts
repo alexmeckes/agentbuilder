@@ -126,12 +126,15 @@ export class WorkflowService {
         type: nodeType,
         data: {
           ...node.data,
-          // Add default values for agent nodes
-          model_id: node.data.model_id || 'gpt-3.5-turbo',
-          instructions: node.data.instructions || 'You are a helpful assistant.',
-          name: node.data.name || node.data.label || 'Agent',
+          name: node.data.name || node.data.label || 'Node',
         },
         position: node.position,
+      }
+
+      // Only add model_id and instructions for agent nodes
+      if (nodeType === 'agent') {
+        convertedNode.data.model_id = node.data.model_id || 'gpt-3.5-turbo'
+        convertedNode.data.instructions = node.data.instructions || 'You are a helpful assistant.'
       }
       
       console.log(`🔧 Converted node ${node.id}:`, {
