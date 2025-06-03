@@ -160,14 +160,15 @@ export default function WorkflowEditor({
     }
   }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
 
-  // Ensure all nodes have the onNodeUpdate callback
+  // Ensure all nodes have the onNodeUpdate and onNodeDelete callbacks
   useEffect(() => {
     const updateNodesWithCallback = (currentNodes: Node[]) => {
       return currentNodes.map(node => ({
         ...node,
         data: {
           ...node.data,
-          onNodeUpdate: handleNodeUpdate
+          onNodeUpdate: handleNodeUpdate,
+          onNodeDelete: handleNodeDelete
         }
       }))
     }
@@ -211,6 +212,52 @@ export default function WorkflowEditor({
       }
     },
     [edges, nodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange],
+  )
+
+  // Handle node deletion
+  const handleNodesDelete = useCallback(
+    (nodesToDelete: Node[]) => {
+      const nodeIdsToDelete = nodesToDelete.map(node => node.id)
+      console.log('🗑️ Deleting nodes:', nodeIdsToDelete)
+      
+      if (externalOnNodesChange && externalOnEdgesChange) {
+        // Filter out deleted nodes and their connected edges
+        const updatedNodes = nodes.filter(node => !nodeIdsToDelete.includes(node.id))
+        const updatedEdges = edges.filter(edge => 
+          !nodeIdsToDelete.includes(edge.source) && !nodeIdsToDelete.includes(edge.target)
+        )
+        
+        externalOnNodesChange(updatedNodes)
+        externalOnEdgesChange(updatedEdges)
+        
+        if (onWorkflowChange) {
+          onWorkflowChange(updatedNodes, updatedEdges)
+        }
+      } else {
+        // Update internal state
+        setInternalNodes(currentNodes => 
+          currentNodes.filter(node => !nodeIdsToDelete.includes(node.id))
+        )
+        setInternalEdges(currentEdges => 
+          currentEdges.filter(edge => 
+            !nodeIdsToDelete.includes(edge.source) && !nodeIdsToDelete.includes(edge.target)
+          )
+        )
+      }
+    },
+    [nodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
+  )
+
+  // Handle individual node deletion (from delete button)
+  const handleNodeDelete = useCallback(
+    (nodeId: string) => {
+      console.log('🗑️ Deleting single node:', nodeId)
+      const nodeToDelete = nodes.find(node => node.id === nodeId)
+      if (nodeToDelete) {
+        handleNodesDelete([nodeToDelete])
+      }
+    },
+    [nodes, handleNodesDelete]
   )
 
   const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -280,7 +327,8 @@ export default function WorkflowEditor({
             ...template.defaultData,
             label: template.name,
             name: `${template.defaultData.name}_${nodes.length + 1}`,
-            onNodeUpdate: handleNodeUpdate
+            onNodeUpdate: handleNodeUpdate,
+            onNodeDelete: handleNodeDelete
           }
         } catch (error) {
           console.warn('Failed to parse template data, falling back to defaults:', error)
@@ -302,7 +350,8 @@ export default function WorkflowEditor({
               instructions: 'You are a helpful AI assistant. Process the input data and provide useful insights.',
               name: `Agent_${nodes.length + 1}`,
               description: 'An AI agent that processes data and generates responses',
-              onNodeUpdate: handleNodeUpdate
+              onNodeUpdate: handleNodeUpdate,
+              onNodeDelete: handleNodeDelete
             }
           case 'tool':
             return {
@@ -311,7 +360,8 @@ export default function WorkflowEditor({
               tool_type: 'web_search',
               name: `Tool_${nodes.length + 1}`,
               description: 'A tool that performs specific operations on data',
-              onNodeUpdate: handleNodeUpdate
+              onNodeUpdate: handleNodeUpdate,
+              onNodeDelete: handleNodeDelete
             }
           case 'input':
             return {
@@ -319,7 +369,8 @@ export default function WorkflowEditor({
               type: nodeType,
               name: `Input_${nodes.length + 1}`,
               description: 'Receives and validates input data for the workflow',
-              onNodeUpdate: handleNodeUpdate
+              onNodeUpdate: handleNodeUpdate,
+              onNodeDelete: handleNodeDelete
             }
           case 'output':
             return {
@@ -327,7 +378,8 @@ export default function WorkflowEditor({
               type: nodeType,
               name: `Output_${nodes.length + 1}`,
               description: 'Formats and presents the final workflow results',
-              onNodeUpdate: handleNodeUpdate
+              onNodeUpdate: handleNodeUpdate,
+              onNodeDelete: handleNodeDelete
             }
           default:
             return {
@@ -335,7 +387,8 @@ export default function WorkflowEditor({
               type: nodeType,
               name: `Node_${nodes.length + 1}`,
               description: 'A workflow node',
-              onNodeUpdate: handleNodeUpdate
+              onNodeUpdate: handleNodeUpdate,
+              onNodeDelete: handleNodeDelete
             }
         }
       }
@@ -733,12 +786,13 @@ export default function WorkflowEditor({
     
     const workflow = workflows[workflowType]
     
-    // Add onNodeUpdate callback to all nodes
+    // Add onNodeUpdate and onNodeDelete callbacks to all nodes
     const nodesWithCallbacks = workflow.nodes.map(node => ({
       ...node,
       data: {
         ...node.data,
-        onNodeUpdate: handleNodeUpdate
+        onNodeUpdate: handleNodeUpdate,
+        onNodeDelete: handleNodeDelete
       }
     }))
     
@@ -765,8 +819,13 @@ export default function WorkflowEditor({
           onInit={setReactFlowInstance}
           onDrop={onDrop}
           onDragOver={onDragOver}
+          onNodesDelete={handleNodesDelete}
           nodeTypes={nodeTypes}
+          nodesDraggable={true}
+          nodesConnectable={true}
+          elementsSelectable={true}
           fitView
+          deleteKeyCode="Delete"
           className="bg-gradient-to-br from-slate-50 to-blue-50"
         >
           <Background color="#e2e8f0" />
@@ -826,7 +885,7 @@ export default function WorkflowEditor({
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-medium">Manual Design Mode</h4>
-                  <p className="text-xs opacity-80">Drag & drop nodes to build workflows</p>
+                  <p className="text-xs opacity-80">Drag, move & delete nodes manually</p>
                 </div>
                 <div className="flex items-center justify-center w-4 h-4 flex-shrink-0">
                   {useManualMode && (

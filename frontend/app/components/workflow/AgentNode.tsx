@@ -18,7 +18,8 @@ import {
   Save,
   X,
   Cpu,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react'
 import { NodeEditorModal } from './NodeEditorModal'
 import { EnhancedNodeData, AgentFramework, POPULAR_MODELS, FRAMEWORK_INFO } from '../../types/workflow'
@@ -29,6 +30,7 @@ interface AgentNodeProps {
   selected?: boolean
   id: string
   onNodeUpdate?: (nodeId: string, updatedData: EnhancedNodeData) => void
+  onNodeDelete?: (nodeId: string) => void
 }
 
 const getNodeIcon = (type: string) => {
@@ -151,7 +153,7 @@ const toolOptions = [
   'image_generation'
 ]
 
-function AgentNodeComponent({ data, selected, id, onNodeUpdate }: AgentNodeProps) {
+function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: AgentNodeProps) {
   const [expanded, setExpanded] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
   const [editingLabel, setEditingLabel] = useState(false)
@@ -390,6 +392,19 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate }: AgentNodeProps
             >
               <Settings className="w-4 h-4" />
             </button>
+            
+            {onNodeDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNodeDelete(id)
+                }}
+                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete node"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
             
             <button
               onClick={handleExpansionToggle}
