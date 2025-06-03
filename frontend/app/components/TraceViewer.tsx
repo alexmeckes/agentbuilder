@@ -54,15 +54,15 @@ export function TraceViewer({ executionId, onClose }: TraceViewerProps) {
     
     setLoading(true)
     try {
-      // Fetch trace data
-      const traceResponse = await fetch(`http://localhost:8000/executions/${executionId}/trace`)
+      // Fetch trace data via API route (proxies to correct backend)
+      const traceResponse = await fetch(`/api/executions/${executionId}/trace`)
       if (traceResponse.ok) {
         const traceResult = await traceResponse.json()
         setTraceData(traceResult.trace)
       }
 
-      // Fetch performance data
-      const perfResponse = await fetch(`http://localhost:8000/executions/${executionId}/performance`)
+      // Fetch performance data via API route (proxies to correct backend)
+      const perfResponse = await fetch(`/api/executions/${executionId}/performance`)
       if (perfResponse.ok) {
         const perfResult = await perfResponse.json()
         setPerformanceData(perfResult)
