@@ -173,16 +173,19 @@ export class WorkflowService {
     onClose?: (event: CloseEvent) => void
   ): WebSocket | { close: () => void } {
     const wsUrl = BACKEND_URL.replace('http', 'ws').replace('https', 'wss')
+    const fullWsUrl = `${wsUrl}/ws/execution/${executionId}`
+    
+    console.log('🔌 Attempting WebSocket connection to:', fullWsUrl)
     
     try {
-      const ws = new WebSocket(`${wsUrl}/ws/execution/${executionId}`)
+      const ws = new WebSocket(fullWsUrl)
       
       // Set a connection timeout
       const connectionTimeout = setTimeout(() => {
-        console.warn('WebSocket connection timeout, falling back to polling')
+        console.warn('⏰ WebSocket connection timeout (5s), falling back to polling')
         ws.close()
         // Start polling fallback
-        this.startPollingFallback(executionId, onMessage, onError)
+        return this.startPollingFallback(executionId, onMessage, onError)
       }, 5000) // 5 second timeout
       
       ws.onopen = () => {
@@ -230,6 +233,7 @@ export class WorkflowService {
     onError?: (error: Event) => void
   ) {
     console.log('🔄 Starting polling fallback for execution:', executionId)
+    console.log('🔄 Backend URL:', BACKEND_URL)
     
     let isPolling = true
     let pollCount = 0
@@ -238,22 +242,33 @@ export class WorkflowService {
       if (!isPolling) return
       
       try {
-        const response = await fetch(`${BACKEND_URL}/executions/${executionId}`)
+        const url = `${BACKEND_URL}/executions/${executionId}`
+        console.log(`📡 Polling attempt ${pollCount + 1}: ${url}`)
+        
+        const response = await fetch(url)
+        console.log(`📡 Poll response status: ${response.status}`)
+        
         if (response.ok) {
           const data = await response.json()
+          console.log('📡 Poll response data:', data)
           
           // Simulate WebSocket message format
           onMessage(data)
           
           // Stop polling if execution is complete
           if (data.status === 'completed' || data.status === 'failed') {
+            console.log(`🏁 Polling stopped - execution ${data.status}`)
             isPolling = false
             return
           }
+        } else {
+          const errorText = await response.text()
+          console.error(`❌ Poll failed: ${response.status} - ${errorText}`)
         }
       } catch (error) {
-        console.error('Polling error:', error)
+        console.error('❌ Polling error:', error)
         if (pollCount > 10) { // Stop after 10 failed attempts
+          console.error('❌ Polling failed after 10 attempts, stopping')
           isPolling = false
           onError?.(new Event('polling-failed'))
         }
