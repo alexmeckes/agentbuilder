@@ -184,7 +184,7 @@ export default function WorkflowEditor({
         )
       }
     },
-    [nodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
+    [baseNodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
   )
 
   // Handle individual node deletion (from delete button)
@@ -194,7 +194,7 @@ export default function WorkflowEditor({
       
       if (externalOnNodesChange && externalOnEdgesChange) {
         // Filter out deleted node and its connected edges
-        const updatedNodes = nodes.filter(node => node.id !== nodeId)
+        const updatedNodes = baseNodes.filter(node => node.id !== nodeId)
         const updatedEdges = edges.filter(edge => 
           edge.source !== nodeId && edge.target !== nodeId
         )
@@ -217,7 +217,7 @@ export default function WorkflowEditor({
         )
       }
     },
-    [nodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
+    [baseNodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
   )
 
   // Handle node data updates from the node components
@@ -283,14 +283,14 @@ export default function WorkflowEditor({
 
   // Separate effect to handle when nodes array changes (new nodes added)
   useEffect(() => {
-    if (nodes.length > 0) {
-      console.log('📊 Checking nodes for callbacks:', nodes.map(n => ({ 
+    if (baseNodes.length > 0) {
+      console.log('📊 Checking nodes for callbacks:', baseNodes.map(n => ({ 
         id: n.id, 
         hasUpdate: !!n.data.onNodeUpdate, 
         hasDelete: !!n.data.onNodeDelete 
       })))
     }
-  }, [nodes])
+  }, [baseNodes])
 
   // Handle edge changes  
   const handleEdgesChange = useCallback((changes: any) => {
@@ -308,13 +308,13 @@ export default function WorkflowEditor({
         const newEdges = addEdge(params, edges)
         externalOnEdgesChange(newEdges)
         if (onWorkflowChange) {
-          onWorkflowChange(nodes, newEdges)
+          onWorkflowChange(baseNodes, newEdges)
         }
       } else {
         setInternalEdges((eds) => addEdge(params, eds))
       }
     },
-    [edges, nodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange],
+    [edges, baseNodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange],
   )
 
   const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -330,7 +330,7 @@ export default function WorkflowEditor({
     document.body.style.cursor = ''
     
     // Simple deselection - let ReactFlow handle its own cursor states
-    const updatedNodes = nodes.map(node => ({
+    const updatedNodes = baseNodes.map(node => ({
       ...node,
       selected: false
     }))
@@ -348,7 +348,7 @@ export default function WorkflowEditor({
         }))
       )
     }
-  }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
+  }, [baseNodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
 
   // Handle keyboard shortcuts
   useEffect(() => {
