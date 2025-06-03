@@ -140,20 +140,44 @@ What kind of workflow are you looking to evaluate today?`,
         
         if (analyticsData.recent_executions && analyticsData.recent_executions.length > 0) {
           // Use the intelligent workflow names from backend analytics
-          const formattedWorkflows: RecentWorkflow[] = analyticsData.recent_executions
-            .filter((exec: any) => exec.status === 'completed')
-            .slice(0, 4)
-            .map((exec: any, index: number) => ({
-              id: exec.execution_id,
-              name: exec.workflow_name || `Workflow ${index + 1}`,
-              category: exec.workflow_category || 'general', 
-              description: exec.workflow_description,
-              workflow: { nodes: [], edges: [] }, // Simplified for context
-              input_data: exec.input_data || '',
-              created_at: exec.created_at || Date.now() - (index * 3600000)
-            }))
+          // But we need to fetch the actual workflow structures for proper analysis
+          const formattedWorkflows: RecentWorkflow[] = await Promise.all(
+            analyticsData.recent_executions
+              .filter((exec: any) => exec.status === 'completed')
+              .slice(0, 4)
+              .map(async (exec: any, index: number) => {
+                let workflowStructure = { nodes: [], edges: [] }
+                
+                // Try to fetch the actual workflow structure from execution trace
+                try {
+                  console.log(`🔍 Fetching workflow structure for ${exec.execution_id}...`)
+                  const traceResponse = await fetch(`${backendUrl}/executions/${exec.execution_id}/trace`)
+                  const traceData = await traceResponse.json()
+                  
+                  if (traceData.workflow && traceData.workflow.nodes) {
+                    workflowStructure = {
+                      nodes: traceData.workflow.nodes,
+                      edges: traceData.workflow.edges || []
+                    }
+                    console.log(`✅ Found workflow structure for ${exec.execution_id}: ${workflowStructure.nodes.length} nodes`)
+                  }
+                } catch (error) {
+                  console.log(`⚠️ Could not fetch workflow structure for ${exec.execution_id}:`, error)
+                }
+                
+                return {
+                  id: exec.execution_id,
+                  name: exec.workflow_name || `Workflow ${index + 1}`,
+                  category: exec.workflow_category || 'general', 
+                  description: exec.workflow_description,
+                  workflow: workflowStructure, // Real workflow structure for analysis
+                  input_data: exec.input_data || '',
+                  created_at: exec.created_at || Date.now() - (index * 3600000)
+                }
+              })
+          )
           
-          console.log('✨ Backend workflows with intelligent names:', formattedWorkflows)
+          console.log('✨ Backend workflows with intelligent names and structures:', formattedWorkflows)
           setRecentWorkflows(formattedWorkflows)
           return // Success! Use backend data
         }
@@ -265,9 +289,11 @@ What kind of workflow are you looking to evaluate today?`,
     return emojiMap[category] || '🔧'
   }
 
-  // Generate workflow-specific prompt
+  // Generate workflow-specific prompt that triggers full workflow analysis
   const generateWorkflowPrompt = (workflow: RecentWorkflow): string => {
-    return `Generate comprehensive evaluation criteria for my "${workflow.name}" workflow. This is a ${workflow.category} workflow${workflow.description ? `: ${workflow.description}` : ''}. Focus on domain-specific evaluation criteria that would test the key capabilities and potential failure modes of this particular workflow.`
+    // This will be sent to handleSendMessage, which will detect we have workflow context
+    // and automatically use the workflow-aware endpoint with the full workflow structure
+    return `Generate comprehensive evaluation criteria for my "${workflow.name}" workflow. This is a ${workflow.category} workflow${workflow.description ? `: ${workflow.description}` : ''}. Focus on domain-specific evaluation criteria that would test the key capabilities and potential failure modes of this particular workflow based on its actual structure and purpose.`
   }
 
   const handleSendMessage = async () => {
@@ -286,8 +312,8 @@ What kind of workflow are you looking to evaluate today?`,
     setIsLoading(true)
 
     try {
-      // Check if we can get workflow context from the current page
-      const workflowContext = await getWorkflowContext()
+      // Check if we can get workflow context from the current page or user input
+      const workflowContext = await getWorkflowContext(userInput)
       
       let apiEndpoint = 'http://localhost:8000/ai/evaluation-suggestions'
       let requestBody: any = {
@@ -401,19 +427,31 @@ What kind of workflow are you looking to evaluate today?`,
   }
 
   // Helper function to detect workflow context
-  const getWorkflowContext = async (): Promise<{
+  const getWorkflowContext = async (userInput?: string): Promise<{
     hasWorkflow: boolean
     workflow?: any
     sampleInput?: string
   }> => {
     try {
-      // Try to detect if we're in a workflow context by checking for workflow data
-      // This could come from localStorage, URL params, or other state management
+      // First, check if the user input references a specific workflow from our pills
+      if (userInput && recentWorkflows.length > 0) {
+        for (const workflow of recentWorkflows) {
+          if (userInput.includes(`"${workflow.name}"`)) {
+            console.log(`🎯 Detected specific workflow context: ${workflow.name}`)
+            return {
+              hasWorkflow: true,
+              workflow: workflow.workflow,
+              sampleInput: workflow.input_data || "Sample workflow input"
+            }
+          }
+        }
+      }
       
+      // Fallback: Try to detect if we're in a workflow context by checking for workflow data
       // Check localStorage for recent workflow data
-      const recentWorkflows = localStorage.getItem('recentWorkflowExecutions')
-      if (recentWorkflows) {
-        const workflows = JSON.parse(recentWorkflows)
+      const recentWorkflowsData = localStorage.getItem('recentWorkflowExecutions')
+      if (recentWorkflowsData) {
+        const workflows = JSON.parse(recentWorkflowsData)
         const latestWorkflow = workflows[0] // Get most recent
         if (latestWorkflow && latestWorkflow.workflow) {
           return {
