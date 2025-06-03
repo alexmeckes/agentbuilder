@@ -164,35 +164,118 @@ export class WorkflowService {
 
   /**
    * Create WebSocket connection for real-time execution updates
+   * Falls back to polling if WebSocket fails (for platforms like Render)
    */
   static createExecutionWebSocket(
     executionId: string,
     onMessage: (data: any) => void,
     onError?: (error: Event) => void,
     onClose?: (event: CloseEvent) => void
-  ): WebSocket {
-    const wsUrl = BACKEND_URL.replace('http', 'ws')
-    const ws = new WebSocket(`${wsUrl}/ws/execution/${executionId}`)
+  ): WebSocket | { close: () => void } {
+    const wsUrl = BACKEND_URL.replace('http', 'ws').replace('https', 'wss')
     
-    ws.onmessage = (event) => {
+    try {
+      const ws = new WebSocket(`${wsUrl}/ws/execution/${executionId}`)
+      
+      // Set a connection timeout
+      const connectionTimeout = setTimeout(() => {
+        console.warn('WebSocket connection timeout, falling back to polling')
+        ws.close()
+        // Start polling fallback
+        this.startPollingFallback(executionId, onMessage, onError)
+      }, 5000) // 5 second timeout
+      
+      ws.onopen = () => {
+        clearTimeout(connectionTimeout)
+        console.log('✅ WebSocket connected successfully')
+      }
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          onMessage(data)
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error)
+        }
+      }
+
+      ws.onerror = (error) => {
+        clearTimeout(connectionTimeout)
+        console.error('❌ WebSocket error, falling back to polling:', error)
+        onError?.(error)
+        // Start polling fallback
+        this.startPollingFallback(executionId, onMessage, onError)
+      }
+
+      ws.onclose = (event) => {
+        clearTimeout(connectionTimeout)
+        console.log('WebSocket closed:', event)
+        onClose?.(event)
+      }
+
+      return ws
+    } catch (error) {
+      console.error('❌ WebSocket creation failed, using polling:', error)
+      // Return polling fallback
+      return this.startPollingFallback(executionId, onMessage, onError)
+    }
+  }
+
+  /**
+   * Polling fallback for platforms that don't support WebSockets reliably
+   */
+  static startPollingFallback(
+    executionId: string,
+    onMessage: (data: any) => void,
+    onError?: (error: Event) => void
+  ) {
+    console.log('🔄 Starting polling fallback for execution:', executionId)
+    
+    let isPolling = true
+    let pollCount = 0
+    
+    const poll = async () => {
+      if (!isPolling) return
+      
       try {
-        const data = JSON.parse(event.data)
-        onMessage(data)
+        const response = await fetch(`${BACKEND_URL}/executions/${executionId}`)
+        if (response.ok) {
+          const data = await response.json()
+          
+          // Simulate WebSocket message format
+          onMessage(data)
+          
+          // Stop polling if execution is complete
+          if (data.status === 'completed' || data.status === 'failed') {
+            isPolling = false
+            return
+          }
+        }
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
+        console.error('Polling error:', error)
+        if (pollCount > 10) { // Stop after 10 failed attempts
+          isPolling = false
+          onError?.(new Event('polling-failed'))
+        }
+      }
+      
+      pollCount++
+      
+      // Continue polling every 2 seconds
+      if (isPolling) {
+        setTimeout(poll, 2000)
       }
     }
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
-      onError?.(error)
+    
+    // Start polling
+    poll()
+    
+    // Return object with close method for compatibility
+    return {
+      close: () => {
+        isPolling = false
+        console.log('🛑 Stopped polling fallback')
+      }
     }
-
-    ws.onclose = (event) => {
-      console.log('WebSocket closed:', event)
-      onClose?.(event)
-    }
-
-    return ws
   }
 } 
