@@ -304,24 +304,6 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         }}
 
       >
-        {/* Delete Button - Top Right Corner Overlay */}
-        {onNodeDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              if (window.confirm(`Delete "${data.label}" node?`)) {
-                onNodeDelete(id)
-              }
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-110 z-10 nodrag"
-            title="Delete node"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        )}
-
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <div className="flex items-center gap-3 flex-1 min-w-0">
