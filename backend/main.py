@@ -398,7 +398,13 @@ class WorkflowExecutor:
                 })
                 
                 self._update_execution_progress(execution_id, 100, "Completed successfully!")
+                
+                # Debug: Check the final execution state
+                final_execution = self.executions[execution_id]
                 print(f"✅ Workflow {execution_id} completed successfully")
+                print(f"🔍 Final execution status: {final_execution.get('status')}")
+                print(f"🔍 Final progress: {final_execution.get('progress', {})}")
+                print(f"🔍 Result length: {len(final_output) if final_output else 0} characters")
                 
         except Exception as e:
             # Handle execution exceptions
@@ -1353,20 +1359,30 @@ async def get_execution_analytics():
 async def websocket_execution_status(websocket: WebSocket, execution_id: str):
     """WebSocket endpoint for real-time execution updates"""
     await websocket.accept()
+    print(f"🔌 WebSocket connected for execution {execution_id}")
     
     try:
         while True:
             if execution_id in executor.executions:
                 execution = executor.executions[execution_id]
+                
+                # Log what we're sending
+                print(f"📡 Sending WebSocket update for {execution_id}: status={execution.get('status')}, progress={execution.get('progress', {}).get('percentage', 0)}%")
+                
                 await websocket.send_json(execution)
                 
                 if execution.get("status") in ["completed", "failed"]:
+                    print(f"🏁 Execution {execution_id} finished with status: {execution.get('status')}")
                     break
+            else:
+                print(f"⚠️ Execution {execution_id} not found in executor.executions")
             
             await asyncio.sleep(1)  # Poll every second
             
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected for execution {execution_id}")
+        print(f"🔌 WebSocket disconnected for execution {execution_id}")
+    except Exception as e:
+        print(f"❌ WebSocket error for execution {execution_id}: {e}")
 
 
 @app.get("/evaluations/cases")
