@@ -54,6 +54,9 @@ export default function WorkflowEditor({
   initialManualMode = false,
   onManualModeChange
 }: WorkflowEditorProps = {}) {
+  // DRAG SYSTEM ARCHITECTURE:
+  // 1. HTML5 Drag & Drop: Sidebar → Canvas (onDrop, onDragOver)
+  // 2. ReactFlow Drag: Move nodes within canvas (onNodeDrag*, nodesDraggable)
   // Use external state if provided, otherwise use internal state
   const [internalNodes, setInternalNodes, onInternalNodesChange] = useNodesState(externalNodes || initialNodes)
   const [internalEdges, setInternalEdges, onInternalEdgesChange] = useEdgesState(externalEdges || initialEdges)
@@ -169,8 +172,8 @@ export default function WorkflowEditor({
           ...node.data,
           onNodeUpdate: handleNodeUpdate,
           onNodeDelete: handleNodeDelete
-        },
-        draggable: true
+        }
+        // Remove draggable: true to let ReactFlow handle dragging
       }))
     }
 
@@ -326,34 +329,13 @@ export default function WorkflowEditor({
     }
   }, [])
 
-  // Safety net: detect and clear stuck drag states
-  useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      // Small delay to ensure this runs after ReactFlow's handlers
-      setTimeout(() => {
-        const draggingNodes = document.querySelectorAll('.react-flow__node.dragging')
-        if (draggingNodes.length > 0) {
-          console.log('🚨 Detected stuck dragging nodes, cleaning up:', draggingNodes.length)
-          draggingNodes.forEach(node => {
-            node.classList.remove('dragging')
-            ;(node as HTMLElement).style.cursor = ''
-          })
-        }
-      }, 100)
-    }
 
-    document.addEventListener('mouseup', handleGlobalMouseUp)
-    document.addEventListener('mouseleave', handleGlobalMouseUp)
-    
-    return () => {
-      document.removeEventListener('mouseup', handleGlobalMouseUp)
-      document.removeEventListener('mouseleave', handleGlobalMouseUp)
-    }
-  }, [])
 
+  // HTML5 Drag & Drop: Handle dropping nodes FROM sidebar TO canvas
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault()
+      console.log('🟡 HTML5: Drop event on canvas (from sidebar)')
 
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect()
       const type = event.dataTransfer.getData('application/reactflow')
@@ -484,7 +466,7 @@ export default function WorkflowEditor({
         type: 'agent', // All nodes use the same component now
         position: adjustedPosition,
         data: nodeData,
-        draggable: true,
+        // Remove draggable: true to let ReactFlow handle dragging
       }
 
       if (externalOnNodesChange) {
@@ -880,8 +862,8 @@ export default function WorkflowEditor({
         ...node.data,
         onNodeUpdate: handleNodeUpdate,
         onNodeDelete: handleNodeDelete
-      },
-      draggable: true
+      }
+      // Remove draggable: true to let ReactFlow handle dragging
     }))
     
     setInternalNodes(nodesWithCallbacks)
@@ -910,41 +892,13 @@ export default function WorkflowEditor({
           onPaneClick={onPaneClick}
           onNodesDelete={handleNodesDelete}
           onNodeDragStart={(event, node) => {
-            console.log('🟢 Node drag started:', node.id)
+            console.log('🟢 ReactFlow: Node drag started:', node.id)
           }}
           onNodeDrag={(event, node) => {
-            console.log('🔄 Node dragging:', node.id)
+            console.log('🔄 ReactFlow: Node dragging:', node.id)
           }}
           onNodeDragStop={(event, node) => {
-            console.log('🔴 Node drag stopped:', node.id)
-            
-            // Force clean up any stuck drag state
-            setTimeout(() => {
-              // Reset cursor on the node
-              const nodeElement = document.querySelector(`[data-id="${node.id}"]`)
-              if (nodeElement) {
-                (nodeElement as HTMLElement).style.cursor = ''
-                console.log('✅ Reset cursor for node:', node.id)
-              }
-              
-              // Ensure node is not marked as dragging
-              if (externalOnNodesChange) {
-                const updatedNodes = nodes.map(n => 
-                  n.id === node.id 
-                    ? { ...n, dragging: false, selected: false }
-                    : n
-                )
-                externalOnNodesChange(updatedNodes)
-              } else {
-                setInternalNodes(currentNodes => 
-                  currentNodes.map(n => 
-                    n.id === node.id 
-                      ? { ...n, dragging: false, selected: false }
-                      : n
-                  )
-                )
-              }
-            }, 10)
+            console.log('🔴 ReactFlow: Node drag stopped:', node.id)
           }}
           nodeTypes={nodeTypes}
           nodesDraggable={true}

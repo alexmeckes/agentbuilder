@@ -302,6 +302,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
           zIndex: data.zIndex || (selected ? 100 : 1),
           minHeight: expanded ? '400px' : '120px'
         }}
+
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
