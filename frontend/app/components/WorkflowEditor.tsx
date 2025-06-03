@@ -8,6 +8,7 @@ import ReactFlow, {
   useEdgesState,
   addEdge,
   Panel,
+  applyNodeChanges,
 } from 'reactflow'
 import type { Node, Edge, Connection, ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
@@ -127,18 +128,24 @@ export default function WorkflowEditor({
     }
   }, [externalEdges, setInternalEdges])
 
-  // Handle node changes
+  // Handle node changes (including position updates from dragging)
   const handleNodesChange = useCallback((changes: any) => {
+    console.log('🔄 handleNodesChange called with:', changes)
+    
     if (externalOnNodesChange && externalNodes) {
-      // Apply changes to external nodes and update parent
-      onInternalNodesChange(changes)
-      // The changes will be applied to internalNodes, then we sync to parent
-      // This is a bit complex because ReactFlow changes are incremental
-      // For now, let ReactFlow handle the changes internally and sync later
+      // Apply ReactFlow changes to external nodes and sync to parent
+      const updatedNodes = applyNodeChanges(changes, externalNodes)
+      console.log('📤 Syncing updated nodes to external state:', updatedNodes.map((n: Node) => ({ id: n.id, position: n.position })))
+      externalOnNodesChange(updatedNodes)
+      
+      if (onWorkflowChange) {
+        onWorkflowChange(updatedNodes, edges)
+      }
     } else {
+      // Use internal state management
       onInternalNodesChange(changes)
     }
-  }, [externalOnNodesChange, externalNodes, onInternalNodesChange])
+  }, [externalOnNodesChange, externalNodes, onInternalNodesChange, onWorkflowChange, edges])
 
   // Handle node data updates from the node components
   const handleNodeUpdate = useCallback((nodeId: string, updatedData: any) => {
