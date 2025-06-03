@@ -454,6 +454,11 @@ export function NodeEditorModal({ isOpen, nodeData, onSave, onClose }: NodeEdito
                       tool_type: toolId 
                     }))}
                     className="w-full"
+                    nodeData={{
+                      name: formData.name || formData.label,
+                      instructions: formData.instructions,
+                      type: formData.type
+                    }}
                   />
                   <p className="mt-1 text-sm text-gray-500">
                     Select the type of tool this node will use. You can enhance it with AI capabilities in the AI Enhancement tab.

@@ -548,6 +548,11 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate }: AgentNodeProps
                       onKeyDown={(e) => handleKeyPress(e, handleToolSave, handleToolCancel)}
                       onBlur={handleToolSave}
                       className="flex-1"
+                      nodeData={{
+                        name: data.name || data.label,
+                        instructions: data.instructions,
+                        type: data.type
+                      }}
                     />
                     <button onClick={handleToolSave} className="text-green-600 hover:text-green-700">
                       <Save className="w-4 h-4" />
