@@ -3537,6 +3537,239 @@ async def list_available_servers():
     
     return {"servers": available_servers}
 
+@app.post("/ai/tool-recommendations")
+async def get_tool_recommendations(request: dict):
+    """Get AI-powered tool recommendations based on node context"""
+    try:
+        # Extract context from the request
+        node_data = request.get("node_data", {})
+        node_name = node_data.get("name", "")
+        node_instructions = node_data.get("instructions", "")
+        node_type = request.get("node_type", "tool")
+        user_query = request.get("user_query", "")
+        workflow_context = request.get("workflow_context", {})
+        
+        # Get available MCP tools
+        tools_response = await list_available_tools()
+        available_tools = tools_response.get("tools", {})
+        
+        # Filter to only MCP tools
+        mcp_tools = {k: v for k, v in available_tools.items() if v.get("type") == "mcp"}
+        
+        if not mcp_tools:
+            return {
+                "success": False,
+                "recommendations": [],
+                "message": "No MCP tools available for recommendation"
+            }
+        
+        # Create a comprehensive prompt for tool recommendation
+        tools_list = ""
+        for tool_id, tool_info in mcp_tools.items():
+            tool_name = tool_info.get("name", tool_id.split("_")[-1])
+            description = tool_info.get("description", "No description")
+            category = tool_info.get("category", "unknown")
+            tools_list += f"- {tool_name} ({category}): {description}\n"
+        
+        ai_prompt = f"""You are an expert at selecting the best tools for AI workflow nodes based on context and intent.
+
+NODE CONTEXT:
+- Node Name: {node_name}
+- Node Type: {node_type}
+- Instructions: {node_instructions}
+- User Query: {user_query}
+
+AVAILABLE MCP TOOLS:
+{tools_list}
+
+TASK: Analyze the node context and recommend the 3-5 most relevant tools. Consider:
+1. What the node is trying to accomplish based on its name and instructions
+2. The specific GitHub operations that would be most useful
+3. The user's query or intent
+4. Common workflow patterns
+
+Respond with a JSON object in this exact format:
+
+{{
+  "recommendations": [
+    {{
+      "tool_id": "exact_tool_id_from_list",
+      "tool_name": "human_readable_name",
+      "confidence": 0.95,
+      "reasoning": "Why this tool is perfect for this context",
+      "use_case": "Specific example of how to use it"
+    }}
+  ],
+  "explanation": "Overall explanation of the recommendation strategy"
+}}
+
+GUIDELINES:
+- Recommend 3-5 tools maximum to avoid overwhelming the user
+- Order by relevance (most relevant first)
+- Confidence should be 0.6-0.98 based on context match quality
+- Focus on tools that directly support the node's apparent purpose
+- Consider the full workflow context if provided
+
+RESPOND ONLY WITH THE JSON OBJECT - NO ADDITIONAL TEXT."""
+
+        # Execute the AI recommendation workflow
+        assistant_workflow = {
+            "nodes": [
+                {
+                    "id": "tool-recommender",
+                    "type": "agent",
+                    "data": {
+                        "name": "ToolRecommendationExpert",
+                        "instructions": "You are an expert at analyzing workflow node context and recommending the most relevant tools. Always respond with valid JSON in the exact format requested.",
+                        "model_id": "gpt-4o"
+                    },
+                    "position": {"x": 0, "y": 0}
+                }
+            ],
+            "edges": []
+        }
+
+        from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent
+        
+        ai_result = await execute_visual_workflow_with_anyagent(
+            nodes=assistant_workflow["nodes"],
+            edges=assistant_workflow["edges"],
+            input_data=ai_prompt,
+            framework="openai"
+        )
+
+        if "error" not in ai_result and ai_result.get("final_output"):
+            try:
+                import json
+                ai_response = ai_result["final_output"].strip()
+                
+                # Clean up response
+                if ai_response.startswith("```json"):
+                    ai_response = ai_response.split("```json")[1].split("```")[0].strip()
+                elif ai_response.startswith("```"):
+                    ai_response = ai_response.split("```")[1].split("```")[0].strip()
+                
+                parsed_response = json.loads(ai_response)
+                recommendations = parsed_response.get("recommendations", [])
+                explanation = parsed_response.get("explanation", "AI-generated tool recommendations")
+                
+                # Validate that recommended tools exist
+                valid_recommendations = []
+                for rec in recommendations:
+                    tool_id = rec.get("tool_id")
+                    if tool_id in mcp_tools:
+                        # Enhance with full tool info
+                        tool_info = mcp_tools[tool_id]
+                        enhanced_rec = {
+                            **rec,
+                            "category": tool_info.get("category", "unknown"),
+                            "server_name": tool_info.get("server_name", ""),
+                            "full_description": tool_info.get("description", "")
+                        }
+                        valid_recommendations.append(enhanced_rec)
+                
+                return {
+                    "success": True,
+                    "recommendations": valid_recommendations,
+                    "explanation": explanation,
+                    "total_available_tools": len(mcp_tools),
+                    "source": "ai_powered",
+                    "model_used": "gpt-4o"
+                }
+                
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"Failed to parse AI tool recommendation response: {e}")
+                return await get_fallback_tool_recommendations(node_data, mcp_tools)
+        else:
+            print(f"AI tool recommendation failed: {ai_result.get('error', 'Unknown error')}")
+            return await get_fallback_tool_recommendations(node_data, mcp_tools)
+            
+    except Exception as e:
+        print(f"Error in AI tool recommendations: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "recommendations": [],
+            "message": "Failed to generate tool recommendations"
+        }
+
+async def get_fallback_tool_recommendations(node_data: dict, mcp_tools: dict):
+    """Fallback rule-based tool recommendations"""
+    recommendations = []
+    
+    # Extract context clues
+    context_text = f"{node_data.get('name', '')} {node_data.get('instructions', '')}".lower()
+    
+    # Rule-based recommendations based on keywords
+    if any(word in context_text for word in ['issue', 'bug', 'problem', 'report']):
+        # Recommend issue-related tools
+        issue_tools = [k for k in mcp_tools.keys() if 'issue' in k.lower()]
+        for tool_id in issue_tools[:3]:
+            tool_name = mcp_tools[tool_id].get("name", tool_id.split("_")[-1])
+            recommendations.append({
+                "tool_id": tool_id,
+                "tool_name": tool_name,
+                "confidence": 0.8,
+                "reasoning": "Detected issue-related context in node",
+                "use_case": "Manage GitHub issues and bug reports"
+            })
+    
+    elif any(word in context_text for word in ['file', 'code', 'content', 'read', 'write']):
+        # Recommend file-related tools
+        file_tools = [k for k in mcp_tools.keys() if any(word in k.lower() for word in ['file', 'content', 'create', 'update'])]
+        for tool_id in file_tools[:3]:
+            tool_name = mcp_tools[tool_id].get("name", tool_id.split("_")[-1])
+            recommendations.append({
+                "tool_id": tool_id,
+                "tool_name": tool_name,
+                "confidence": 0.75,
+                "reasoning": "Detected file operation context in node",
+                "use_case": "Read, create, or modify repository files"
+            })
+    
+    elif any(word in context_text for word in ['repo', 'repository', 'project']):
+        # Recommend repository management tools
+        repo_tools = [k for k in mcp_tools.keys() if any(word in k.lower() for word in ['repo', 'create', 'fork'])]
+        for tool_id in repo_tools[:3]:
+            tool_name = mcp_tools[tool_id].get("name", tool_id.split("_")[-1])
+            recommendations.append({
+                "tool_id": tool_id,
+                "tool_name": tool_name,
+                "confidence": 0.85,
+                "reasoning": "Detected repository management context in node",
+                "use_case": "Create, manage, or analyze repositories"
+            })
+    
+    # If no specific context, recommend most commonly used tools
+    if not recommendations:
+        common_tools = [
+            'get_file_contents',
+            'list_repository_contents', 
+            'search_repositories',
+            'create_issue',
+            'get_repository'
+        ]
+        
+        for tool_name in common_tools:
+            matching_tool = next((k for k in mcp_tools.keys() if tool_name in k.lower()), None)
+            if matching_tool:
+                recommendations.append({
+                    "tool_id": matching_tool,
+                    "tool_name": mcp_tools[matching_tool].get("name", tool_name),
+                    "confidence": 0.7,
+                    "reasoning": "Commonly used GitHub operation",
+                    "use_case": "General GitHub workflow support"
+                })
+                if len(recommendations) >= 3:
+                    break
+    
+    return {
+        "success": True,
+        "recommendations": recommendations,
+        "explanation": "Rule-based recommendations based on context keywords",
+        "source": "rule_based_fallback"
+    }
+
 if __name__ == "__main__":
     # Production MCP setup
     try:
