@@ -18,7 +18,7 @@ import NodePalette from './workflow/NodePalette'
 import { WorkflowService, type ExecutionResponse } from '../services/workflow'
 import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain, X } from 'lucide-react'
 import { WorkflowManager } from '../services/workflowManager'
-import { useWorkflowExecution } from '../hooks/useWorkflowExecution'
+// import { useWorkflowExecution } from '../hooks/useWorkflowExecution' // Temporarily disabled
 
 const nodeTypes = {
   agent: AgentNode,
@@ -66,47 +66,10 @@ export default function WorkflowEditor({
   // Determine which state to use
   const baseNodes = externalNodes || internalNodes
   const edges = externalEdges || internalEdges
-
-  // Enhance nodes with execution state for progress visualization
-  const nodes: Node[] = baseNodes.map((node: Node) => ({
-    ...node,
-    data: {
-      ...node.data,
-      executionState: getNodeExecutionState(node.id),
-      onNodeUpdate: handleNodeUpdate,
-      onNodeDelete: handleNodeDelete
-    }
-  }))
   
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null)
   
-  // Execution state - using new hook for progress tracking
-  const {
-    executionState,
-    isExecuting: hookIsExecuting,
-    startExecution,
-    stopExecution: hookStopExecution,
-    resetExecution,
-    getNodeExecutionState
-  } = useWorkflowExecution({
-    onExecutionComplete: (result) => {
-      console.log('✅ Execution completed:', result)
-      setExecutionResult(result)
-    },
-    onExecutionError: (error) => {
-      console.error('❌ Execution failed:', error)
-      setExecutionResult({
-        execution_id: 'error',
-        status: 'failed',
-        error
-      })
-    },
-    onNodeStatusChange: (nodeId, status) => {
-      console.log(`📍 Node ${nodeId} status changed to: ${status}`)
-    }
-  })
-
   // Legacy execution state for compatibility
   const [isExecuting, setIsExecuting] = useState(false)
   const [executionResult, setExecutionResult] = useState<ExecutionResponse | null>(null)
@@ -115,10 +78,10 @@ export default function WorkflowEditor({
   const [copySuccess, setCopySuccess] = useState(false)
   const [currentWorkflowIdentity, setCurrentWorkflowIdentity] = useState<any>(null)
 
-  // Sync execution state between hook and component
-  useEffect(() => {
-    setIsExecuting(hookIsExecuting)
-  }, [hookIsExecuting])
+  // Sync execution state between hook and component - disabled for now
+  // useEffect(() => {
+  //   setIsExecuting(hookIsExecuting)
+  // }, [hookIsExecuting])
 
   // Use external input data if provided, otherwise use internal
   const inputData = externalExecutionInput !== undefined ? externalExecutionInput : internalInputData
@@ -269,7 +232,7 @@ export default function WorkflowEditor({
 
     if (externalOnNodesChange) {
       // Update external state
-      const updatedNodes = updateNodes(nodes)
+      const updatedNodes = updateNodes(baseNodes)
       externalOnNodesChange(updatedNodes)
       if (onWorkflowChange) {
         onWorkflowChange(updatedNodes, edges)
@@ -278,7 +241,7 @@ export default function WorkflowEditor({
       // Update internal state
       setInternalNodes(updateNodes)
     }
-  }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
+  }, [baseNodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
 
   // Ensure all nodes have the onNodeUpdate and onNodeDelete callbacks
   useEffect(() => {
@@ -583,8 +546,11 @@ export default function WorkflowEditor({
         setInternalNodes((nds) => nds.concat(newNode))
       }
     },
-    [reactFlowInstance, nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange, handleNodeUpdate, handleNodeDelete],
+    [reactFlowInstance, baseNodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange, handleNodeUpdate, handleNodeDelete],
   )
+
+  // Use baseNodes directly to avoid circular dependency issues
+  const nodes = baseNodes
 
   const executeWorkflow = async () => {
     if (nodes.length === 0) {
@@ -684,13 +650,9 @@ export default function WorkflowEditor({
         console.error('Failed to save execution to localStorage:', error)
       }
       
-      // If execution is still running, start progress tracking
+      // If execution is still running, we could set up WebSocket here
       if (result.status === 'running') {
         console.log(`Execution started for "${workflowDefinition.identity.name}":`, result.execution_id)
-        
-        // Start progress tracking with WebSocket
-        const nodeIds = nodes.map(node => node.id)
-        startExecution(result.execution_id, nodeIds)
       }
 
     } catch (error) {
@@ -706,8 +668,7 @@ export default function WorkflowEditor({
   }
 
   const stopExecution = () => {
-    // Stop execution using the hook
-    hookStopExecution()
+    // TODO: Implement execution stopping
     setIsExecuting(false)
   }
 
