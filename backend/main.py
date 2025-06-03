@@ -3404,7 +3404,7 @@ async def list_available_servers():
             "id": "github",
             "name": "GitHub Integration (Official)",
             "description": "Comprehensive GitHub integration: repositories, issues, PRs, code scanning, notifications, and more",
-            "command": ["./github-mcp-server-linux" if os.getenv("RENDER", "").lower() == "true" else "./github-mcp-server"],
+            "command": ["./github-mcp-server-linux", "stdio"] if os.getenv("RENDER", "").lower() == "true" else ["./github-mcp-server", "stdio"],
             "config_schema": {
                 "GITHUB_PERSONAL_ACCESS_TOKEN": {"type": "password", "required": True, "description": "GitHub Personal Access Token for authentication"}
             },
