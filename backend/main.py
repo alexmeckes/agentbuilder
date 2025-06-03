@@ -1366,10 +1366,25 @@ async def websocket_execution_status(websocket: WebSocket, execution_id: str):
             if execution_id in executor.executions:
                 execution = executor.executions[execution_id]
                 
-                # Log what we're sending
-                print(f"📡 Sending WebSocket update for {execution_id}: status={execution.get('status')}, progress={execution.get('progress', {}).get('percentage', 0)}%")
+                # Create JSON-safe version of execution data
+                safe_execution = {
+                    "execution_id": execution_id,
+                    "status": execution.get("status"),
+                    "progress": execution.get("progress", {}),
+                    "result": execution.get("result"),
+                    "error": execution.get("error"),
+                    "created_at": execution.get("created_at"),
+                    "completed_at": execution.get("completed_at"),
+                    "execution_time": execution.get("execution_time"),
+                    "workflow_name": execution.get("workflow_name"),
+                    "workflow_category": execution.get("workflow_category"),
+                    "framework": execution.get("framework")
+                }
                 
-                await websocket.send_json(execution)
+                # Log what we're sending
+                print(f"📡 Sending WebSocket update for {execution_id}: status={safe_execution.get('status')}, progress={safe_execution.get('progress', {}).get('percentage', 0)}%")
+                
+                await websocket.send_json(safe_execution)
                 
                 if execution.get("status") in ["completed", "failed"]:
                     print(f"🏁 Execution {execution_id} finished with status: {execution.get('status')}")
