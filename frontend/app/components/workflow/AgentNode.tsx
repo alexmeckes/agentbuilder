@@ -681,6 +681,18 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
   )
 }
 
-export default function AgentNode(props: NodeProps<EnhancedNodeData>) {
-  return <AgentNodeComponent {...props} />
+export default function AgentNode(props: NodeProps<EnhancedNodeData & {
+  onNodeUpdate?: (nodeId: string, updatedData: EnhancedNodeData) => void
+  onNodeDelete?: (nodeId: string) => void
+}>) {
+  // Extract callbacks from data and pass them as separate props
+  const { data, ...otherProps } = props
+  const { onNodeUpdate, onNodeDelete, ...nodeData } = data
+  
+  return <AgentNodeComponent 
+    {...otherProps} 
+    data={nodeData as EnhancedNodeData}
+    onNodeUpdate={onNodeUpdate}
+    onNodeDelete={onNodeDelete}
+  />
 } 
