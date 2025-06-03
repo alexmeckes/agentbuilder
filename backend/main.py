@@ -501,18 +501,68 @@ class WorkflowExecutor:
     
     def _extract_cost_info(self, agent_trace) -> Dict[str, Any]:
         """Extract cost information from any-agent trace"""
-        if not agent_trace or not hasattr(agent_trace, 'get_total_cost'):
+        print(f"🔍 Legacy cost extraction: agent_trace type = {type(agent_trace)}")
+        print(f"🔍 Legacy cost extraction: has get_total_cost = {hasattr(agent_trace, 'get_total_cost')}")
+        
+        if not agent_trace:
+            print(f"⚠️  Legacy cost extraction: agent_trace is None")
+            return {}
+            
+        if not hasattr(agent_trace, 'get_total_cost'):
+            print(f"⚠️  Legacy cost extraction: agent_trace has no get_total_cost method")
+            # Try alternative methods to extract cost data
+            if hasattr(agent_trace, 'spans'):
+                print(f"🔍 Legacy cost extraction: Found spans attribute, extracting manually")
+                spans = getattr(agent_trace, 'spans', [])
+                total_cost = 0.0
+                total_tokens = 0
+                input_tokens = 0
+                output_tokens = 0
+                
+                for i, span in enumerate(spans):
+                    if hasattr(span, 'attributes'):
+                        attrs = getattr(span, 'attributes', {})
+                        input_cost = attrs.get("gen_ai.usage.input_cost", 0.0)
+                        output_cost = attrs.get("gen_ai.usage.output_cost", 0.0)
+                        span_input_tokens = attrs.get("gen_ai.usage.input_tokens", 0)
+                        span_output_tokens = attrs.get("gen_ai.usage.output_tokens", 0)
+                        
+                        span_cost = float(input_cost) + float(output_cost)
+                        span_tokens = int(span_input_tokens) + int(span_output_tokens)
+                        
+                        print(f"   Legacy span {i}: cost=${span_cost:.6f}, tokens={span_tokens}")
+                        
+                        total_cost += span_cost
+                        input_tokens += int(span_input_tokens)
+                        output_tokens += int(span_output_tokens)
+                        total_tokens += span_tokens
+                
+                result = {
+                    "total_cost": total_cost,
+                    "total_tokens": total_tokens,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens
+                }
+                print(f"💰 Legacy manual extraction result: {result}")
+                return result
+            
             return {}
         
         try:
+            print(f"🔍 Legacy cost extraction: Calling get_total_cost()")
             cost_info = agent_trace.get_total_cost()
-            return {
+            print(f"🔍 Legacy cost extraction: cost_info = {cost_info}, type = {type(cost_info)}")
+            
+            result = {
                 "total_cost": getattr(cost_info, 'total_cost', 0),
                 "total_tokens": getattr(cost_info, 'total_tokens', 0),
                 "input_tokens": getattr(cost_info, 'input_tokens', 0),
                 "output_tokens": getattr(cost_info, 'output_tokens', 0)
             }
+            print(f"💰 Legacy cost extraction result: {result}")
+            return result
         except Exception as e:
+            print(f"❌ Legacy cost extraction error: {e}")
             return {"cost_extraction_error": str(e)}
     
     def _extract_cost_info_from_trace(self, agent_trace) -> Dict[str, Any]:
