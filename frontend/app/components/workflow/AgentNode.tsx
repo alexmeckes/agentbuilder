@@ -304,14 +304,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         }}
 
       >
-        {/* Selection indicator for keyboard deletion */}
-        {selected && (
-          <div className="absolute -top-2 -right-2 z-10">
-            <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full shadow-lg animate-pulse">
-              Selected - Press Delete key
-            </div>
-          </div>
-        )}
+
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -408,7 +401,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
               <Settings className="w-4 h-4" />
             </button>
             
-            {onNodeDelete && (
+            {onNodeDelete ? (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -419,17 +412,15 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
                   }
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`p-2 rounded-lg transition-all duration-200 group ${
-                  selected 
-                    ? 'text-red-500 bg-red-50 hover:text-red-700 hover:bg-red-100 border border-red-200' 
-                    : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                }`}
-                title="Delete node (or select and press Delete key)"
+                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-red-200 hover:border-red-300"
+                title="Delete node"
               >
-                <Trash2 className={`w-4 h-4 transition-all duration-200 ${
-                  selected ? 'animate-pulse' : 'group-hover:scale-110'
-                }`} />
+                <Trash2 className="w-4 h-4" />
               </button>
+            ) : (
+              <div className="p-2 text-gray-300" title="Delete not available">
+                <Trash2 className="w-4 h-4" />
+              </div>
             )}
             
             <button
@@ -639,7 +630,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
                   Edit Settings
                 </button>
                 
-                {onNodeDelete && (
+                {onNodeDelete ? (
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -648,17 +639,20 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
                         onNodeDelete(id)
                       }
                     }}
-                    className="flex items-center gap-2 px-3 py-2 text-sm bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 text-sm bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete Node
                   </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 rounded-lg border border-gray-200">
+                    <Trash2 className="w-4 h-4" />
+                    Delete Not Available
+                  </div>
                 )}
               </div>
               
-              <div className="mt-2 text-xs text-gray-500">
-                💡 Tip: Select this node and press <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-700">Delete</kbd> key for quick deletion
-              </div>
+
             </div>
           </div>
         )}

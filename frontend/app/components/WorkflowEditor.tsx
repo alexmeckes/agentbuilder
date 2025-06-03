@@ -230,17 +230,19 @@ export default function WorkflowEditor({
       }))
     }
 
-    if (externalOnNodesChange && externalNodes) {
+    if (externalOnNodesChange && externalNodes && externalNodes.length > 0) {
       // Check if any nodes are missing the callback
       const needsUpdate = externalNodes.some(node => !node.data.onNodeUpdate || !node.data.onNodeDelete)
       if (needsUpdate) {
+        console.log('🔧 Adding callbacks to external nodes:', externalNodes.length)
         const updatedNodes = updateNodesWithCallback(externalNodes)
         externalOnNodesChange(updatedNodes)
       }
-    } else {
+    } else if (internalNodes.length > 0) {
       // Check if any internal nodes are missing the callback
       const needsUpdate = internalNodes.some(node => !node.data.onNodeUpdate || !node.data.onNodeDelete)
       if (needsUpdate) {
+        console.log('🔧 Adding callbacks to internal nodes:', internalNodes.length)
         setInternalNodes(updateNodesWithCallback(internalNodes))
       }
     }
@@ -1123,18 +1125,9 @@ export default function WorkflowEditor({
               )}
             </button>
 
-            {/* Node count indicator and help */}
+            {/* Node count indicator */}
             <div className="mt-2 text-xs text-slate-500 text-center">
-              {nodes.length === 0 ? (
-                'Add nodes to enable execution'
-              ) : (
-                <div>
-                  <div>{nodes.length} nodes ready</div>
-                  <div className="mt-1 text-slate-400">
-                    To delete: Click 🗑️ on node or select + press Delete key
-                  </div>
-                </div>
-              )}
+              {nodes.length === 0 ? 'Add nodes to enable execution' : `${nodes.length} nodes ready`}
             </div>
 
             {/* Quick Results Preview */}
