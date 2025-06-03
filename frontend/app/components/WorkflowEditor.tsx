@@ -269,131 +269,29 @@ export default function WorkflowEditor({
   // Handle clicking on empty canvas to deselect nodes
   const onPaneClick = useCallback(() => {
     console.log('🖱️ Pane clicked - deselecting all nodes')
-    console.log('Current selected nodes:', nodes.filter(n => n.selected).map(n => n.id))
     
-    // Try multiple approaches to clear selection
-    try {
-      // 1. Use ReactFlow's built-in way to clear selection
-      if (reactFlowInstance) {
-        const clearedNodes = nodes.map(node => ({
+    // Simple deselection - let ReactFlow handle its own cursor states
+    const updatedNodes = nodes.map(node => ({
+      ...node,
+      selected: false
+    }))
+    
+    if (externalOnNodesChange) {
+      externalOnNodesChange(updatedNodes)
+      if (onWorkflowChange) {
+        onWorkflowChange(updatedNodes, edges)
+      }
+    } else {
+      setInternalNodes(currentNodes => 
+        currentNodes.map(node => ({
           ...node,
           selected: false
         }))
-        reactFlowInstance.setNodes(clearedNodes)
-        console.log('✅ Applied deselection via ReactFlow instance')
-      }
-      
-      // 2. Update our state management
-      const updatedNodes = nodes.map(node => ({
-        ...node,
-        selected: false
-      }))
-      
-      if (externalOnNodesChange) {
-        externalOnNodesChange(updatedNodes)
-        if (onWorkflowChange) {
-          onWorkflowChange(updatedNodes, edges)
-        }
-        console.log('✅ Applied deselection via external state')
-      } else {
-        setInternalNodes(currentNodes => 
-          currentNodes.map(node => ({
-            ...node,
-            selected: false
-          }))
-        )
-        console.log('✅ Applied deselection via internal state')
-      }
-      
-      // 3. Force focus away from any selected elements
-      if (document.activeElement && document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur()
-      }
-      
-      // 4. Force reset ReactFlow's internal state and cursor
-      setTimeout(() => {
-        // Reset any dragging state by triggering a synthetic mouse event
-        const canvas = document.querySelector('.react-flow__renderer')
-        if (canvas) {
-          const mouseUpEvent = new MouseEvent('mouseup', {
-            bubbles: true,
-            cancelable: true,
-            view: window
-          })
-          canvas.dispatchEvent(mouseUpEvent)
-          console.log('🔄 Dispatched synthetic mouseup event')
-        }
-        
-        // Force reset cursor on entire workflow editor
-        const workflowEditor = document.querySelector('.workflow-editor')
-        if (workflowEditor) {
-          (workflowEditor as HTMLElement).style.cursor = 'default'
-          console.log('🔄 Reset workflow editor cursor')
-        }
-        
-        // Reset cursor on all nodes
-        const allNodes = document.querySelectorAll('.react-flow__node')
-        allNodes.forEach(node => {
-          (node as HTMLElement).style.cursor = 'grab'
-        })
-        console.log('🔄 Reset all node cursors')
-      }, 50)
-      
-    } catch (error) {
-      console.error('❌ Error during deselection:', error)
+      )
     }
-  }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange, reactFlowInstance])
+  }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
 
-  // Emergency reset function for stuck drag states
-  const forceResetDragState = useCallback(() => {
-    console.log('🚨 Emergency drag state reset initiated')
-    
-    try {
-      // 1. Clear all selections
-      onPaneClick()
-      
-      // 2. Force reset ReactFlow instance
-      if (reactFlowInstance) {
-        reactFlowInstance.setNodes(nodes.map(node => ({
-          ...node,
-          selected: false,
-          dragging: false
-        })))
-      }
-      
-      // 3. Reset all CSS cursor states aggressively
-      const resetElements = [
-        '.workflow-editor',
-        '.react-flow__renderer',
-        '.react-flow__node',
-        '.react-flow__pane'
-      ]
-      
-      resetElements.forEach(selector => {
-        const elements = document.querySelectorAll(selector)
-        elements.forEach(el => {
-          const element = el as HTMLElement
-          element.style.cursor = ''
-          element.classList.remove('dragging')
-          // Force reflow
-          element.offsetHeight
-        })
-      })
-      
-      // 4. Dispatch mouse events to clear any stuck states
-      const events = ['mouseup', 'mouseleave', 'mouseout']
-      events.forEach(eventType => {
-        document.dispatchEvent(new MouseEvent(eventType, {
-          bubbles: true,
-          cancelable: true
-        }))
-      })
-      
-      console.log('🔄 Emergency reset completed')
-    } catch (error) {
-      console.error('❌ Emergency reset failed:', error)
-    }
-  }, [onPaneClick, reactFlowInstance, nodes])
+
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -410,34 +308,15 @@ export default function WorkflowEditor({
     }
   }, [onPaneClick])
 
-  // Add custom CSS for proper cursor states
+  // Simple cursor management
   useEffect(() => {
     const style = document.createElement('style')
     style.textContent = `
-      .workflow-editor {
-        cursor: default !important;
-      }
-      .workflow-editor .react-flow__node {
-        cursor: grab !important;
-      }
-      .workflow-editor .react-flow__node.dragging {
-        cursor: grabbing !important;
-      }
-      .workflow-editor .react-flow__node:not(.dragging) {
-        cursor: grab !important;
-      }
       .workflow-editor .react-flow__node .nodrag {
-        cursor: default !important;
+        cursor: default;
       }
       .workflow-editor .react-flow__node .nodrag button {
-        cursor: pointer !important;
-      }
-      .workflow-editor .react-flow__pane {
-        cursor: default !important;
-      }
-      /* Force reset any stuck cursor states */
-      .workflow-editor * {
-        cursor: inherit;
+        cursor: pointer;
       }
     `
     document.head.appendChild(style)
@@ -1009,7 +888,6 @@ export default function WorkflowEditor({
           nodesDraggable={true}
           nodesConnectable={true}
           elementsSelectable={true}
-          selectNodesOnDrag={false}
           fitView
           deleteKeyCode="Delete"
           className="bg-gradient-to-br from-slate-50 to-blue-50 workflow-editor"
@@ -1088,20 +966,10 @@ export default function WorkflowEditor({
                   console.log('🔄 Manual clear selection clicked')
                   onPaneClick()
                 }}
-                className="w-full px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2 mb-2"
+                className="w-full px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2"
               >
                 <X className="w-4 h-4" />
                 Clear Selection
-              </button>
-              <button
-                onClick={() => {
-                  console.log('🚨 Emergency reset clicked')
-                  forceResetDragState()
-                }}
-                className="w-full px-3 py-2 text-sm text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                Emergency Reset
               </button>
             </div>
           </Panel>
