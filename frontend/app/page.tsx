@@ -19,6 +19,7 @@ export default function Home() {
   const [workflowExecutionInput, setWorkflowExecutionInput] = useState('Hello, please analyze this data and provide insights.')
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false)
+  const [isManualMode, setIsManualMode] = useState(false)
 
   const handleWorkflowChange = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     setNodes(newNodes)
@@ -519,6 +520,8 @@ export default function Home() {
               onWorkflowChange={handleWorkflowChange}
               executionInput={workflowExecutionInput}
               onExecutionInputChange={setWorkflowExecutionInput}
+              initialManualMode={isManualMode}
+              onManualModeChange={setIsManualMode}
             />
             
             {/* Welcome overlay when no nodes exist */}
@@ -548,16 +551,24 @@ export default function Home() {
                       <p className="text-xs text-slate-600">Describe your workflow</p>
                     </div>
                   </div>
-                  <div className="mt-6">
+                  <div className="mt-6 flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setIsManualMode(true)
+                      }}
+                      className="bg-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Try Manual Mode
+                    </button>
+                    <span className="text-slate-400">or</span>
                     <button
                       onClick={() => setActiveTab('chat')}
-                      className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                      className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
                     >
+                      <MessageSquare className="w-4 h-4" />
                       Try AI Assistant
                     </button>
-                  </div>
-                  <div className="mt-4 text-xs text-slate-500 bg-slate-100 px-4 py-2 rounded-lg">
-                    💡 <strong>Tip:</strong> Use the "Workflow Mode" panel above to switch to Manual Design
                   </div>
                 </div>
               </div>

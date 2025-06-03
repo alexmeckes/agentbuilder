@@ -38,6 +38,8 @@ interface WorkflowEditorProps {
   executionInput?: string
   onExecutionInputChange?: (input: string) => void
   workflowIdentity?: any
+  initialManualMode?: boolean
+  onManualModeChange?: (manualMode: boolean) => void
 }
 
 export default function WorkflowEditor({ 
@@ -48,7 +50,9 @@ export default function WorkflowEditor({
   onWorkflowChange,
   executionInput: externalExecutionInput,
   onExecutionInputChange,
-  workflowIdentity: externalWorkflowIdentity
+  workflowIdentity: externalWorkflowIdentity,
+  initialManualMode = false,
+  onManualModeChange
 }: WorkflowEditorProps = {}) {
   // Use external state if provided, otherwise use internal state
   const [internalNodes, setInternalNodes, onInternalNodesChange] = useNodesState(externalNodes || initialNodes)
@@ -92,7 +96,15 @@ export default function WorkflowEditor({
   }, [externalWorkflowIdentity])
 
   // Manual node creation mode state
-  const [useManualMode, setUseManualMode] = useState(false)
+  const [useManualMode, setUseManualMode] = useState(initialManualMode)
+  
+  // Sync manual mode changes to parent
+  const handleManualModeChange = useCallback((newMode: boolean) => {
+    setUseManualMode(newMode)
+    if (onManualModeChange) {
+      onManualModeChange(newMode)
+    }
+  }, [onManualModeChange])
 
   // Sync external state changes to internal state
   useEffect(() => {
@@ -770,7 +782,7 @@ export default function WorkflowEditor({
             <div className="space-y-2">
               {/* AI Mode Toggle */}
               <button
-                onClick={() => setUseManualMode(false)}
+                onClick={() => handleManualModeChange(false)}
                 className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
                   !useManualMode 
                     ? 'bg-blue-50 border-2 border-blue-200 text-blue-900' 
@@ -793,7 +805,7 @@ export default function WorkflowEditor({
               
               {/* Manual Mode Toggle */}
               <button
-                onClick={() => setUseManualMode(true)}
+                onClick={() => handleManualModeChange(true)}
                 className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
                   useManualMode 
                     ? 'bg-green-50 border-2 border-green-200 text-green-900' 
