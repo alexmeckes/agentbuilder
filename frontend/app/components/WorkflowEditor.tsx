@@ -185,12 +185,33 @@ export default function WorkflowEditor({
   const handleNodeDelete = useCallback(
     (nodeId: string) => {
       console.log('🗑️ Deleting single node:', nodeId)
-      const nodeToDelete = nodes.find(node => node.id === nodeId)
-      if (nodeToDelete) {
-        handleNodesDelete([nodeToDelete])
+      
+      if (externalOnNodesChange && externalOnEdgesChange) {
+        // Filter out deleted node and its connected edges
+        const updatedNodes = nodes.filter(node => node.id !== nodeId)
+        const updatedEdges = edges.filter(edge => 
+          edge.source !== nodeId && edge.target !== nodeId
+        )
+        
+        externalOnNodesChange(updatedNodes)
+        externalOnEdgesChange(updatedEdges)
+        
+        if (onWorkflowChange) {
+          onWorkflowChange(updatedNodes, updatedEdges)
+        }
+      } else {
+        // Update internal state
+        setInternalNodes(currentNodes => 
+          currentNodes.filter(node => node.id !== nodeId)
+        )
+        setInternalEdges(currentEdges => 
+          currentEdges.filter(edge => 
+            edge.source !== nodeId && edge.target !== nodeId
+          )
+        )
       }
     },
-    [nodes, handleNodesDelete]
+    [nodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
   )
 
   // Handle node data updates from the node components
@@ -219,34 +240,51 @@ export default function WorkflowEditor({
   // Ensure all nodes have the onNodeUpdate and onNodeDelete callbacks
   useEffect(() => {
     const updateNodesWithCallback = (currentNodes: Node[]) => {
-      return currentNodes.map(node => ({
-        ...node,
-        data: {
-          ...node.data,
-          onNodeUpdate: handleNodeUpdate,
-          onNodeDelete: handleNodeDelete
+      return currentNodes.map(node => {
+        const hasCallbacks = node.data.onNodeUpdate && node.data.onNodeDelete
+        if (!hasCallbacks) {
+          console.log(`🔧 Adding callbacks to node: ${node.id}`)
         }
-        // Remove draggable: true to let ReactFlow handle dragging
-      }))
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            onNodeUpdate: handleNodeUpdate,
+            onNodeDelete: handleNodeDelete
+          }
+        }
+      })
     }
 
+    // Always update nodes to ensure callbacks are fresh
     if (externalOnNodesChange && externalNodes && externalNodes.length > 0) {
-      // Check if any nodes are missing the callback
-      const needsUpdate = externalNodes.some(node => !node.data.onNodeUpdate || !node.data.onNodeDelete)
-      if (needsUpdate) {
-        console.log('🔧 Adding callbacks to external nodes:', externalNodes.length)
-        const updatedNodes = updateNodesWithCallback(externalNodes)
+      console.log('🔧 Updating external nodes with callbacks:', externalNodes.length)
+      const updatedNodes = updateNodesWithCallback(externalNodes)
+      
+      // Only call externalOnNodesChange if something actually changed
+      const hasChanges = externalNodes.some((node, index) => 
+        !updatedNodes[index]?.data?.onNodeUpdate || !updatedNodes[index]?.data?.onNodeDelete
+      )
+      
+      if (hasChanges) {
         externalOnNodesChange(updatedNodes)
       }
     } else if (internalNodes.length > 0) {
-      // Check if any internal nodes are missing the callback
-      const needsUpdate = internalNodes.some(node => !node.data.onNodeUpdate || !node.data.onNodeDelete)
-      if (needsUpdate) {
-        console.log('🔧 Adding callbacks to internal nodes:', internalNodes.length)
-        setInternalNodes(updateNodesWithCallback(internalNodes))
-      }
+      console.log('🔧 Updating internal nodes with callbacks:', internalNodes.length)
+      setInternalNodes(updateNodesWithCallback(internalNodes))
     }
-  }, [handleNodeUpdate, handleNodeDelete, externalNodes, internalNodes, externalOnNodesChange, setInternalNodes])
+  }, [handleNodeUpdate, handleNodeDelete])
+
+  // Separate effect to handle when nodes array changes (new nodes added)
+  useEffect(() => {
+    if (nodes.length > 0) {
+      console.log('📊 Checking nodes for callbacks:', nodes.map(n => ({ 
+        id: n.id, 
+        hasUpdate: !!n.data.onNodeUpdate, 
+        hasDelete: !!n.data.onNodeDelete 
+      })))
+    }
+  }, [nodes])
 
   // Handle edge changes  
   const handleEdgesChange = useCallback((changes: any) => {
