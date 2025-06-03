@@ -3312,10 +3312,12 @@ async def debug_mcp_setup():
     """Debug MCP setup - check if files exist"""
     import os
     import subprocess
+    import sys
     from pathlib import Path
     
     debug_info = {
         "working_directory": os.getcwd(),
+        "python_version": sys.version,
         "github_binary_exists": os.path.exists("./github-mcp-server"),
         "github_binary_linux_exists": os.path.exists("./github-mcp-server-linux"),
         "github_binary_executable": False,
@@ -3328,8 +3330,18 @@ async def debug_mcp_setup():
             "GITHUB_PERSONAL_ACCESS_TOKEN": "***" if os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN") else "not_set"
         },
         "files_in_directory": [],
-        "binary_test_results": {}
+        "binary_test_results": {},
+        "mcp_library_info": {}
     }
+    
+    # Check MCP library versions
+    try:
+        import mcp
+        debug_info["mcp_library_info"]["mcp_version"] = getattr(mcp, '__version__', 'unknown')
+        debug_info["mcp_library_info"]["mcp_available"] = True
+    except ImportError as e:
+        debug_info["mcp_library_info"]["mcp_available"] = False
+        debug_info["mcp_library_info"]["import_error"] = str(e)
     
     # Check binary details
     binary_path = Path("./github-mcp-server")
@@ -3358,6 +3370,22 @@ async def debug_mcp_setup():
             debug_info["binary_test_results"]["linux_help_result"] = "timeout"
         except Exception as e:
             debug_info["binary_test_results"]["linux_help_error"] = str(e)
+        
+        # Test the stdio subcommand with minimal output
+        try:
+            result = subprocess.run(
+                ["./github-mcp-server-linux", "stdio", "--help"], 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            debug_info["binary_test_results"]["stdio_help_exit_code"] = result.returncode
+            debug_info["binary_test_results"]["stdio_help_stdout"] = result.stdout[:300]
+            debug_info["binary_test_results"]["stdio_help_stderr"] = result.stderr[:300]
+        except subprocess.TimeoutExpired:
+            debug_info["binary_test_results"]["stdio_help_result"] = "timeout"
+        except Exception as e:
+            debug_info["binary_test_results"]["stdio_help_error"] = str(e)
     
     # List relevant files
     try:
