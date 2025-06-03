@@ -134,8 +134,8 @@ export class WorkflowService {
     })
     
     const workflowNodes: WorkflowNode[] = nodes.map((node) => {
+      // Use node.data.type for the actual node type, not node.type (which is always 'agent' in ReactFlow)
       const nodeType: 'agent' | 'tool' | 'input' | 'output' = 
-        node.type === 'agent' ? 'agent' : 
         node.data.type === 'tool' ? 'tool' :
         node.data.type === 'input' ? 'input' :
         node.data.type === 'output' ? 'output' : 'agent'
