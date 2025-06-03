@@ -535,6 +535,15 @@ export default function Home() {
                   <p className="text-slate-600 mb-6">
                     Use the <strong>mode toggle</strong> (top-left) to switch to Manual Design, then drag nodes from the sidebar. Or try the AI Assistant for automatic workflow creation.
                   </p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
+                    <h4 className="text-sm font-semibold text-blue-900 mb-2">💡 Quick Tips:</h4>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• <strong>Delete nodes:</strong> Click the 🗑️ button on any node or select and press Delete key</li>
+                      <li>• <strong>Move nodes:</strong> Drag them around the canvas</li>
+                      <li>• <strong>Edit nodes:</strong> Click the ⚙️ settings icon or double-click labels</li>
+                      <li>• <strong>Connect nodes:</strong> Drag from one node's output to another's input</li>
+                    </ul>
+                  </div>
                   <div className="flex items-center justify-center gap-6">
                     <div className="text-center">
                       <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-2">

@@ -276,9 +276,12 @@ export default function WorkflowEditor({
     event.dataTransfer.dropEffect = 'move'
   }, [])
 
-  // Handle clicking on empty canvas to deselect nodes
+  // Handle clicking on empty canvas to deselect nodes and reset any stuck drag state
   const onPaneClick = useCallback(() => {
-    console.log('🖱️ Pane clicked - deselecting all nodes')
+    console.log('🖱️ Pane clicked - deselecting all nodes and resetting drag state')
+    
+    // Reset any potential stuck drag state
+    document.body.style.cursor = ''
     
     // Simple deselection - let ReactFlow handle its own cursor states
     const updatedNodes = nodes.map(node => ({
@@ -301,14 +304,17 @@ export default function WorkflowEditor({
     }
   }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
 
-
-
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         // Deselect all nodes on Escape key
         onPaneClick()
+        // Also reset any stuck drag state
+        if (reactFlowInstance) {
+          // Force reset ReactFlow's internal state
+          reactFlowInstance.viewportInitialized = true
+        }
       }
     }
 
@@ -316,27 +322,33 @@ export default function WorkflowEditor({
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onPaneClick])
+  }, [onPaneClick, reactFlowInstance])
 
-  // Simple cursor management
+  // Simplified drag state management - let ReactFlow handle its own state
   useEffect(() => {
-    const style = document.createElement('style')
-    style.textContent = `
-      .workflow-editor .react-flow__node .nodrag {
-        cursor: default;
+    const handleGlobalMouseUp = () => {
+      // Simple global reset without DOM manipulation
+      setTimeout(() => {
+        document.body.style.cursor = ''
+        console.log('🌍 Global mouseup - reset body cursor')
+      }, 10)
+    }
+
+    const handleGlobalMouseMove = (event: MouseEvent) => {
+      // Reset drag state if mouse moves without any buttons pressed
+      if (event.buttons === 0) {
+        document.body.style.cursor = ''
       }
-      .workflow-editor .react-flow__node .nodrag button {
-        cursor: pointer;
-      }
-    `
-    document.head.appendChild(style)
+    }
+
+    document.addEventListener('mouseup', handleGlobalMouseUp)
+    document.addEventListener('mousemove', handleGlobalMouseMove)
     
     return () => {
-      document.head.removeChild(style)
+      document.removeEventListener('mouseup', handleGlobalMouseUp)
+      document.removeEventListener('mousemove', handleGlobalMouseMove)
     }
   }, [])
-
-
 
   // HTML5 Drag & Drop: Handle dropping nodes FROM sidebar TO canvas
   const onDrop = useCallback(
@@ -898,6 +910,12 @@ export default function WorkflowEditor({
           onDragOver={onDragOver}
           onPaneClick={onPaneClick}
           onNodesDelete={handleNodesDelete}
+          onPaneMouseMove={(event) => {
+            // Reset drag state if pane is hovered with no buttons pressed
+            if (event.buttons === 0) {
+              document.body.style.cursor = ''
+            }
+          }}
           onNodeDragStart={(event, node) => {
             console.log('🟢 ReactFlow: Node drag started:', node.id)
           }}
@@ -907,22 +925,21 @@ export default function WorkflowEditor({
           onNodeDragStop={(event, node) => {
             console.log('🔴 ReactFlow: Node drag stopped:', node.id)
             
-            // Reset cursor after drag completes
+            // Simple cleanup - let ReactFlow handle its own state
             setTimeout(() => {
-              const nodeElement = document.querySelector(`[data-id="${node.id}"]`)
-              if (nodeElement) {
-                (nodeElement as HTMLElement).style.cursor = ''
-                console.log('✅ Reset cursor for node:', node.id)
-              }
-              
-              // Also reset cursor on document body as a fallback
               document.body.style.cursor = ''
-            }, 10)
+              console.log('✅ Drag complete - reset body cursor')
+            }, 50)
           }}
           nodeTypes={nodeTypes}
           nodesDraggable={true}
           nodesConnectable={true}
           elementsSelectable={true}
+          selectNodesOnDrag={false}
+          panOnDrag={false}
+          panOnScroll={true}
+          zoomOnScroll={true}
+          zoomOnDoubleClick={false}
           fitView
           deleteKeyCode="Delete"
           className="bg-gradient-to-br from-slate-50 to-blue-50 workflow-editor"
@@ -984,7 +1001,7 @@ export default function WorkflowEditor({
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-medium">Manual Design Mode</h4>
-                  <p className="text-xs opacity-80">Drag, move & delete • Click canvas or ESC to deselect</p>
+                  <p className="text-xs opacity-80">Drag to move • Click 🗑️ or select + Delete key to remove • ESC to deselect</p>
                 </div>
                 <div className="flex items-center justify-center w-4 h-4 flex-shrink-0">
                   {useManualMode && (
@@ -998,13 +1015,25 @@ export default function WorkflowEditor({
             <div className="mt-4 pt-3 border-t border-slate-200">
               <button
                 onClick={() => {
-                  console.log('🔄 Manual clear selection clicked')
+                  console.log('🔄 Manual clear selection and reset drag state clicked')
+                  // Clear selection
                   onPaneClick()
+                  
+                  // Force reset any stuck drag state
+                  document.body.style.cursor = ''
+                  document.documentElement.style.cursor = ''
+                  
+                  // Reset ReactFlow instance if available
+                  if (reactFlowInstance) {
+                    reactFlowInstance.viewportInitialized = true
+                  }
+                  
+                  console.log('✅ Manual reset complete')
                 }}
                 className="w-full px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2"
               >
                 <X className="w-4 h-4" />
-                Clear Selection
+                Clear Selection & Reset
               </button>
             </div>
           </Panel>
@@ -1094,9 +1123,18 @@ export default function WorkflowEditor({
               )}
             </button>
 
-            {/* Node count indicator */}
+            {/* Node count indicator and help */}
             <div className="mt-2 text-xs text-slate-500 text-center">
-              {nodes.length === 0 ? 'Add nodes to enable execution' : `${nodes.length} nodes ready`}
+              {nodes.length === 0 ? (
+                'Add nodes to enable execution'
+              ) : (
+                <div>
+                  <div>{nodes.length} nodes ready</div>
+                  <div className="mt-1 text-slate-400">
+                    To delete: Click 🗑️ on node or select + press Delete key
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Quick Results Preview */}

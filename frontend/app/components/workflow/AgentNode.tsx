@@ -294,7 +294,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         className={`
           relative bg-white rounded-xl shadow-lg border-2 transition-all duration-200 
           ${getNodeBorderColor(data.type)}
-          ${selected ? 'ring-2 ring-blue-400 ring-opacity-75' : ''}
+          ${selected ? 'ring-2 ring-blue-400 ring-opacity-75 border-blue-300' : ''}
           ${expanded ? 'min-w-[500px]' : 'min-w-[300px]'}
           hover:shadow-xl
         `}
@@ -304,6 +304,14 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         }}
 
       >
+        {/* Selection indicator for keyboard deletion */}
+        {selected && (
+          <div className="absolute -top-2 -right-2 z-10">
+            <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full shadow-lg animate-pulse">
+              Selected - Press Delete key
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -405,13 +413,22 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
                 onClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
-                  onNodeDelete(id)
+                  // Add confirmation for better UX
+                  if (window.confirm(`Delete "${data.label}" node?`)) {
+                    onNodeDelete(id)
+                  }
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Delete node"
+                className={`p-2 rounded-lg transition-all duration-200 group ${
+                  selected 
+                    ? 'text-red-500 bg-red-50 hover:text-red-700 hover:bg-red-100 border border-red-200' 
+                    : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                }`}
+                title="Delete node (or select and press Delete key)"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className={`w-4 h-4 transition-all duration-200 ${
+                  selected ? 'animate-pulse' : 'group-hover:scale-110'
+                }`} />
               </button>
             )}
             
@@ -609,6 +626,40 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
                 <span className="text-sm text-amber-700">{validation.message}</span>
               </div>
             )}
+
+            {/* Node Actions */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Node Actions</h4>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleEditClick}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Edit Settings
+                </button>
+                
+                {onNodeDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      if (window.confirm(`Delete "${data.label}" node?`)) {
+                        onNodeDelete(id)
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 text-sm bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Node
+                  </button>
+                )}
+              </div>
+              
+              <div className="mt-2 text-xs text-gray-500">
+                💡 Tip: Select this node and press <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-700">Delete</kbd> key for quick deletion
+              </div>
+            </div>
           </div>
         )}
 
