@@ -35,7 +35,7 @@ config = setup_environment()
 from lightweight_evaluation import evaluate_workflow_output
 
 # Import the REAL any-agent framework (but not evaluation components)
-# from any_agent import AgentConfig, AgentFramework, AnyAgent
+from any_agent import AgentFramework
 
 # Mock search_web function
 def search_web(query: str):
