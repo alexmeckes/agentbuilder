@@ -560,11 +560,17 @@ function WorkflowEditorInner({
   const nodes = baseNodes
 
   const executeWorkflow = async () => {
+    console.log('🚀🚀🚀 EXECUTE WORKFLOW BUTTON CLICKED! 🚀🚀🚀')
+    console.log('Current nodes:', nodes.length)
+    console.log('Current input data:', inputData)
+    
     if (nodes.length === 0) {
+      console.log('❌ No nodes found, showing alert')
       alert('Please add some nodes to your workflow first')
       return
     }
 
+    console.log('✅ Starting workflow execution...')
     setIsExecuting(true)
     setExecutionResult(null)
 
@@ -659,11 +665,15 @@ function WorkflowEditorInner({
       
       // If execution is still running, start progress tracking
       if (result.status === 'running') {
-        console.log(`Execution started for "${workflowDefinition.identity.name}":`, result.execution_id)
+        console.log(`🚀 Execution started for "${workflowDefinition.identity.name}":`, result.execution_id)
+        console.log('📊 Starting progress tracking with nodes:', baseNodes.map(n => ({ id: n.id, type: n.data.type, name: n.data.name })))
         
         // Start progress tracking with WebSocket
         const nodeIds = baseNodes.map(node => node.id)
+        console.log('🔌 Initiating WebSocket connection for execution:', result.execution_id)
         startExecution(result.execution_id, nodeIds)
+      } else {
+        console.log('⚠️ Execution completed immediately, no progress tracking needed')
       }
 
     } catch (error) {
