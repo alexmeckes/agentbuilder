@@ -1205,7 +1205,33 @@ async def get_execution(execution_id: str):
     if execution_id not in executor.executions:
         raise HTTPException(status_code=404, detail="Execution not found")
     
-    return executor.executions[execution_id]
+    execution = executor.executions[execution_id]
+    
+    # Return the same JSON-safe structure as WebSocket for consistency
+    return {
+        "execution_id": execution_id,
+        "status": execution.get("status"),
+        "progress": execution.get("progress", {}),
+        "result": execution.get("result"),
+        "error": execution.get("error"),
+        "created_at": execution.get("created_at"),
+        "completed_at": execution.get("completed_at"),
+        "execution_time": execution.get("execution_time"),
+        "workflow_name": execution.get("workflow_name"),
+        "workflow_category": execution.get("workflow_category"),
+        "workflow_description": execution.get("workflow_description"),
+        "framework": execution.get("framework"),
+        # Include workflow identity for frontend display
+        "workflow_identity": execution.get("workflow_identity", {}),
+        "workflow_id": execution.get("workflow_identity", {}).get("id") if execution.get("workflow_identity") else None,
+        # Include trace data for cost/performance info (JSON-safe version)
+        "trace": {
+            "final_output": execution.get("trace", {}).get("final_output") if execution.get("trace") else execution.get("result"),
+            "cost_info": execution.get("trace", {}).get("cost_info", {}),
+            "performance": execution.get("trace", {}).get("performance", {}),
+            "framework_used": execution.get("trace", {}).get("framework_used", execution.get("framework", "openai"))
+        } if execution.get("trace") else None
+    }
 
 
 @app.get("/executions/{execution_id}/trace")
@@ -1366,7 +1392,7 @@ async def websocket_execution_status(websocket: WebSocket, execution_id: str):
             if execution_id in executor.executions:
                 execution = executor.executions[execution_id]
                 
-                # Create JSON-safe version of execution data
+                # Create JSON-safe version of execution data with all necessary fields
                 safe_execution = {
                     "execution_id": execution_id,
                     "status": execution.get("status"),
@@ -1378,7 +1404,18 @@ async def websocket_execution_status(websocket: WebSocket, execution_id: str):
                     "execution_time": execution.get("execution_time"),
                     "workflow_name": execution.get("workflow_name"),
                     "workflow_category": execution.get("workflow_category"),
-                    "framework": execution.get("framework")
+                    "workflow_description": execution.get("workflow_description"),
+                    "framework": execution.get("framework"),
+                    # Include workflow identity for frontend display
+                    "workflow_identity": execution.get("workflow_identity", {}),
+                    "workflow_id": execution.get("workflow_identity", {}).get("id") if execution.get("workflow_identity") else None,
+                    # Include trace data for cost/performance info (JSON-safe version)
+                    "trace": {
+                        "final_output": execution.get("trace", {}).get("final_output") if execution.get("trace") else execution.get("result"),
+                        "cost_info": execution.get("trace", {}).get("cost_info", {}),
+                        "performance": execution.get("trace", {}).get("performance", {}),
+                        "framework_used": execution.get("trace", {}).get("framework_used", execution.get("framework", "openai"))
+                    } if execution.get("trace") else None
                 }
                 
                 # Log what we're sending
