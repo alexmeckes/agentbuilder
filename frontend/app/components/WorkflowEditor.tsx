@@ -147,84 +147,6 @@ export default function WorkflowEditor({
     }
   }, [externalOnNodesChange, externalNodes, onInternalNodesChange, onWorkflowChange, edges])
 
-  // Handle node data updates from the node components
-  const handleNodeUpdate = useCallback((nodeId: string, updatedData: any) => {
-    const updateNodes = (currentNodes: Node[]) => {
-      return currentNodes.map(node => 
-        node.id === nodeId 
-          ? { ...node, data: { ...node.data, ...updatedData } }
-          : node
-      )
-    }
-
-    if (externalOnNodesChange) {
-      // Update external state
-      const updatedNodes = updateNodes(nodes)
-      externalOnNodesChange(updatedNodes)
-      if (onWorkflowChange) {
-        onWorkflowChange(updatedNodes, edges)
-      }
-    } else {
-      // Update internal state
-      setInternalNodes(updateNodes)
-    }
-  }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
-
-  // Ensure all nodes have the onNodeUpdate and onNodeDelete callbacks
-  useEffect(() => {
-    const updateNodesWithCallback = (currentNodes: Node[]) => {
-      return currentNodes.map(node => ({
-        ...node,
-        data: {
-          ...node.data,
-          onNodeUpdate: handleNodeUpdate,
-          onNodeDelete: handleNodeDelete
-        }
-        // Remove draggable: true to let ReactFlow handle dragging
-      }))
-    }
-
-    if (externalOnNodesChange && externalNodes) {
-      // Check if any nodes are missing the callback
-      const needsUpdate = externalNodes.some(node => !node.data.onNodeUpdate)
-      if (needsUpdate) {
-        const updatedNodes = updateNodesWithCallback(externalNodes)
-        externalOnNodesChange(updatedNodes)
-      }
-    } else {
-      // Check if any internal nodes are missing the callback
-      const needsUpdate = internalNodes.some(node => !node.data.onNodeUpdate)
-      if (needsUpdate) {
-        setInternalNodes(updateNodesWithCallback(internalNodes))
-      }
-    }
-  }, [handleNodeUpdate, externalNodes, internalNodes, externalOnNodesChange, setInternalNodes])
-
-  // Handle edge changes  
-  const handleEdgesChange = useCallback((changes: any) => {
-    if (externalOnEdgesChange && externalEdges) {
-      // Apply changes to external edges and update parent
-      onInternalEdgesChange(changes)
-    } else {
-      onInternalEdgesChange(changes)
-    }
-  }, [externalOnEdgesChange, externalEdges, onInternalEdgesChange])
-
-  const onConnect = useCallback(
-    (params: Connection) => {
-      if (externalOnEdgesChange) {
-        const newEdges = addEdge(params, edges)
-        externalOnEdgesChange(newEdges)
-        if (onWorkflowChange) {
-          onWorkflowChange(nodes, newEdges)
-        }
-      } else {
-        setInternalEdges((eds) => addEdge(params, eds))
-      }
-    },
-    [edges, nodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange],
-  )
-
   // Handle node deletion
   const handleNodesDelete = useCallback(
     (nodesToDelete: Node[]) => {
@@ -269,6 +191,84 @@ export default function WorkflowEditor({
       }
     },
     [nodes, handleNodesDelete]
+  )
+
+  // Handle node data updates from the node components
+  const handleNodeUpdate = useCallback((nodeId: string, updatedData: any) => {
+    const updateNodes = (currentNodes: Node[]) => {
+      return currentNodes.map(node => 
+        node.id === nodeId 
+          ? { ...node, data: { ...node.data, ...updatedData } }
+          : node
+      )
+    }
+
+    if (externalOnNodesChange) {
+      // Update external state
+      const updatedNodes = updateNodes(nodes)
+      externalOnNodesChange(updatedNodes)
+      if (onWorkflowChange) {
+        onWorkflowChange(updatedNodes, edges)
+      }
+    } else {
+      // Update internal state
+      setInternalNodes(updateNodes)
+    }
+  }, [nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
+
+  // Ensure all nodes have the onNodeUpdate and onNodeDelete callbacks
+  useEffect(() => {
+    const updateNodesWithCallback = (currentNodes: Node[]) => {
+      return currentNodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          onNodeUpdate: handleNodeUpdate,
+          onNodeDelete: handleNodeDelete
+        }
+        // Remove draggable: true to let ReactFlow handle dragging
+      }))
+    }
+
+    if (externalOnNodesChange && externalNodes) {
+      // Check if any nodes are missing the callback
+      const needsUpdate = externalNodes.some(node => !node.data.onNodeUpdate || !node.data.onNodeDelete)
+      if (needsUpdate) {
+        const updatedNodes = updateNodesWithCallback(externalNodes)
+        externalOnNodesChange(updatedNodes)
+      }
+    } else {
+      // Check if any internal nodes are missing the callback
+      const needsUpdate = internalNodes.some(node => !node.data.onNodeUpdate || !node.data.onNodeDelete)
+      if (needsUpdate) {
+        setInternalNodes(updateNodesWithCallback(internalNodes))
+      }
+    }
+  }, [handleNodeUpdate, handleNodeDelete, externalNodes, internalNodes, externalOnNodesChange, setInternalNodes])
+
+  // Handle edge changes  
+  const handleEdgesChange = useCallback((changes: any) => {
+    if (externalOnEdgesChange && externalEdges) {
+      // Apply changes to external edges and update parent
+      onInternalEdgesChange(changes)
+    } else {
+      onInternalEdgesChange(changes)
+    }
+  }, [externalOnEdgesChange, externalEdges, onInternalEdgesChange])
+
+  const onConnect = useCallback(
+    (params: Connection) => {
+      if (externalOnEdgesChange) {
+        const newEdges = addEdge(params, edges)
+        externalOnEdgesChange(newEdges)
+        if (onWorkflowChange) {
+          onWorkflowChange(nodes, newEdges)
+        }
+      } else {
+        setInternalEdges((eds) => addEdge(params, eds))
+      }
+    },
+    [edges, nodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange],
   )
 
   const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -500,7 +500,7 @@ export default function WorkflowEditor({
         setInternalNodes((nds) => nds.concat(newNode))
       }
     },
-    [reactFlowInstance, nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange, handleNodeUpdate],
+    [reactFlowInstance, nodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange, handleNodeUpdate, handleNodeDelete],
   )
 
   const executeWorkflow = async () => {
