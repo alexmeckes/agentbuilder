@@ -285,7 +285,16 @@ export class WorkflowService {
         
         if (response.ok) {
           const data = await response.json()
-          console.log('📡 Poll response data:', data)
+          console.log('📡 Poll response data:', {
+            executionId,
+            status: data.status,
+            progress: data.progress?.percentage || 0,
+            hasResult: !!data.result,
+            hasError: !!data.error,
+            pollCount: pollCount + 1,
+            progressData: data.progress,
+            keys: Object.keys(data)
+          })
           
           // Simulate WebSocket message format
           onMessage(data)
@@ -293,6 +302,7 @@ export class WorkflowService {
           // Stop polling if execution is complete
           if (data.status === 'completed' || data.status === 'failed') {
             console.log(`🏁 Polling stopped - execution ${data.status}`)
+            console.log(`🏁 Final result: ${data.result ? data.result.substring(0, 100) + '...' : 'No result'}`)
             isPolling = false
             return
           }
@@ -311,13 +321,17 @@ export class WorkflowService {
       
       pollCount++
       
-      // Continue polling every 2 seconds
-      if (isPolling) {
+      // Continue polling every 2 seconds if still running
+      if (isPolling && pollCount < 150) { // Maximum 5 minutes of polling
         setTimeout(poll, 2000)
+      } else if (pollCount >= 150) {
+        console.warn('⏰ Polling timeout reached (5 minutes), stopping')
+        isPolling = false
+        onError?.(new Event('polling-timeout'))
       }
     }
     
-    // Start polling
+    // Start polling immediately
     poll()
     
     // Return object with close method for compatibility
