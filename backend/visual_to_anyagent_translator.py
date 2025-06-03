@@ -561,6 +561,10 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
         import os
         execution_mode = os.getenv("USE_MOCK_EXECUTION", "false").lower()
         
+        # Add explicit logging to track execution mode
+        logging.info(f"🚀 Production: Execution mode = {execution_mode} (USE_MOCK_EXECUTION={os.getenv('USE_MOCK_EXECUTION', 'not_set')})")
+        logging.info(f"🔍 Production: Will use {'MOCK/SUGGESTIONS' if execution_mode == 'true' else 'REAL EXECUTION'} mode")
+        
         if execution_mode == "true":
             # WORKFLOW SUGGESTION MODE: Provide intelligent workflow building guidance
             mock_response = _generate_workflow_suggestions(input_data)
@@ -577,6 +581,7 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
             }
         
         # REAL EXECUTION MODE: Execute using any-agent (experimental - may have asyncio issues)
+        logging.info("🚀 Production: Starting REAL EXECUTION MODE with process-based execution")
         try:
             # SOLUTION 1: Process-based execution to avoid asyncio conflicts
             import concurrent.futures
@@ -602,6 +607,7 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                     })
             
             # Run any-agent in a separate process to avoid asyncio conflicts
+            logging.info(f"🔧 Production: About to execute subprocess with main_agent={main_agent_dict['name']}")
             loop = asyncio.get_event_loop()
             with concurrent.futures.ProcessPoolExecutor() as executor:
                 future = executor.submit(
@@ -612,7 +618,9 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                     framework
                 )
                 # Wait for the process to complete with timeout
+                logging.info("⏳ Production: Waiting for subprocess to complete...")
                 process_result = await loop.run_in_executor(None, lambda: future.result(timeout=60))
+                logging.info(f"✅ Production: Subprocess completed with success={process_result.get('success')}")
             
             if process_result.get("success"):
                 return {
@@ -632,6 +640,7 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
             
         except Exception as e:
             # SOLUTION 2: If process execution fails, try thread-based approach
+            logging.warning(f"⚠️ Production: Process execution failed: {e}, trying thread approach")
             try:
                 import threading
                 import queue
@@ -705,6 +714,8 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                     
             except Exception as thread_e:
                 # Final fallback to suggestions mode if both process and thread execution fail
+                logging.error(f"❌ Production: Both process and thread execution failed! Process error: {e}, Thread error: {thread_e}")
+                logging.error("🔄 Production: Falling back to suggestions mode")
                 fallback_response = _generate_workflow_suggestions(input_data)
                 fallback_response += f"\n\n---\n**Note**: Real execution failed due to asyncio conflicts ({str(e)}, {str(thread_e)}). Falling back to Workflow Suggestion Mode. This is a known limitation when running any-agent within FastAPI's event loop."
                 
