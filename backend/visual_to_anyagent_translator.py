@@ -37,14 +37,20 @@ try:
     search_web = real_search_web
     visit_webpage = real_visit_webpage
     print("✅ Using REAL any-agent web search tools")
+    logging.info("✅ Production: REAL web search tools loaded successfully")
 except ImportError:
     # Fallback to mock functions for backwards compatibility
     def search_web(query: str):
-        return f"Mock search results for: {query}"
+        result = f"Mock search results for: {query}"
+        logging.warning(f"⚠️  MOCK SEARCH executed for query: {query}")
+        return result
 
     def visit_webpage(url: str):
-        return f"Mock webpage content for: {url}"
+        result = f"Mock webpage content for: {url}"
+        logging.warning(f"⚠️  MOCK WEBPAGE visit for URL: {url}")
+        return result
     print("⚠️  Using MOCK web search tools (any-agent not available)")
+    logging.warning("⚠️  Production: MOCK web search tools in use (real tools not available)")
 
 @dataclass
 class VisualWorkflowNode:
@@ -362,6 +368,12 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         # Import the real tools for agent configuration
         from any_agent.tools import search_web, visit_webpage
         
+        # Create a logger for subprocess
+        import logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔧 Production subprocess: Imported real tools - search_web: {search_web.__name__}, visit_webpage: {visit_webpage.__name__}")
+        
         # Recreate AgentConfig objects from dictionaries using the real any_agent classes
         main_agent_config = AgentConfig(
             name=main_agent_config_dict["name"],
@@ -397,7 +409,9 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         )
         
         # Run the agent and get the trace
+        logger.info(f"🚀 Production subprocess: Running agent '{main_agent_config.name}' with input: '{input_data[:100]}...'")
         agent_trace = agent.run(input_data)
+        logger.info(f"✅ Production subprocess: Agent execution completed, output length: {len(str(agent_trace))}")
         
         # Extract detailed trace information from the any-agent result
         trace_data = _extract_trace_from_result(agent_trace)

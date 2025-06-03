@@ -38,7 +38,7 @@ from lightweight_evaluation import evaluate_workflow_output
 from any_agent import AgentFramework
 
 # Import our NEW visual-to-anyagent translator (replacing custom workflow engine)
-from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent
+from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent, MCP_INTEGRATION_AVAILABLE
 
 # Import MCP manager (with fallback for backwards compatibility)
 try:
@@ -1446,10 +1446,10 @@ async def get_execution_performance(execution_id: str):
         "execution_id": execution_id,
         "overall_performance": performance,
         "span_breakdown": span_analysis,
-        "bottlenecks": sorted(span_analysis, key=lambda x: x.get("duration_ms", 0), reverse=True)[:3],
+        "bottlenecks": sorted(span_analysis, key=lambda x: x.get("duration_ms") or 0, reverse=True)[:3],
         "cost_breakdown": {
             "most_expensive_spans": sorted(span_analysis, 
-                key=lambda x: x.get("cost", {}).get("prompt", 0) + x.get("cost", {}).get("completion", 0), 
+                key=lambda x: (x.get("cost", {}).get("prompt") or 0) + (x.get("cost", {}).get("completion") or 0), 
                 reverse=True)[:3]
         }
     }
