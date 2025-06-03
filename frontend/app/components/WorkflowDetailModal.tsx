@@ -72,7 +72,7 @@ export function WorkflowDetailModal({
     
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:8000/analytics/workflows/${workflowId}`)
+      const response = await fetch(`/api/analytics/workflows/${workflowId}`)
       if (response.ok) {
         const data = await response.json()
         setWorkflowData(data)

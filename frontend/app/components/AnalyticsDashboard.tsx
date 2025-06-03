@@ -101,15 +101,15 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
   const fetchAnalytics = async () => {
     setLoading(true)
     try {
-      // Fetch workflow analytics
-      const workflowResponse = await fetch('http://localhost:8000/analytics/workflows')
+      // Fetch workflow analytics via API route (proxies to correct backend)
+      const workflowResponse = await fetch('/api/analytics/workflows')
       if (workflowResponse.ok) {
         const workflowData = await workflowResponse.json()
         setWorkflowAnalytics(workflowData)
       }
 
-      // Fetch insights
-      const insightsResponse = await fetch('http://localhost:8000/analytics/insights')
+      // Fetch insights via API route (proxies to correct backend)
+      const insightsResponse = await fetch('/api/analytics/insights')
       if (insightsResponse.ok) {
         const insightsData = await insightsResponse.json()
         setInsights(insightsData)
