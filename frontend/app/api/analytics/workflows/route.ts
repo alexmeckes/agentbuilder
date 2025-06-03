@@ -6,12 +6,15 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Proxying workflow analytics request to backend')
 
-    // Forward the request to the backend
-    const backendResponse = await fetch(`${BACKEND_URL}/analytics/workflows`, {
+    // Forward the request to the backend with cache-busting
+    const backendResponse = await fetch(`${BACKEND_URL}/analytics/workflows?_t=${Date.now()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-      }
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+      cache: 'no-store'
     })
 
     console.log('Backend analytics response status:', backendResponse.status)
@@ -31,8 +34,14 @@ export async function GET(request: NextRequest) {
       total_executions: result.total_executions
     })
 
-    // Return the backend response as-is
-    return NextResponse.json(result)
+    // Return the backend response with no-cache headers
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    })
 
   } catch (error) {
     console.error('Analytics API proxy error:', error)
