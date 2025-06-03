@@ -3311,19 +3311,24 @@ async def list_available_tools():
 async def debug_mcp_setup():
     """Debug MCP setup - check if files exist"""
     import os
+    import subprocess
     from pathlib import Path
     
     debug_info = {
         "working_directory": os.getcwd(),
         "github_binary_exists": os.path.exists("./github-mcp-server"),
+        "github_binary_linux_exists": os.path.exists("./github-mcp-server-linux"),
         "github_binary_executable": False,
+        "github_binary_linux_executable": False,
         "github_binary_size": None,
+        "github_binary_linux_size": None,
         "environment": {
             "RENDER": os.getenv("RENDER", "not_set"),
             "ENABLE_MCP_SERVERS": os.getenv("ENABLE_MCP_SERVERS", "not_set"),
             "GITHUB_PERSONAL_ACCESS_TOKEN": "***" if os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN") else "not_set"
         },
-        "files_in_directory": []
+        "files_in_directory": [],
+        "binary_test_results": {}
     }
     
     # Check binary details
@@ -3331,6 +3336,28 @@ async def debug_mcp_setup():
     if binary_path.exists():
         debug_info["github_binary_executable"] = os.access(binary_path, os.X_OK)
         debug_info["github_binary_size"] = binary_path.stat().st_size
+    
+    # Check Linux binary details  
+    linux_binary_path = Path("./github-mcp-server-linux")
+    if linux_binary_path.exists():
+        debug_info["github_binary_linux_executable"] = os.access(linux_binary_path, os.X_OK)
+        debug_info["github_binary_linux_size"] = linux_binary_path.stat().st_size
+        
+        # Test running the Linux binary with --help to see if it works
+        try:
+            result = subprocess.run(
+                ["./github-mcp-server-linux", "--help"], 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            debug_info["binary_test_results"]["linux_help_exit_code"] = result.returncode
+            debug_info["binary_test_results"]["linux_help_stdout"] = result.stdout[:500]  # First 500 chars
+            debug_info["binary_test_results"]["linux_help_stderr"] = result.stderr[:500]  # First 500 chars
+        except subprocess.TimeoutExpired:
+            debug_info["binary_test_results"]["linux_help_result"] = "timeout"
+        except Exception as e:
+            debug_info["binary_test_results"]["linux_help_error"] = str(e)
     
     # List relevant files
     try:
