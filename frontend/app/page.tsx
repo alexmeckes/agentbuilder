@@ -509,55 +509,58 @@ export default function Home() {
             <EvaluationsPage />
           </div>
         ) : (
-          <div className="h-full">
-            {/* Empty State for Visual Designer */}
-            {nodes.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-lg">
+          <div className="h-full relative">
+            {/* Always render WorkflowEditor so users have access to sidebar and mode toggle */}
+            <WorkflowEditor 
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={setNodes}
+              onEdgesChange={setEdges}
+              onWorkflowChange={handleWorkflowChange}
+              executionInput={workflowExecutionInput}
+              onExecutionInputChange={setWorkflowExecutionInput}
+            />
+            
+            {/* Welcome overlay when no nodes exist */}
+            {nodes.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm pointer-events-none">
+                <div className="text-center max-w-lg pointer-events-auto">
                   <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Workflow className="w-10 h-10 text-blue-600" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">Ready to build your workflow</h3>
                   <p className="text-slate-600 mb-6">
-                    Choose your preferred way to create workflows: drag nodes manually from the sidebar, or let the AI Assistant build one for you.
+                    Use the <strong>mode toggle</strong> (top-left) to switch to Manual Design, then drag nodes from the sidebar. Or try the AI Assistant for automatic workflow creation.
                   </p>
-                  <div className="flex items-center justify-center gap-4">
+                  <div className="flex items-center justify-center gap-6">
                     <div className="text-center">
                       <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-2">
                         <Settings className="w-6 h-6 text-green-600" />
                       </div>
                       <h4 className="text-sm font-medium text-slate-900 mb-1">Manual Design</h4>
-                      <p className="text-xs text-slate-600">Drag & drop nodes for precise control</p>
+                      <p className="text-xs text-slate-600">Toggle mode & drag nodes</p>
                     </div>
                     <div className="text-center">
                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
                         <MessageSquare className="w-6 h-6 text-blue-600" />
                       </div>
                       <h4 className="text-sm font-medium text-slate-900 mb-1">AI Assistant</h4>
-                      <p className="text-xs text-slate-600">Describe your workflow in natural language</p>
+                      <p className="text-xs text-slate-600">Describe your workflow</p>
                     </div>
                   </div>
                   <div className="mt-6">
                     <button
                       onClick={() => setActiveTab('chat')}
-                      className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors mr-3"
+                      className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                     >
                       Try AI Assistant
                     </button>
-                    <span className="text-slate-400">or use the mode toggle and sidebar to build manually</span>
+                  </div>
+                  <div className="mt-4 text-xs text-slate-500 bg-slate-100 px-4 py-2 rounded-lg">
+                    💡 <strong>Tip:</strong> Use the "Workflow Mode" panel above to switch to Manual Design
                   </div>
                 </div>
               </div>
-            ) : (
-              <WorkflowEditor 
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={setNodes}
-                onEdgesChange={setEdges}
-                onWorkflowChange={handleWorkflowChange}
-                executionInput={workflowExecutionInput}
-                onExecutionInputChange={setWorkflowExecutionInput}
-              />
             )}
           </div>
         )}
