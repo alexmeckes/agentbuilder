@@ -59,28 +59,42 @@ def extract_token_use_and_cost(
     """Use litellm and openinference keys to extract token use and cost."""
     span_info: dict[str, AttributeValue] = {}
 
+    # Check for both naming conventions: OpenInference and GenAI
     for key in ["llm.token_count.prompt", "llm.token_count.completion"]:
         if key in attributes:
             name = key.split(".")[-1]
             span_info[f"token_count_{name}"] = attributes[key]
 
+    # Also check for GenAI semantic convention names
+    if "gen_ai.usage.input_tokens" in attributes:
+        span_info["token_count_prompt"] = attributes["gen_ai.usage.input_tokens"]
+    if "gen_ai.usage.output_tokens" in attributes:
+        span_info["token_count_completion"] = attributes["gen_ai.usage.output_tokens"]
+
     if not span_info:
         return None
 
     new_info: dict[str, float] = {}
-    try:
-        cost_prompt, cost_completion = cost_per_token(
-            model=str(attributes.get("llm.model_name", "")),
-            prompt_tokens=int(attributes.get("llm.token_count.prompt", 0)),  # type: ignore[arg-type]
-            completion_tokens=int(span_info.get("llm.token_count.completion", 0)),  # type: ignore[arg-type]
-        )
-        new_info["cost_prompt"] = cost_prompt
-        new_info["cost_completion"] = cost_completion
-    except Exception as e:
-        msg = f"Error computing cost_per_token: {e}"
-        logger.warning(msg)
-        new_info["cost_prompt"] = 0.0
-        new_info["cost_completion"] = 0.0
+    
+    # First check if costs are already calculated in GenAI format
+    if "gen_ai.usage.input_cost" in attributes and "gen_ai.usage.output_cost" in attributes:
+        new_info["cost_prompt"] = float(attributes["gen_ai.usage.input_cost"])
+        new_info["cost_completion"] = float(attributes["gen_ai.usage.output_cost"])
+    else:
+        # Fall back to calculating costs using LiteLLM
+        try:
+            cost_prompt, cost_completion = cost_per_token(
+                model=str(attributes.get("llm.model_name", "") or attributes.get("gen_ai.request.model", "")),
+                prompt_tokens=int(span_info.get("token_count_prompt", 0)),  # type: ignore[arg-type]
+                completion_tokens=int(span_info.get("token_count_completion", 0)),  # type: ignore[arg-type]
+            )
+            new_info["cost_prompt"] = cost_prompt
+            new_info["cost_completion"] = cost_completion
+        except Exception as e:
+            msg = f"Error computing cost_per_token: {e}"
+            logger.warning(msg)
+            new_info["cost_prompt"] = 0.0
+            new_info["cost_completion"] = 0.0
 
     return CostInfo.model_validate(new_info)
 
@@ -153,19 +167,26 @@ class AgentTrace(BaseModel):
         counts: list[CountInfo] = []
         costs: list[CostInfo] = []
         for span in self.spans:
-            if span.attributes and "cost_prompt" in span.attributes:
-                count = CountInfo(
-                    token_count_prompt=span.attributes["llm.token_count.prompt"],
-                    token_count_completion=span.attributes[
-                        "llm.token_count.completion"
-                    ],
-                )
-                cost = CostInfo(
-                    cost_prompt=span.attributes["cost_prompt"],
-                    cost_completion=span.attributes["cost_completion"],
-                )
-                counts.append(count)
-                costs.append(cost)
+            if span.attributes:
+                # Extract cost info using the enhanced function
+                cost_info = extract_token_use_and_cost(span.attributes)
+                if cost_info:
+                    # Get token counts from either naming convention
+                    prompt_tokens = (span.attributes.get("llm.token_count.prompt") or 
+                                   span.attributes.get("gen_ai.usage.input_tokens") or 0)
+                    completion_tokens = (span.attributes.get("llm.token_count.completion") or 
+                                       span.attributes.get("gen_ai.usage.output_tokens") or 0)
+                    
+                    count = CountInfo(
+                        token_count_prompt=int(prompt_tokens),
+                        token_count_completion=int(completion_tokens),
+                    )
+                    cost = CostInfo(
+                        cost_prompt=cost_info.cost_prompt,
+                        cost_completion=cost_info.cost_completion,
+                    )
+                    counts.append(count)
+                    costs.append(cost)
 
         total_cost = sum(cost.cost_prompt + cost.cost_completion for cost in costs)
         total_tokens = sum(
