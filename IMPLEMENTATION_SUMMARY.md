@@ -17,6 +17,7 @@
 ### **Phase 2: Core Features**
 - ✅ **Visual workflow builder** - ReactFlow-based drag-and-drop interface
 - ✅ **AI assistant chat** - Natural language workflow creation
+- ✅ **Manual node creation system** - Direct drag-and-drop workflow building
 - ✅ **Real-time execution** - Live workflow execution with any-agent
 - ✅ **Intelligent naming** - AI-powered workflow categorization
 
@@ -32,6 +33,19 @@
 - ✅ **Error handling** - Graceful degradation and user feedback
 - ✅ **Performance optimization** - Real data integration and caching
 
+### **Phase 5: Manual Node Creation System**
+- ✅ **Dual-mode interface** - AI Assistant mode + Manual Design mode toggle
+- ✅ **Node palette system** - Categorized templates with search and drag-and-drop
+- ✅ **Smart positioning** - Collision detection and automatic layout
+- ✅ **Pre-configured templates** - Ready-to-use agent and tool configurations
+- ✅ **UX improvements** - Balanced interface without AI bias
+
+### **Phase 6: Cost Calculation & Analytics Fixes**
+- ✅ **Cost calculation system** - Fixed GenAI semantic convention support
+- ✅ **Analytics data flow** - Production backend integration with cache-busting
+- ✅ **Trace processing** - Enhanced cost extraction from execution spans
+- ✅ **Production deployment** - Vercel frontend + Render backend architecture
+
 ---
 
 ## 🏗️ **Current Architecture**
@@ -42,13 +56,15 @@ frontend/
 ├── app/
 │   ├── page.tsx                 # Main UI (6 tabs, 353 lines)
 │   ├── components/
-│   │   ├── WorkflowEditor.tsx   # Visual designer (ReactFlow)
+│   │   ├── WorkflowEditor.tsx   # Visual designer (ReactFlow) with mode toggle
+│   │   ├── NodePalette.tsx      # Manual node creation interface
 │   │   ├── ChatInterface.tsx    # AI assistant
 │   │   ├── EvaluationsPage.tsx  # Evaluation system
 │   │   ├── AnalyticsDashboard.tsx # Real-time analytics
 │   │   ├── ExperimentsPage.tsx  # A/B testing
 │   │   └── TraceViewer.tsx      # Execution traces
-│   ├── types/                   # TypeScript definitions
+│   ├── types/
+│   │   └── NodeTypes.ts         # Pre-configured node templates
 │   └── api/                     # Next.js API routes
 ```
 
@@ -75,8 +91,10 @@ scripts/
 ## ✅ **Implemented Features**
 
 ### **1. Visual Workflow Builder**
-- **Drag-and-drop interface** using ReactFlow
-- **Node types**: Agent, Tool, Input, Output
+- **Dual-mode interface**: AI Assistant mode + Manual Design mode
+- **Drag-and-drop interface** using ReactFlow with node palette
+- **Pre-configured node templates**: Agent types (GPT-4o, Claude, Research, Content Writer), Tool types (Web Search, File Reader, GitHub Operations), I/O nodes
+- **Smart node positioning** with collision detection
 - **Real-time execution** with live progress updates
 - **Model selection**: GPT-4, Claude, Gemini, Llama, etc.
 - **Tool integration**: Web search, file operations, API calls
@@ -121,6 +139,21 @@ scripts/
 - **Performance insights** and optimization suggestions
 - **Cost analysis** and budget recommendations
 
+### **8. Manual Node Creation System**
+- **Node palette interface** - Categorized sections with search and filtering
+- **Pre-configured templates** - Ready-to-use agent and tool configurations
+- **Mode toggle** - Switch between AI Assistant and Manual Design modes
+- **Smart node positioning** - Collision detection and automatic layout
+- **Template-aware parsing** - Drag-and-drop with intelligent defaults
+- **Balanced UX** - Non-AI-biased interface for direct workflow creation
+
+### **9. Advanced Cost Calculation System**
+- **GenAI semantic convention support** - Standard-compliant cost attribution
+- **Span-level cost extraction** - Individual operation cost tracking
+- **Dual naming convention support** - GenAI and OpenInference compatibility
+- **Real-time cost aggregation** - Analytics dashboard with accurate costs
+- **Production backend integration** - Cache-busting for fresh data
+
 ---
 
 ## 🔧 **Technical Implementation**
@@ -130,7 +163,7 @@ scripts/
 - ✅ **any-agent framework** - Multi-agent orchestration
 - ✅ **Process isolation** - Asyncio conflict resolution
 - ✅ **Real execution data** - Analytics from actual usage
-- ✅ **Cost tracking** - Real token usage and pricing
+- ✅ **Cost tracking** - GenAI semantic convention with span-level cost extraction
 
 ### **API Endpoints (All Functional)**
 ```
@@ -143,6 +176,33 @@ GET  /traces                     # Execution traces
 GET  /evaluations/cases          # Evaluation management
 POST /evaluations/run            # Run evaluations
 GET  /experiments                # A/B testing
+GET  /api/analytics/*            # Analytics proxy routes (production)
+GET  /api/executions/*           # Execution proxy routes (production)
+```
+
+### **Cost Calculation Architecture**
+```python
+# GenAI Semantic Convention Support
+def _extract_cost_info_from_trace(self, agent_trace):
+    """Extract costs from GenAI semantic convention attributes"""
+    for span in agent_trace.get("spans", []):
+        attributes = span.get("attributes", {})
+        
+        # Extract from GenAI standard
+        input_cost = attributes.get("gen_ai.usage.input_cost", 0.0)
+        output_cost = attributes.get("gen_ai.usage.output_cost", 0.0)
+        
+        # Aggregate across all spans
+        total_cost += float(input_cost) + float(output_cost)
+```
+
+### **Production Architecture**
+```
+Vercel Frontend ──────► Render Backend
+     │                       │
+     ├─ /api/analytics/*  ──► /analytics/*
+     ├─ /api/executions/* ──► /executions/*
+     └─ Cache-busting headers for fresh data
 ```
 
 ### **Development Workflow**

@@ -29,9 +29,12 @@ cd any-agent-main
 - Smart suggestions for workflow improvements
 
 ### 🎨 Visual Designer Tab  
-- Drag-and-drop workflow builder
-- Real-time execution and testing
-- Multiple agent frameworks and models
+- **Manual Design Mode**: Direct drag-and-drop workflow building with node palette
+- **AI Assistant Mode**: Natural language workflow generation and modification
+- **Pre-configured templates**: Ready-to-use agent and tool nodes
+- **Smart node positioning**: Collision detection and automatic layout
+- **Real-time execution**: Live workflow testing and monitoring
+- **Multiple frameworks**: Support for all major AI agent frameworks
 
 ### 🧪 A/B Testing Tab
 - **Experiment Configuration**: Set up A/B tests for different models and parameters
@@ -46,9 +49,10 @@ cd any-agent-main
 - Performance monitoring
 
 ### 📈 Analytics Tab
-- Workflow performance metrics
-- Cost analysis and optimization
-- Usage statistics and insights
+- **Real-time Cost Tracking**: GenAI semantic convention support
+- **Workflow performance metrics**: Success rates, execution times, token usage
+- **Cost analysis and optimization**: Detailed cost breakdowns per execution
+- **Usage statistics and insights**: Intelligent workflow categorization
 
 ### ⚙️ Settings
 - Model preferences and API key configuration
@@ -97,6 +101,12 @@ any-agent-main/
 - **Node.js** 18+ and npm
 - **Python** 3.11+
 - **API Keys** for your chosen AI providers (OpenAI, Anthropic, etc.)
+
+### Recent Updates (January 2025)
+- ✅ **Cost Calculation Fix**: Implemented GenAI semantic convention support
+- ✅ **Production Analytics**: Fixed cost tracking in Vercel/Render deployment
+- ✅ **Dual Convention Support**: Compatible with both GenAI and OpenInference formats
+- ✅ **Real-time Cost Aggregation**: Accurate span-level cost extraction
 
 ### Environment Setup
 
@@ -279,9 +289,12 @@ This project is designed to be AI-friendly and easily modifiable:
 - **[🤖 AI Agent Onboarding Guide](./AI_AGENT_ONBOARDING.md)** - **START HERE** for AI agents
 - **[📋 Product Requirements Document](./prd-doc.md)** - Complete feature documentation
 - **[🏗️ Directory Structure Guide](./DIRECTORY_STRUCTURE.md)** - Architecture overview
+- **[🎨 Manual Node Creation Guide](./MANUAL_NODE_CREATION_GUIDE.md)** - **NEW** Dual-mode interface system
+- **[💰 Cost Calculation Guide](./COST_CALCULATION_GUIDE.md)** - **NEW** Cost tracking system
 
 ### For Developers
 - **[🚀 Development Scripts](./scripts/README.md)** - Setup and development workflow
+- **[🏗️ Implementation Summary](./IMPLEMENTATION_SUMMARY.md)** - **UPDATED** Complete system overview
 - **[Any-Agent Framework](https://mozilla-ai.github.io/any-agent/)** - Core framework docs
 - **[API Documentation](http://localhost:8000/docs)** - Interactive API docs (when running)
 
