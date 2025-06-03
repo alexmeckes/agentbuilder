@@ -563,7 +563,7 @@ class WorkflowExecutor:
             return {"cost_extraction_error": str(e)}
     
     def _extract_performance_metrics(self, agent_trace, execution_time: float) -> Dict[str, Any]:
-        """Extract performance metrics from trace data"""
+        """Extract performance metrics from trace data, including cost information"""
         if not agent_trace:
             return {"total_duration_ms": execution_time * 1000}
         
@@ -573,6 +573,16 @@ class WorkflowExecutor:
                 performance = agent_trace.get("performance", {})
                 # Ensure we have execution time
                 performance["total_duration_ms"] = performance.get("total_duration_ms", execution_time * 1000)
+                
+                # Also include cost information in performance for analytics compatibility
+                # Extract cost info using the same method as cost_info
+                cost_info = self._extract_cost_info_from_trace(agent_trace)
+                if cost_info:
+                    performance["total_cost"] = cost_info.get("total_cost", 0)
+                    performance["total_tokens"] = cost_info.get("total_tokens", 0)
+                    performance["input_tokens"] = cost_info.get("input_tokens", 0)
+                    performance["output_tokens"] = cost_info.get("output_tokens", 0)
+                
                 return performance
             
             # Legacy fallback
