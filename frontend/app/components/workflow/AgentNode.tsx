@@ -204,6 +204,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
 
   const handleLabelDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
+    e.preventDefault()
     setEditingLabel(true)
     setTempLabel(data.label)
   }
@@ -267,6 +268,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation()
+    e.preventDefault()
     console.log('AgentNode: Edit button clicked, opening modal')
     setShowModal(true)
   }
@@ -390,6 +392,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
           <div className="flex items-center gap-2 flex-shrink-0 nodrag">
             <button
               onClick={handleEditClick}
+              onMouseDown={(e) => e.stopPropagation()}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               title="Edit node"
             >
@@ -400,8 +403,10 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
               <button
                 onClick={(e) => {
                   e.stopPropagation()
+                  e.preventDefault()
                   onNodeDelete(id)
                 }}
+                onMouseDown={(e) => e.stopPropagation()}
                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 title="Delete node"
               >
@@ -411,6 +416,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
             
             <button
               onClick={handleExpansionToggle}
+              onMouseDown={(e) => e.stopPropagation()}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               title={expanded ? "Collapse" : "Expand"}
             >

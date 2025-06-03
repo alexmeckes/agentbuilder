@@ -326,6 +326,31 @@ export default function WorkflowEditor({
     }
   }, [])
 
+  // Safety net: detect and clear stuck drag states
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      // Small delay to ensure this runs after ReactFlow's handlers
+      setTimeout(() => {
+        const draggingNodes = document.querySelectorAll('.react-flow__node.dragging')
+        if (draggingNodes.length > 0) {
+          console.log('🚨 Detected stuck dragging nodes, cleaning up:', draggingNodes.length)
+          draggingNodes.forEach(node => {
+            node.classList.remove('dragging')
+            ;(node as HTMLElement).style.cursor = ''
+          })
+        }
+      }, 100)
+    }
+
+    document.addEventListener('mouseup', handleGlobalMouseUp)
+    document.addEventListener('mouseleave', handleGlobalMouseUp)
+    
+    return () => {
+      document.removeEventListener('mouseup', handleGlobalMouseUp)
+      document.removeEventListener('mouseleave', handleGlobalMouseUp)
+    }
+  }, [])
+
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault()
@@ -884,6 +909,43 @@ export default function WorkflowEditor({
           onDragOver={onDragOver}
           onPaneClick={onPaneClick}
           onNodesDelete={handleNodesDelete}
+          onNodeDragStart={(event, node) => {
+            console.log('🟢 Node drag started:', node.id)
+          }}
+          onNodeDrag={(event, node) => {
+            console.log('🔄 Node dragging:', node.id)
+          }}
+          onNodeDragStop={(event, node) => {
+            console.log('🔴 Node drag stopped:', node.id)
+            
+            // Force clean up any stuck drag state
+            setTimeout(() => {
+              // Reset cursor on the node
+              const nodeElement = document.querySelector(`[data-id="${node.id}"]`)
+              if (nodeElement) {
+                (nodeElement as HTMLElement).style.cursor = ''
+                console.log('✅ Reset cursor for node:', node.id)
+              }
+              
+              // Ensure node is not marked as dragging
+              if (externalOnNodesChange) {
+                const updatedNodes = nodes.map(n => 
+                  n.id === node.id 
+                    ? { ...n, dragging: false, selected: false }
+                    : n
+                )
+                externalOnNodesChange(updatedNodes)
+              } else {
+                setInternalNodes(currentNodes => 
+                  currentNodes.map(n => 
+                    n.id === node.id 
+                      ? { ...n, dragging: false, selected: false }
+                      : n
+                  )
+                )
+              }
+            }, 10)
+          }}
           nodeTypes={nodeTypes}
           nodesDraggable={true}
           nodesConnectable={true}
