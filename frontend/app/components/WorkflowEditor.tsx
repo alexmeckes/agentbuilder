@@ -906,6 +906,18 @@ export default function WorkflowEditor({
           }}
           onNodeDragStop={(event, node) => {
             console.log('🔴 ReactFlow: Node drag stopped:', node.id)
+            
+            // Reset cursor after drag completes
+            setTimeout(() => {
+              const nodeElement = document.querySelector(`[data-id="${node.id}"]`)
+              if (nodeElement) {
+                (nodeElement as HTMLElement).style.cursor = ''
+                console.log('✅ Reset cursor for node:', node.id)
+              }
+              
+              // Also reset cursor on document body as a fallback
+              document.body.style.cursor = ''
+            }, 10)
           }}
           nodeTypes={nodeTypes}
           nodesDraggable={true}
