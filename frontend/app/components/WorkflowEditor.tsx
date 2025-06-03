@@ -13,8 +13,9 @@ import type { Node, Edge, Connection, ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
 import AgentNode from './workflow/AgentNode'
 import Sidebar from './workflow/Sidebar'
+import NodePalette from './workflow/NodePalette'
 import { WorkflowService, type ExecutionResponse } from '../services/workflow'
-import { Play, Square, Loader2, Maximize2, Copy, CheckCircle } from 'lucide-react'
+import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain } from 'lucide-react'
 import { WorkflowManager } from '../services/workflowManager'
 
 const nodeTypes = {
@@ -103,6 +104,9 @@ export default function WorkflowEditor({
       setCurrentWorkflowIdentity(externalWorkflowIdentity)
     }
   }, [externalWorkflowIdentity])
+
+  // Manual node creation mode state
+  const [useManualMode, setUseManualMode] = useState(false)
 
   // Sync external state changes to internal state
   useEffect(() => {
@@ -217,6 +221,7 @@ export default function WorkflowEditor({
 
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect()
       const type = event.dataTransfer.getData('application/reactflow')
+      const templateData = event.dataTransfer.getData('application/template')
 
       if (typeof type === 'undefined' || !type || !reactFlowBounds || !reactFlowInstance) {
         return
@@ -262,8 +267,29 @@ export default function WorkflowEditor({
         attempts++
       }
 
-      // Enhanced node data based on type
-      const getNodeDefaults = (nodeType: string) => {
+      // Check if we have template data from the new NodePalette
+      let nodeData: any
+      if (templateData) {
+        try {
+          const template = JSON.parse(templateData)
+          // Use template data with unique name suffix
+          nodeData = {
+            ...template.defaultData,
+            label: template.name,
+            name: `${template.defaultData.name}_${nodes.length + 1}`,
+            onNodeUpdate: handleNodeUpdate
+          }
+        } catch (error) {
+          console.warn('Failed to parse template data, falling back to defaults:', error)
+          nodeData = getNodeDefaults(type)
+        }
+      } else {
+        // Fallback to old behavior for legacy sidebar
+        nodeData = getNodeDefaults(type)
+      }
+
+      // Enhanced node data based on type (fallback function)
+      function getNodeDefaults(nodeType: string) {
         switch (nodeType) {
           case 'agent':
             return {
@@ -312,10 +338,10 @@ export default function WorkflowEditor({
       }
 
       const newNode: Node = {
-        id: `${type}-${Date.now()}`, // Use timestamp for unique IDs
+        id: `${nodeData.name}-${Date.now()}`, // Use node name + timestamp for unique IDs
         type: 'agent', // All nodes use the same component now
         position: adjustedPosition,
-        data: getNodeDefaults(type),
+        data: nodeData,
       }
 
       if (externalOnNodesChange) {
@@ -718,8 +744,15 @@ export default function WorkflowEditor({
   }
 
   return (
-    <div className="h-full w-full bg-slate-50">
-      <div className="h-full" ref={reactFlowWrapper}>
+    <div className="h-full w-full bg-slate-50 flex">
+      {/* Left Sidebar - Manual Mode Node Palette or Legacy Sidebar */}
+      {useManualMode ? (
+        <NodePalette />
+      ) : (
+        <Sidebar />
+      )}
+      
+      <div className="flex-1 h-full" ref={reactFlowWrapper}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -736,8 +769,70 @@ export default function WorkflowEditor({
           <Background color="#e2e8f0" />
           <Controls className="bg-white border border-slate-200 shadow-sm" />
           
-          {/* Enhanced Template Section - Top Left */}
-          <Panel position="top-left" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-40">
+          {/* Mode Toggle - Top Left */}
+          <Panel position="top-left" className="bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200 w-72 z-50">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Settings className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Workflow Mode</h3>
+                <p className="text-xs text-slate-600">Choose how to build your workflow</p>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              {/* AI Mode Toggle */}
+              <button
+                onClick={() => setUseManualMode(false)}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
+                  !useManualMode 
+                    ? 'bg-blue-50 border-2 border-blue-200 text-blue-900' 
+                    : 'bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                  !useManualMode ? 'bg-blue-100' : 'bg-slate-100'
+                }`}>
+                  <Brain className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium">AI Assistant Mode</h4>
+                  <p className="text-xs opacity-80">Let AI create workflows from descriptions</p>
+                </div>
+                {!useManualMode && (
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                )}
+              </button>
+              
+              {/* Manual Mode Toggle */}
+              <button
+                onClick={() => setUseManualMode(true)}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
+                  useManualMode 
+                    ? 'bg-green-50 border-2 border-green-200 text-green-900' 
+                    : 'bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                  useManualMode ? 'bg-green-100' : 'bg-slate-100'
+                }`}>
+                  <Settings className="w-4 h-4" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium">Manual Design Mode</h4>
+                  <p className="text-xs opacity-80">Drag & drop nodes to build workflows</p>
+                </div>
+                {useManualMode && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                )}
+              </button>
+            </div>
+          </Panel>
+          
+          {/* Enhanced Template Section - Top Left (Second Panel) */}
+          {!useManualMode && (
+            <Panel position="top-left" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-40 mt-32">
             <h3 className="text-sm font-medium text-gray-900 mb-3">Multi-Step Workflow Templates</h3>
             <div className="flex gap-2 flex-wrap mb-3">
               <button
@@ -765,10 +860,11 @@ export default function WorkflowEditor({
                 🗑️ Clear All
               </button>
             </div>
-            <p className="text-xs text-gray-600">
-              Select a template to see multi-step workflow execution in action
-            </p>
-          </Panel>
+              <p className="text-xs text-gray-600">
+                Select a template to see multi-step workflow execution in action
+              </p>
+            </Panel>
+          )}
           
           {/* Floating Execution Panel - Top Right */}
           <Panel position="top-right" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-50">
