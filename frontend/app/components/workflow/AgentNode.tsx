@@ -27,6 +27,7 @@ import {
 import { NodeEditorModal } from './NodeEditorModal'
 import { EnhancedNodeData, AgentFramework, POPULAR_MODELS, FRAMEWORK_INFO, NodeExecutionStatus, NodeExecutionState } from '../../types/workflow'
 import EnhancedToolSelector from './EnhancedToolSelector'
+import { useExecutionContext } from '../../contexts/ExecutionContext'
 
 interface AgentNodeProps {
   data: EnhancedNodeData
@@ -34,7 +35,6 @@ interface AgentNodeProps {
   id: string
   onNodeUpdate?: (nodeId: string, updatedData: EnhancedNodeData) => void
   onNodeDelete?: (nodeId: string) => void
-  executionState?: NodeExecutionState
 }
 
 const getNodeIcon = (type: string) => {
@@ -191,7 +191,10 @@ const getExecutionStatusText = (status?: NodeExecutionStatus) => {
   }
 }
 
-function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete, executionState }: AgentNodeProps) {
+function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: AgentNodeProps) {
+  // Get execution state from context
+  const { getNodeExecutionState } = useExecutionContext()
+  const executionState = getNodeExecutionState(id)
   const [expanded, setExpanded] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
   const [editingLabel, setEditingLabel] = useState(false)
@@ -731,17 +734,15 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete, ex
 export default function AgentNode(props: NodeProps<EnhancedNodeData & {
   onNodeUpdate?: (nodeId: string, updatedData: EnhancedNodeData) => void
   onNodeDelete?: (nodeId: string) => void
-  executionState?: NodeExecutionState
 }>) {
   // Extract callbacks from data and pass them as separate props
   const { data, ...otherProps } = props
-  const { onNodeUpdate, onNodeDelete, executionState, ...nodeData } = data
+  const { onNodeUpdate, onNodeDelete, ...nodeData } = data
   
   return <AgentNodeComponent 
     {...otherProps} 
     data={nodeData as EnhancedNodeData}
     onNodeUpdate={onNodeUpdate}
     onNodeDelete={onNodeDelete}
-    executionState={executionState}
   />
 } 

@@ -18,7 +18,7 @@ import NodePalette from './workflow/NodePalette'
 import { WorkflowService, type ExecutionResponse } from '../services/workflow'
 import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain, X } from 'lucide-react'
 import { WorkflowManager } from '../services/workflowManager'
-// import { useWorkflowExecution } from '../hooks/useWorkflowExecution' // Temporarily disabled
+import { ExecutionProvider, useExecutionContext } from '../contexts/ExecutionContext'
 
 const nodeTypes = {
   agent: AgentNode,
@@ -44,7 +44,7 @@ interface WorkflowEditorProps {
   onManualModeChange?: (manualMode: boolean) => void
 }
 
-export default function WorkflowEditor({ 
+function WorkflowEditorInner({ 
   nodes: externalNodes, 
   edges: externalEdges, 
   onNodesChange: externalOnNodesChange,
@@ -55,7 +55,14 @@ export default function WorkflowEditor({
   workflowIdentity: externalWorkflowIdentity,
   initialManualMode = false,
   onManualModeChange
-}: WorkflowEditorProps = {}) {
+}: WorkflowEditorProps) {
+  // Get execution context
+  const { 
+    executionState, 
+    isExecuting: contextIsExecuting, 
+    startExecution, 
+    stopExecution: contextStopExecution 
+  } = useExecutionContext()
   // DRAG SYSTEM ARCHITECTURE:
   // 1. HTML5 Drag & Drop: Sidebar → Canvas (onDrop, onDragOver)
   // 2. ReactFlow Drag: Move nodes within canvas (onNodeDrag*, nodesDraggable)
@@ -78,10 +85,10 @@ export default function WorkflowEditor({
   const [copySuccess, setCopySuccess] = useState(false)
   const [currentWorkflowIdentity, setCurrentWorkflowIdentity] = useState<any>(null)
 
-  // Sync execution state between hook and component - disabled for now
-  // useEffect(() => {
-  //   setIsExecuting(hookIsExecuting)
-  // }, [hookIsExecuting])
+  // Sync execution state from context
+  useEffect(() => {
+    setIsExecuting(contextIsExecuting)
+  }, [contextIsExecuting])
 
   // Use external input data if provided, otherwise use internal
   const inputData = externalExecutionInput !== undefined ? externalExecutionInput : internalInputData
@@ -650,9 +657,13 @@ export default function WorkflowEditor({
         console.error('Failed to save execution to localStorage:', error)
       }
       
-      // If execution is still running, we could set up WebSocket here
+      // If execution is still running, start progress tracking
       if (result.status === 'running') {
         console.log(`Execution started for "${workflowDefinition.identity.name}":`, result.execution_id)
+        
+        // Start progress tracking with WebSocket
+        const nodeIds = baseNodes.map(node => node.id)
+        startExecution(result.execution_id, nodeIds)
       }
 
     } catch (error) {
@@ -668,7 +679,8 @@ export default function WorkflowEditor({
   }
 
   const stopExecution = () => {
-    // TODO: Implement execution stopping
+    // Stop execution using the context
+    contextStopExecution()
     setIsExecuting(false)
   }
 
@@ -1091,6 +1103,25 @@ export default function WorkflowEditor({
           
           {/* Floating Execution Panel - Top Right */}
           <Panel position="top-right" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-50">
+            {/* Execution Progress Display */}
+            {executionState && (
+              <div className="mb-3 p-3 bg-blue-50/50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-900">Execution Progress</span>
+                  <span className="text-sm text-blue-600">{Math.round(executionState.progress)}%</span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-2 mb-2">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${executionState.progress}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-blue-600">
+                  <span>{Array.from(executionState.nodes.values()).filter(s => s.status === 'completed').length}/{executionState.nodes.size} nodes</span>
+                  <span>${executionState.totalCost.toFixed(4)} cost</span>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
                 <Play className="w-4 h-4 text-white" />
@@ -1270,5 +1301,23 @@ export default function WorkflowEditor({
         </div>
       )}
     </div>
+  )
+}
+
+export default function WorkflowEditor(props: WorkflowEditorProps) {
+  return (
+    <ExecutionProvider
+      onExecutionComplete={(result) => {
+        console.log('✅ Execution completed:', result)
+      }}
+      onExecutionError={(error) => {
+        console.error('❌ Execution failed:', error)
+      }}
+      onNodeStatusChange={(nodeId, status) => {
+        console.log(`📍 Node ${nodeId} status changed to: ${status}`)
+      }}
+    >
+      <WorkflowEditorInner {...props} />
+    </ExecutionProvider>
   )
 } 
