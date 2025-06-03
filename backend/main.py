@@ -518,18 +518,21 @@ class WorkflowExecutor:
     def _extract_cost_info_from_trace(self, agent_trace) -> Dict[str, Any]:
         """Extract cost information from trace data using GenAI semantic convention"""
         if not agent_trace:
+            print(f"⚠️  Cost extraction: agent_trace is None or empty")
             return {}
         
         try:
             # If it's our new dictionary structure, check for spans with cost data
             if isinstance(agent_trace, dict):
                 spans = agent_trace.get("spans", [])
+                print(f"🔍 Cost extraction: Found {len(spans)} spans in agent_trace")
+                
                 total_cost = 0.0
                 total_tokens = 0
                 input_tokens = 0
                 output_tokens = 0
                 
-                for span in spans:
+                for i, span in enumerate(spans):
                     attributes = span.get("attributes", {})
                     
                     # Extract costs from GenAI semantic convention attributes
@@ -540,26 +543,36 @@ class WorkflowExecutor:
                     span_input_tokens = attributes.get("gen_ai.usage.input_tokens", 0)
                     span_output_tokens = attributes.get("gen_ai.usage.output_tokens", 0)
                     
-                    total_cost += float(input_cost) + float(output_cost)
+                    span_total_cost = float(input_cost) + float(output_cost)
+                    span_total_tokens = int(span_input_tokens) + int(span_output_tokens)
+                    
+                    print(f"   Span {i}: cost=${span_total_cost:.6f}, tokens={span_total_tokens}")
+                    
+                    total_cost += span_total_cost
                     input_tokens += int(span_input_tokens)
                     output_tokens += int(span_output_tokens)
-                    total_tokens += int(span_input_tokens) + int(span_output_tokens)
+                    total_tokens += span_total_tokens
                 
-                # Always return extracted cost data if we have any spans
-                return {
+                cost_result = {
                     "total_cost": total_cost,
                     "total_tokens": total_tokens,
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens
                 }
                 
+                print(f"💰 Cost extraction result: {cost_result}")
+                
+                # Always return extracted cost data if we have any spans
+                return cost_result
+                
             # Fallback to existing cost_info if no spans available
+            print(f"⚠️  Cost extraction: agent_trace is not dict, falling back to cost_info")
             return agent_trace.get("cost_info", {})
             
             # Fallback to legacy method for AgentTrace objects
             return self._extract_cost_info(agent_trace)
         except Exception as e:
-            print(f"Error extracting cost info: {e}")
+            print(f"❌ Error extracting cost info: {e}")
             return {"cost_extraction_error": str(e)}
     
     def _extract_performance_metrics(self, agent_trace, execution_time: float) -> Dict[str, Any]:
@@ -577,11 +590,15 @@ class WorkflowExecutor:
                 # Also include cost information in performance for analytics compatibility
                 # Extract cost info using the same method as cost_info
                 cost_info = self._extract_cost_info_from_trace(agent_trace)
+                print(f"📊 Performance metrics: Including cost_info in performance: {cost_info}")
                 if cost_info:
                     performance["total_cost"] = cost_info.get("total_cost", 0)
                     performance["total_tokens"] = cost_info.get("total_tokens", 0)
                     performance["input_tokens"] = cost_info.get("input_tokens", 0)
                     performance["output_tokens"] = cost_info.get("output_tokens", 0)
+                    print(f"📊 Performance metrics: Added cost data to performance: total_cost={performance.get('total_cost', 0)}")
+                else:
+                    print(f"⚠️  Performance metrics: cost_info is empty, no cost data added to performance")
                 
                 return performance
             
@@ -4234,6 +4251,112 @@ async def clear_test_executions():
         "test_executions_removed": test_executions_removed,
         "note": "Only test executions were removed. Real workflow executions are preserved."
     }
+
+@app.get("/debug/analytics-cost-data")
+async def debug_analytics_cost_data():
+    """Debug endpoint to inspect cost data in executions for analytics troubleshooting"""
+    debug_info = {
+        "total_executions": len(executor.executions),
+        "execution_summary": [],
+        "cost_extraction_test": {},
+        "analytics_calculation": {},
+        "potential_issues": []
+    }
+    
+    # Analyze each execution
+    for exec_id, execution in executor.executions.items():
+        exec_debug = {
+            "execution_id": exec_id,
+            "status": execution.get("status"),
+            "has_trace": "trace" in execution,
+            "trace_keys": list(execution.get("trace", {}).keys()) if "trace" in execution else [],
+            "cost_info": execution.get("trace", {}).get("cost_info"),
+            "performance": execution.get("trace", {}).get("performance"),
+            "agent_trace_type": type(execution.get("trace", {}).get("agent_trace")).__name__ if execution.get("trace", {}).get("agent_trace") else None,
+            "spans_count": len(execution.get("trace", {}).get("spans", [])),
+            "workflow_name": execution.get("workflow_name", "unknown")
+        }
+        
+        # Check if spans have cost data
+        spans = execution.get("trace", {}).get("spans", [])
+        span_costs = []
+        for i, span in enumerate(spans):
+            attrs = span.get("attributes", {})
+            input_cost = attrs.get("gen_ai.usage.input_cost", 0)
+            output_cost = attrs.get("gen_ai.usage.output_cost", 0)
+            span_costs.append({
+                "span_index": i,
+                "input_cost": input_cost,
+                "output_cost": output_cost,
+                "total_span_cost": float(input_cost) + float(output_cost)
+            })
+        
+        exec_debug["span_cost_analysis"] = span_costs
+        exec_debug["total_span_cost"] = sum(s["total_span_cost"] for s in span_costs)
+        
+        debug_info["execution_summary"].append(exec_debug)
+    
+    # Test cost extraction on a real execution
+    if executor.executions:
+        test_exec_id = list(executor.executions.keys())[0]
+        test_execution = executor.executions[test_exec_id]
+        
+        if "trace" in test_execution:
+            agent_trace = test_execution["trace"].get("agent_trace")
+            if agent_trace:
+                # Test the cost extraction method
+                extracted_cost = executor._extract_cost_info_from_trace(agent_trace)
+                debug_info["cost_extraction_test"] = {
+                    "test_execution_id": test_exec_id,
+                    "agent_trace_keys": list(agent_trace.keys()) if isinstance(agent_trace, dict) else "not_dict",
+                    "extracted_cost_info": extracted_cost,
+                    "extraction_successful": bool(extracted_cost and extracted_cost.get("total_cost", 0) > 0)
+                }
+    
+    # Simulate analytics calculation
+    completed_executions = [e for e in executor.executions.values() if e.get("status") == "completed"]
+    analytics_total_cost = 0
+    analytics_performance_costs = []
+    analytics_cost_info_costs = []
+    
+    for execution in completed_executions:
+        trace = execution.get("trace", {})
+        
+        # How analytics/executions calculates cost
+        performance = trace.get("performance", {})
+        perf_cost = performance.get("total_cost", 0)
+        analytics_performance_costs.append(perf_cost)
+        analytics_total_cost += perf_cost
+        
+        # Alternative: cost_info method
+        cost_info = trace.get("cost_info", {})
+        cost_info_cost = cost_info.get("total_cost", 0)
+        analytics_cost_info_costs.append(cost_info_cost)
+    
+    debug_info["analytics_calculation"] = {
+        "completed_executions_count": len(completed_executions),
+        "performance_costs": analytics_performance_costs,
+        "cost_info_costs": analytics_cost_info_costs,
+        "total_from_performance": analytics_total_cost,
+        "total_from_cost_info": sum(analytics_cost_info_costs),
+        "using_performance_method": analytics_total_cost > 0,
+        "using_cost_info_method": sum(analytics_cost_info_costs) > 0
+    }
+    
+    # Identify potential issues
+    if not executor.executions:
+        debug_info["potential_issues"].append("No executions found - backend may have restarted")
+    
+    if len([e for e in executor.executions.values() if e.get("status") == "running"]) > 0:
+        debug_info["potential_issues"].append("Some executions still running - async execution may not be complete")
+    
+    if analytics_total_cost == 0 and sum(analytics_cost_info_costs) > 0:
+        debug_info["potential_issues"].append("Cost data exists in cost_info but not in performance - analytics using wrong field")
+    
+    if all(s["total_span_cost"] == 0 for exec_debug in debug_info["execution_summary"] for s in exec_debug.get("span_cost_analysis", [])):
+        debug_info["potential_issues"].append("No cost data in spans - API calls may not be generating costs")
+    
+    return debug_info
 
 if __name__ == "__main__":
     # Production MCP setup
