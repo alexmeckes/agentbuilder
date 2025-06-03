@@ -613,6 +613,15 @@ function WorkflowEditorInner({
       // Convert to the format expected by the execution service
       const workflow = WorkflowService.convertToWorkflowDefinition(nodes, edges)
       
+      console.log('📤 Sending to backend:', {
+        workflow: {
+          nodes: workflow.nodes.map(n => ({ id: n.id, type: n.type, data: n.data })),
+          edges: workflow.edges
+        },
+        input_data: inputData,
+        framework: 'openai'
+      })
+      
       // Execute with workflow identity context
       const result = await WorkflowService.executeWorkflow({
         workflow,
@@ -621,6 +630,15 @@ function WorkflowEditorInner({
         // Add workflow identity context
         workflow_identity: workflowDefinition.identity,
         workflow_name: workflowDefinition.identity.name
+      })
+      
+      console.log('📥 Backend response:', {
+        execution_id: result.execution_id,
+        status: result.status,
+        hasResult: !!result.result,
+        hasTrace: !!result.trace,
+        hasError: !!result.error,
+        fullResult: result
       })
 
       // Update execution statistics

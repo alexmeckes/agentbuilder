@@ -74,6 +74,14 @@ export class WorkflowService {
    * Execute a workflow using any-agent
    */
   static async executeWorkflow(request: ExecutionRequest): Promise<ExecutionResponse> {
+    console.log('🌐 Making API call to /api/execute with:', {
+      nodeCount: request.workflow.nodes.length,
+      edgeCount: request.workflow.edges.length,
+      framework: request.framework,
+      hasInput: !!request.input_data,
+      requestSize: JSON.stringify(request).length
+    })
+    
     const response = await fetch('/api/execute', {
       method: 'POST',
       headers: {
@@ -82,12 +90,23 @@ export class WorkflowService {
       body: JSON.stringify(request),
     })
 
+    console.log('🌐 API response status:', response.status)
+    
     if (!response.ok) {
-      const error = await response.json()
+      const errorText = await response.text()
+      console.error('❌ API error response:', errorText)
+      let error
+      try {
+        error = JSON.parse(errorText)
+      } catch {
+        error = { error: errorText }
+      }
       throw new Error(error.error || 'Failed to execute workflow')
     }
 
-    return response.json()
+    const result = await response.json()
+    console.log('🌐 API success response received')
+    return result
   }
 
   /**
@@ -157,6 +176,19 @@ export class WorkflowService {
       nodeCount: workflowNodes.length,
       edgeCount: workflowEdges.length,
       executableNodes: workflowNodes.filter(n => n.type === 'agent' || n.type === 'tool').length
+    })
+    
+    // Detailed logging of final node data
+    console.log('📋 Final nodes data:')
+    workflowNodes.forEach((node, index) => {
+      console.log(`  ${index + 1}. ${node.id}:`, {
+        type: node.type,
+        dataKeys: Object.keys(node.data),
+        hasModelId: 'model_id' in node.data,
+        hasToolType: 'tool_type' in node.data,
+        hasInstructions: 'instructions' in node.data,
+        fullData: node.data
+      })
     })
 
     return {
