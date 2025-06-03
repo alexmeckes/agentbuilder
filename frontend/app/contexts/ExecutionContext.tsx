@@ -39,7 +39,7 @@ export function ExecutionProvider({
 }: ExecutionProviderProps) {
   const [executionState, setExecutionState] = useState<WorkflowExecutionState | null>(null)
   const [isExecuting, setIsExecuting] = useState(false)
-  const websocketRef = useRef<WebSocket | null>(null)
+  const websocketRef = useRef<WebSocket | { close: () => void } | null>(null)
 
   // Initialize execution state for a new workflow
   const initializeExecution = useCallback((executionId: string, nodeIds: string[]) => {
