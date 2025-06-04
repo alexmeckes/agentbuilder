@@ -66,10 +66,56 @@ Respond with ONLY the suggestion text, nothing else. If no clear suggestion can 
       throw new Error(`Context generation failed: ${response.status}`)
     }
 
-    const result = await response.json()
+    const initialResult = await response.json()
     
-    if (result.status === 'failed') {
-      throw new Error(result.error || 'Context generation failed')
+    if (initialResult.status === 'failed') {
+      throw new Error(initialResult.error || 'Context generation failed')
+    }
+
+    let result = initialResult
+
+    // If backend is running asynchronously, poll for completion
+    if (result.status === 'running' && result.execution_id) {
+      console.log('🔄 Context generation running asynchronously, polling for completion...')
+      
+      const maxAttempts = 20 // 20 seconds timeout (shorter than main chat)
+      const pollInterval = 1000 // 1 second
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval))
+        
+        try {
+          const pollResponse = await fetch(`${BACKEND_URL}/executions/${result.execution_id}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+
+          if (pollResponse.ok) {
+            const pollResult = await pollResponse.json()
+            console.log(`🔄 Context poll attempt ${attempt + 1}:`, pollResult.status)
+            
+            if (pollResult.status === 'completed') {
+              result = pollResult
+              console.log('✅ Context generation completed successfully')
+              break
+            } else if (pollResult.status === 'failed') {
+              console.error('❌ Context generation failed during polling:', pollResult.error)
+              throw new Error(pollResult.error || 'Context generation failed during processing')
+            }
+            // Continue polling if still running
+          }
+        } catch (pollError) {
+          console.error('Context poll request failed:', pollError)
+          // Continue polling on network errors
+        }
+      }
+
+      if (result.status === 'running') {
+        console.warn('⏰ Context generation polling timeout reached')
+        throw new Error('Context generation timeout - falling back to simple extraction')
+      }
     }
 
     const suggestion = result.result?.trim()
