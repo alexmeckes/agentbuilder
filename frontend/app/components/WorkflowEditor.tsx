@@ -708,7 +708,7 @@ function WorkflowEditorInner({
     }
 
     // Get user context from localStorage
-    let userContext = null
+    let userContext = undefined
     try {
       const userSettings = localStorage.getItem('userSettings')
       if (userSettings) {
@@ -798,7 +798,7 @@ function WorkflowEditorInner({
         workflow_identity: workflowDefinition.identity,
         workflow_name: workflowDefinition.identity?.name,
         // Include user context for per-user tool execution
-        userContext
+        userContext: userContext || undefined
       })
       
       console.log('📥 Backend response:', {
