@@ -83,9 +83,9 @@
 }
 
 .react-flow__handle {
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 3px solid white;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid white;
   border-radius: 50%;
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -110,19 +110,19 @@
 }
 
 .react-flow__handle-top {
-  top: -0.625rem;
+  top: -0.5rem;
 }
 
 .react-flow__handle-bottom {
-  bottom: -0.625rem;
+  bottom: -0.5rem;
 }
 
 .react-flow__handle-left {
-  left: -0.625rem;
+  left: -0.5rem;
 }
 
 .react-flow__handle-right {
-  right: -0.625rem;
+  right: -0.5rem;
 }
 
 /* Custom node z-index classes to override ReactFlow stacking */

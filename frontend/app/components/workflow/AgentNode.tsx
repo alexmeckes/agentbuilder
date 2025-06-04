@@ -711,9 +711,9 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         <Handle
           type="target"
           position={Position.Left}
-          className="!w-5 !h-5 !bg-blue-500 !border-3 !border-white !shadow-lg hover:!bg-blue-600 !transition-all !duration-200"
+          className="!w-4 !h-4 !bg-gray-500 !border-2 !border-white !shadow-lg hover:!bg-gray-600 !transition-all !duration-200"
           style={{
-            left: -12, // Position slightly outside the node
+            left: -10, // Position slightly outside the node
             zIndex: 10,
           }}
           title="Input connection point"
@@ -721,9 +721,9 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         <Handle
           type="source"
           position={Position.Right}
-          className="!w-5 !h-5 !bg-green-500 !border-3 !border-white !shadow-lg hover:!bg-green-600 !transition-all !duration-200"
+          className="!w-4 !h-4 !bg-gray-500 !border-2 !border-white !shadow-lg hover:!bg-gray-600 !transition-all !duration-200"
           style={{
-            right: -12, // Position slightly outside the node
+            right: -10, // Position slightly outside the node
             zIndex: 10,
           }}
           title="Output connection point"
