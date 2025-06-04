@@ -65,6 +65,34 @@ const composioToolsMapping: Record<string, any> = {
     category: 'Communication',
     tool_type: 'composio_gmail_send_email'
   },
+  'googledocs_create_doc': { 
+    name: 'Google Docs', 
+    description: 'Create a Google Docs document', 
+    icon: '📄',
+    category: 'Productivity',
+    tool_type: 'composio_googledocs_create_doc'
+  },
+  'googlesheets_create_sheet': { 
+    name: 'Google Sheets', 
+    description: 'Create a Google Sheets spreadsheet', 
+    icon: '📊',
+    category: 'Productivity',
+    tool_type: 'composio_googlesheets_create_sheet'
+  },
+  'googledrive_upload': { 
+    name: 'Google Drive', 
+    description: 'Upload file to Google Drive', 
+    icon: '💾',
+    category: 'Productivity',
+    tool_type: 'composio_googledrive_upload'
+  },
+  'googlecalendar_create_event': { 
+    name: 'Google Calendar', 
+    description: 'Create a Google Calendar event', 
+    icon: '📅',
+    category: 'Productivity',
+    tool_type: 'composio_googlecalendar_create_event'
+  },
   'notion_create_page': { 
     name: 'Notion Page', 
     description: 'Create a Notion page', 
@@ -85,6 +113,20 @@ const composioToolsMapping: Record<string, any> = {
     icon: '🗃️',
     category: 'Productivity',
     tool_type: 'composio_trello_create_card'
+  },
+  'airtable_create_record': { 
+    name: 'Airtable Record', 
+    description: 'Create record in Airtable', 
+    icon: '🗃️',
+    category: 'Productivity',
+    tool_type: 'composio_airtable_create_record'
+  },
+  'jira_create_issue': { 
+    name: 'Jira Issue', 
+    description: 'Create a Jira issue', 
+    icon: '🎯',
+    category: 'Development',
+    tool_type: 'composio_jira_create_issue'
   }
 }
 
@@ -98,6 +140,28 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
   // Load user settings and create dynamic Composio categories
   useEffect(() => {
     loadUserSettings()
+    
+    // Listen for localStorage changes (when user saves settings)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'userSettings') {
+        console.log('🔄 User settings changed, refreshing tool palette...')
+        loadUserSettings()
+      }
+    }
+    
+    // Listen for custom settings update events
+    const handleSettingsUpdate = () => {
+      console.log('🔄 Settings update event received, refreshing tool palette...')
+      setTimeout(() => loadUserSettings(), 100) // Small delay to ensure localStorage is updated
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('userSettingsUpdated', handleSettingsUpdate)
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('userSettingsUpdated', handleSettingsUpdate)
+    }
   }, [])
 
   const loadUserSettings = () => {
@@ -107,13 +171,23 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
         const settings = JSON.parse(savedSettings)
         setUserSettings(settings)
         
+        console.log('🔧 NodePalette: Loading user settings:', settings)
+        console.log('🔧 NodePalette: Enabled tools:', settings.enabledTools)
+        
         // Create dynamic Composio categories based on enabled tools
         if (settings.enabledTools && settings.enabledTools.length > 0) {
           createDynamicComposioCategories(settings.enabledTools)
+        } else {
+          console.log('🔧 NodePalette: No enabled tools found, showing default categories only')
+          setDynamicCategories(NODE_CATEGORIES) // Reset to default if no tools enabled
         }
+      } else {
+        console.log('🔧 NodePalette: No user settings found in localStorage')
+        setDynamicCategories(NODE_CATEGORIES) // Reset to default
       }
     } catch (error) {
       console.error('Failed to load user settings:', error)
+      setDynamicCategories(NODE_CATEGORIES) // Reset to default on error
     }
   }
 

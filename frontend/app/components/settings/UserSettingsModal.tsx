@@ -156,6 +156,10 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
       }
       
       console.log('💾 User settings saved successfully')
+      
+      // Trigger event to refresh tool palette
+      window.dispatchEvent(new CustomEvent('userSettingsUpdated'))
+      
       onClose()
     } catch (error) {
       console.error('Failed to save settings:', error)
