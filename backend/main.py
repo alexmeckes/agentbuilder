@@ -3854,8 +3854,11 @@ async def list_available_tools():
         }
         
         # Add MCP tools if available
-        if MCP_INTEGRATION_AVAILABLE and mcp_manager:
+        if MCP_INTEGRATION_AVAILABLE and MCP_AVAILABLE:
             try:
+                # Initialize MCP manager
+                mcp_manager = get_mcp_manager()
+                
                 # Get all connected servers
                 servers = mcp_manager.list_servers()
                 
