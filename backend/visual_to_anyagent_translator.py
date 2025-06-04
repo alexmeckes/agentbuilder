@@ -309,18 +309,39 @@ class VisualToAnyAgentTranslator:
         for i, tool_node in enumerate(tool_nodes):
             tool_type = tool_node.data.get("type", "search_web")
             logging.info(f"🔧 TRANSLATION: Tool node {i+1}: id={tool_node.id}, type={tool_type}, name={tool_node.data.get('name', 'unnamed')}")
+            logging.info(f"🔧 TRANSLATION: Tool node {i+1} FULL DATA: {tool_node.data}")
         
         # Collect tools
         available_tools = []
         for tool_node in tool_nodes:
             tool_type = tool_node.data.get("type", "search_web")
-            logging.info(f"🔧 TRANSLATION: Looking up tool '{tool_type}' in available_tools")
-            if tool_type in self.available_tools:
-                tool_function = self.available_tools[tool_type]
+            
+            # ENHANCED DEBUG: Check multiple possible field names for tool type
+            possible_tool_types = [
+                tool_node.data.get("type"),
+                tool_node.data.get("tool_type"), 
+                tool_node.data.get("toolType"),
+                tool_node.data.get("selectedTool"),
+                tool_node.data.get("tool"),
+                tool_node.data.get("name")
+            ]
+            logging.info(f"🔧 TRANSLATION: Tool node possible types: {possible_tool_types}")
+            
+            # Try to find the actual tool type from various fields
+            actual_tool_type = None
+            for possible_type in possible_tool_types:
+                if possible_type and possible_type in self.available_tools:
+                    actual_tool_type = possible_type
+                    logging.info(f"🔧 TRANSLATION: Found matching tool type '{actual_tool_type}' in field")
+                    break
+            
+            if actual_tool_type:
+                tool_function = self.available_tools[actual_tool_type]
                 available_tools.append(tool_function)
-                logging.info(f"🔧 TRANSLATION: ✅ Added tool '{tool_type}': {tool_function.__name__ if hasattr(tool_function, '__name__') else str(tool_function)}")
+                logging.info(f"🔧 TRANSLATION: ✅ Added tool '{actual_tool_type}': {tool_function.__name__ if hasattr(tool_function, '__name__') else str(tool_function)}")
             else:
-                logging.warning(f"🔧 TRANSLATION: ❌ Tool '{tool_type}' not found in available_tools: {list(self.available_tools.keys())}")
+                logging.warning(f"🔧 TRANSLATION: ❌ No matching tool found. Tried: {possible_tool_types}")
+                logging.warning(f"🔧 TRANSLATION: Available tools: {list(self.available_tools.keys())}")
         
         logging.info(f"🔧 TRANSLATION: Final tool assignment: {len(available_tools)} tools for agent '{main_agent_node.data.get('name', 'agent')}'")
 
