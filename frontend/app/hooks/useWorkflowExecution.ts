@@ -63,7 +63,7 @@ export function useWorkflowExecution(options: UseWorkflowExecutionOptions = {}) 
         state => state.status === 'completed' || state.status === 'failed'
       )
 
-      let overallStatus: 'idle' | 'running' | 'completed' | 'failed' = prev.status
+      let overallStatus: 'idle' | 'running' | 'completed' | 'failed' | 'waiting_for_input' = prev.status
       if (hasRunning) {
         overallStatus = 'running'
       } else if (allCompleted) {
