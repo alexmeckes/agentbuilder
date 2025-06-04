@@ -3860,24 +3860,28 @@ async def list_available_tools():
                 mcp_manager = get_mcp_manager()
                 
                 # Get all connected servers
-                servers = mcp_manager.list_servers()
+                servers = mcp_manager.get_server_status()
                 
                 for server_id, server_info in servers.items():
-                    if server_info.get('status') == 'connected' and server_info.get('tools'):
+                    if server_info.get('status') == 'connected' and server_info.get('tool_count', 0) > 0:
+                        # Get tools from the MCP manager's tools cache
+                        server_tools = mcp_manager.tools_cache.get(server_id, [])
+                        
                         # Add each individual tool from the server
-                        for tool in server_info['tools']:
-                            tool_id = f"{server_id}_{tool['name']}"
+                        for tool in server_tools:
+                            tool_id = f"{server_id}_{tool.name}"
                             tools[tool_id] = {
                                 "type": "mcp",
-                                "name": tool['name'],
-                                "description": tool.get('description', f"{tool['name']} - {server_info.get('name', server_id)} tool"),
-                                "category": _categorize_tool(tool['name'], server_id),
+                                "name": tool.name,
+                                "description": tool.description,
+                                "category": _categorize_tool(tool.name, server_id),
                                 "server_id": server_id,
                                 "server_name": server_info.get('name', server_id),
-                                "server_status": server_info.get('status', 'unknown')
+                                "server_status": server_info.get('status', 'unknown'),
+                                "source": server_id  # Add source for filtering
                             }
                         
-                        logging.info(f"Added {len(server_info['tools'])} tools from {server_id}")
+                        logging.info(f"Added {len(server_tools)} tools from {server_id}")
                         
             except Exception as e:
                 logging.error(f"Failed to get MCP tools: {e}")
