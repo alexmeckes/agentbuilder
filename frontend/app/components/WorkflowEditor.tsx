@@ -221,29 +221,54 @@ function WorkflowEditorInner({
       const nodeIdsToDelete = nodesToDelete.map(node => node.id)
       console.log('🗑️ Deleting nodes:', nodeIdsToDelete)
       
-      if (externalOnNodesChange && externalOnEdgesChange) {
-        // Filter out deleted nodes and their connected edges
-        const updatedNodes = nodes.filter(node => !nodeIdsToDelete.includes(node.id))
-        const updatedEdges = edges.filter(edge => 
-          !nodeIdsToDelete.includes(edge.source) && !nodeIdsToDelete.includes(edge.target)
-        )
-        
-        externalOnNodesChange(updatedNodes)
-        externalOnEdgesChange(updatedEdges)
-        
-        if (onWorkflowChange) {
-          onWorkflowChange(updatedNodes, updatedEdges)
-        }
-      } else {
-        // Update internal state
-        setInternalNodes(currentNodes => 
-          currentNodes.filter(node => !nodeIdsToDelete.includes(node.id))
-        )
-        setInternalEdges(currentEdges => 
-          currentEdges.filter(edge => 
-            !nodeIdsToDelete.includes(edge.source) && !nodeIdsToDelete.includes(edge.target)
+      try {
+        if (externalOnNodesChange && externalOnEdgesChange) {
+          // Verify nodes exist before attempting deletion
+          const existingNodeIds = baseNodes.map(node => node.id)
+          const validNodeIdsToDelete = nodeIdsToDelete.filter(id => existingNodeIds.includes(id))
+          
+          if (validNodeIdsToDelete.length === 0) {
+            console.log('ℹ️ No valid nodes to delete, all already removed')
+            return
+          }
+          
+          // Filter out deleted nodes and their connected edges
+          const updatedNodes = baseNodes.filter(node => !validNodeIdsToDelete.includes(node.id))
+          const updatedEdges = edges.filter(edge => 
+            !validNodeIdsToDelete.includes(edge.source) && !validNodeIdsToDelete.includes(edge.target)
           )
-        )
+          
+          console.log(`🗑️ Removing ${validNodeIdsToDelete.length} nodes and ${edges.length - updatedEdges.length} connected edges`)
+          
+          externalOnNodesChange(updatedNodes)
+          externalOnEdgesChange(updatedEdges)
+          
+          if (onWorkflowChange) {
+            onWorkflowChange(updatedNodes, updatedEdges)
+          }
+        } else {
+          // Update internal state with safety checks
+          setInternalNodes(currentNodes => {
+            const existingNodeIds = currentNodes.map(node => node.id)
+            const validNodeIdsToDelete = nodeIdsToDelete.filter(id => existingNodeIds.includes(id))
+            
+            if (validNodeIdsToDelete.length === 0) {
+              console.log('ℹ️ No valid internal nodes to delete')
+              return currentNodes
+            }
+            
+            return currentNodes.filter(node => !validNodeIdsToDelete.includes(node.id))
+          })
+          
+          setInternalEdges(currentEdges => 
+            currentEdges.filter(edge => 
+              !nodeIdsToDelete.includes(edge.source) && !nodeIdsToDelete.includes(edge.target)
+            )
+          )
+        }
+      } catch (error) {
+        console.error(`❌ Error deleting multiple nodes:`, error)
+        // Don't throw - just log the error and continue
       }
     },
     [baseNodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
@@ -254,29 +279,49 @@ function WorkflowEditorInner({
     (nodeId: string) => {
       console.log('🗑️ Deleting single node:', nodeId)
       
-      if (externalOnNodesChange && externalOnEdgesChange) {
-        // Filter out deleted node and its connected edges
-        const updatedNodes = baseNodes.filter(node => node.id !== nodeId)
-        const updatedEdges = edges.filter(edge => 
-          edge.source !== nodeId && edge.target !== nodeId
-        )
-        
-        externalOnNodesChange(updatedNodes)
-        externalOnEdgesChange(updatedEdges)
-        
-        if (onWorkflowChange) {
-          onWorkflowChange(updatedNodes, updatedEdges)
-        }
-      } else {
-        // Update internal state
-        setInternalNodes(currentNodes => 
-          currentNodes.filter(node => node.id !== nodeId)
-        )
-        setInternalEdges(currentEdges => 
-          currentEdges.filter(edge => 
+      try {
+        if (externalOnNodesChange && externalOnEdgesChange) {
+          // Verify node exists before attempting deletion
+          const nodeToDelete = baseNodes.find(node => node.id === nodeId)
+          if (!nodeToDelete) {
+            console.log(`ℹ️ Node ${nodeId} not found, already deleted`)
+            return
+          }
+          
+          // Filter out deleted node and its connected edges
+          const updatedNodes = baseNodes.filter(node => node.id !== nodeId)
+          const updatedEdges = edges.filter(edge => 
             edge.source !== nodeId && edge.target !== nodeId
           )
-        )
+          
+          console.log(`🗑️ Removing node ${nodeId} and ${edges.length - updatedEdges.length} connected edges`)
+          
+          externalOnNodesChange(updatedNodes)
+          externalOnEdgesChange(updatedEdges)
+          
+          if (onWorkflowChange) {
+            onWorkflowChange(updatedNodes, updatedEdges)
+          }
+        } else {
+          // Update internal state with safety checks
+          setInternalNodes(currentNodes => {
+            const nodeExists = currentNodes.find(node => node.id === nodeId)
+            if (!nodeExists) {
+              console.log(`ℹ️ Node ${nodeId} not found in internal state, already deleted`)
+              return currentNodes
+            }
+            return currentNodes.filter(node => node.id !== nodeId)
+          })
+          
+          setInternalEdges(currentEdges => 
+            currentEdges.filter(edge => 
+              edge.source !== nodeId && edge.target !== nodeId
+            )
+          )
+        }
+      } catch (error) {
+        console.error(`❌ Error deleting node ${nodeId}:`, error)
+        // Don't throw - just log the error and continue
       }
     },
     [baseNodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
@@ -289,7 +334,8 @@ function WorkflowEditorInner({
     const updateNodes = (currentNodes: Node[]) => {
       const nodeExists = currentNodes.find(node => node.id === nodeId)
       if (!nodeExists) {
-        console.error(`❌ Node ${nodeId} not found! Cannot update.`)
+        // Silently ignore updates to deleted nodes to prevent React errors
+        console.log(`ℹ️ Node ${nodeId} no longer exists (likely deleted), skipping update`)
         return currentNodes // Return unchanged if node doesn't exist
       }
       
@@ -305,19 +351,35 @@ function WorkflowEditorInner({
 
     try {
       if (externalOnNodesChange) {
+        // Check if node still exists before attempting update
+        if (!baseNodes.find(node => node.id === nodeId)) {
+          console.log(`ℹ️ Node ${nodeId} not found in baseNodes, skipping update`)
+          return
+        }
+        
         // Update external state
         const updatedNodes = updateNodes(baseNodes)
-        externalOnNodesChange(updatedNodes)
-        if (onWorkflowChange) {
-          onWorkflowChange(updatedNodes, edges)
+        // Only call if nodes actually changed
+        if (updatedNodes !== baseNodes) {
+          externalOnNodesChange(updatedNodes)
+          if (onWorkflowChange) {
+            onWorkflowChange(updatedNodes, edges)
+          }
         }
       } else {
         // Update internal state
-        setInternalNodes(updateNodes)
+        setInternalNodes(currentNodes => {
+          // Double-check node exists in current state
+          if (!currentNodes.find(node => node.id === nodeId)) {
+            console.log(`ℹ️ Node ${nodeId} not found in internal nodes, skipping update`)
+            return currentNodes
+          }
+          return updateNodes(currentNodes)
+        })
       }
     } catch (error) {
       console.error(`❌ Error updating node ${nodeId}:`, error)
-      // Don't update anything if there's an error to prevent node loss
+      // Don't throw or cause further errors - just silently fail
     }
   }, [baseNodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
 
