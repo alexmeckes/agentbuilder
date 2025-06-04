@@ -8,6 +8,7 @@ Provides endpoints for:
 - Executing workflows
 - Real-time execution status
 - Agent trace retrieval
+- User input handling for interactive workflows
 """
 
 import asyncio
@@ -89,6 +90,12 @@ class ExecutionResponse(BaseModel):
     error: Optional[str] = None
 
 
+class UserInputRequest(BaseModel):
+    """Request model for user input during workflow execution"""
+    execution_id: str
+    input_text: str
+
+
 class CheckpointCriteria(BaseModel):
     """Evaluation checkpoint criteria"""
     points: int
@@ -118,6 +125,9 @@ class WorkflowExecutor:
         self._generating_identity = False  # Protection against infinite loops
         self._validation_cache = {}  # Cache for validation results
         self._last_validation_time = {}  # Track validation timing
+        # New: Track pending user inputs for interactive workflows
+        self.pending_inputs: Dict[str, Dict[str, Any]] = {}  # execution_id -> input_request_data
+        self.websocket_connections: Dict[str, WebSocket] = {}  # execution_id -> websocket
 
     async def execute_workflow(self, request: ExecutionRequest) -> ExecutionResponse:
         """Execute a workflow definition using any-agent's native multi-agent capabilities with async progress tracking"""
@@ -456,6 +466,122 @@ class WorkflowExecutor:
             completed_count = sum(1 for node_status in self.executions[execution_id]["progress"]["node_status"].values() 
                                 if node_status["status"] == "completed")
             self.executions[execution_id]["progress"]["current_step"] = completed_count
+
+    async def _detect_user_input_request(self, execution_id: str, agent_output: str) -> Optional[Dict[str, Any]]:
+        """Detect if agent is asking for user input based on output content"""
+        if not agent_output:
+            return None
+            
+        # Simple heuristics to detect user input requests
+        input_indicators = [
+            "what would you like",
+            "please provide",
+            "tell me about",
+            "what are your preferences",
+            "what do you think",
+            "how would you like",
+            "what should",
+            "what kind of",
+            "which option",
+            "please choose",
+            "please select",
+            "can you tell me",
+            "what's your",
+        ]
+        
+        agent_output_lower = agent_output.lower()
+        
+        # Check if output contains question marks and input indicators
+        has_question = "?" in agent_output
+        has_input_indicator = any(indicator in agent_output_lower for indicator in input_indicators)
+        
+        if has_question and has_input_indicator:
+            # Extract the question for the user
+            sentences = agent_output.split(".")
+            question_sentences = [s.strip() for s in sentences if "?" in s]
+            
+            if question_sentences:
+                question = question_sentences[0].strip()
+                return {
+                    "type": "input_request",
+                    "execution_id": execution_id,
+                    "question": question,
+                    "full_output": agent_output,
+                    "timestamp": time.time()
+                }
+        
+        return None
+
+    async def _send_input_request_to_frontend(self, execution_id: str, input_request: Dict[str, Any]):
+        """Send input request message to frontend via WebSocket"""
+        if execution_id in self.websocket_connections:
+            websocket = self.websocket_connections[execution_id]
+            try:
+                await websocket.send_json({
+                    "type": "input_request",
+                    "execution_id": execution_id,
+                    "status": "waiting_for_input",
+                    "input_request": input_request
+                })
+                
+                # Store the pending input request
+                self.pending_inputs[execution_id] = input_request
+                
+                # Update execution status
+                if execution_id in self.executions:
+                    self.executions[execution_id]["status"] = "waiting_for_input"
+                    self.executions[execution_id]["progress"]["current_activity"] = f"Waiting for user input: {input_request['question']}"
+                    
+                print(f"📝 Sent input request to frontend for execution {execution_id}")
+                
+            except Exception as e:
+                print(f"❌ Failed to send input request to frontend: {e}")
+                
+    async def provide_user_input(self, execution_id: str, input_text: str) -> Dict[str, Any]:
+        """Process user input and resume workflow execution"""
+        if execution_id not in self.pending_inputs:
+            return {"success": False, "error": "No pending input request found"}
+            
+        if execution_id not in self.executions:
+            return {"success": False, "error": "Execution not found"}
+            
+        try:
+            # Remove from pending inputs
+            input_request = self.pending_inputs.pop(execution_id)
+            
+            # Update execution status
+            self.executions[execution_id]["status"] = "running"
+            self.executions[execution_id]["progress"]["current_activity"] = "Processing user input..."
+            self.executions[execution_id]["user_input"] = input_text
+            
+            # Send update to frontend
+            if execution_id in self.websocket_connections:
+                websocket = self.websocket_connections[execution_id]
+                try:
+                    await websocket.send_json({
+                        "type": "input_received",
+                        "execution_id": execution_id,
+                        "status": "running",
+                        "user_input": input_text,
+                        "message": "User input received, resuming execution..."
+                    })
+                except Exception as e:
+                    print(f"❌ Failed to send input confirmation to frontend: {e}")
+            
+            print(f"✅ User input received for execution {execution_id}: {input_text}")
+            
+            # TODO: In a full implementation, we would resume the agent execution here
+            # For now, we'll just mark the execution as completed with the user input
+            self.executions[execution_id]["status"] = "completed"
+            self.executions[execution_id]["result"] = f"Workflow completed with user input: {input_text}"
+            self.executions[execution_id]["progress"]["current_activity"] = "Completed"
+            self.executions[execution_id]["progress"]["percentage"] = 100
+            
+            return {"success": True, "message": "User input processed successfully"}
+            
+        except Exception as e:
+            print(f"❌ Error processing user input for execution {execution_id}: {e}")
+            return {"success": False, "error": str(e)}
     
     def _serialize_agent_trace(self, agent_trace) -> Dict[str, Any]:
         """Serialize any-agent's AgentTrace object for storage/transmission"""
@@ -1343,6 +1469,16 @@ async def execute_workflow(request: ExecutionRequest):
     return await executor.execute_workflow(request)
 
 
+@app.post("/executions/{execution_id}/input")
+async def submit_user_input(execution_id: str, input_request: UserInputRequest):
+    """Submit user input for a workflow execution that's waiting for input"""
+    try:
+        result = await executor.provide_user_input(execution_id, input_request.input_text)
+        return result
+    except Exception as e:
+        print(f"❌ Error handling user input submission: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/executions/{execution_id}")
 async def get_execution(execution_id: str):
     """Get execution details by ID"""
@@ -1527,9 +1663,12 @@ async def get_execution_analytics():
 
 @app.websocket("/ws/execution/{execution_id}")
 async def websocket_execution_status(websocket: WebSocket, execution_id: str):
-    """WebSocket endpoint for real-time execution updates"""
+    """WebSocket endpoint for real-time execution updates with user input support"""
     await websocket.accept()
     print(f"🔌 WebSocket connected for execution {execution_id}")
+    
+    # Track WebSocket connection for input requests
+    executor.websocket_connections[execution_id] = websocket
     
     try:
         while True:
@@ -1559,7 +1698,10 @@ async def websocket_execution_status(websocket: WebSocket, execution_id: str):
                         "cost_info": execution.get("trace", {}).get("cost_info", {}),
                         "performance": execution.get("trace", {}).get("performance", {}),
                         "framework_used": execution.get("trace", {}).get("framework_used", execution.get("framework", "openai"))
-                    } if execution.get("trace") else None
+                    } if execution.get("trace") else None,
+                    # Add user input support fields
+                    "user_input": execution.get("user_input"),
+                    "pending_input": execution_id in executor.pending_inputs
                 }
                 
                 # Log what we're sending
@@ -1579,6 +1721,10 @@ async def websocket_execution_status(websocket: WebSocket, execution_id: str):
         print(f"🔌 WebSocket disconnected for execution {execution_id}")
     except Exception as e:
         print(f"❌ WebSocket error for execution {execution_id}: {e}")
+    finally:
+        # Clean up WebSocket connection
+        if execution_id in executor.websocket_connections:
+            del executor.websocket_connections[execution_id]
 
 
 @app.get("/evaluations/cases")

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Play, Square, Loader2, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { Play, Square, Loader2, Clock, CheckCircle, XCircle, AlertCircle, Send } from 'lucide-react'
 import { WorkflowExecutionState, NodeExecutionStatus } from '../../types/workflow'
+import { WorkflowService } from '../../services/workflow'
 
 interface ExecutionProgressPanelProps {
   executionState: WorkflowExecutionState | null
@@ -18,6 +19,7 @@ const getStatusIcon = (status: NodeExecutionStatus) => {
     case 'completed': return <CheckCircle className="w-4 h-4 text-green-600" />
     case 'failed': return <XCircle className="w-4 h-4 text-red-600" />
     case 'waiting': return <Clock className="w-4 h-4 text-yellow-600" />
+    case 'waiting_for_input': return <Clock className="w-4 h-4 text-orange-600" />
     case 'pending': return <Clock className="w-4 h-4 text-gray-400" />
     case 'idle': return <AlertCircle className="w-4 h-4 text-gray-300" />
     default: return null
@@ -30,6 +32,7 @@ const getStatusColor = (status: NodeExecutionStatus) => {
     case 'completed': return 'bg-green-100 text-green-800'
     case 'failed': return 'bg-red-100 text-red-800'
     case 'waiting': return 'bg-yellow-100 text-yellow-800'
+    case 'waiting_for_input': return 'bg-orange-100 text-orange-800'
     case 'pending': return 'bg-gray-100 text-gray-800'
     case 'idle': return 'bg-gray-50 text-gray-500'
     default: return 'bg-gray-50 text-gray-500'
@@ -44,6 +47,8 @@ export default function ExecutionProgressPanel({
   onReset
 }: ExecutionProgressPanelProps) {
   const [expanded, setExpanded] = useState(false)
+  const [userInput, setUserInput] = useState('')
+  const [submittingInput, setSubmittingInput] = useState(false)
 
   const nodeStates = executionState ? Array.from(executionState.nodes.entries()) : []
   const totalNodes = nodeStates.length
@@ -52,6 +57,21 @@ export default function ExecutionProgressPanel({
   ).length
   const runningNodes = nodeStates.filter(([_, state]) => state.status === 'running').length
   const failedNodes = nodeStates.filter(([_, state]) => state.status === 'failed').length
+
+  const handleSubmitInput = async () => {
+    if (!userInput.trim() || !executionState?.id) return
+    
+    setSubmittingInput(true)
+    try {
+      await WorkflowService.submitUserInput(executionState.id, userInput.trim())
+      setUserInput('')
+      console.log('✅ User input submitted successfully')
+    } catch (error) {
+      console.error('❌ Failed to submit user input:', error)
+    } finally {
+      setSubmittingInput(false)
+    }
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4 w-80">
@@ -139,6 +159,40 @@ export default function ExecutionProgressPanel({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* User Input Interface */}
+      {executionState?.status === 'waiting_for_input' && executionState.inputRequest && (
+        <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="w-4 h-4 text-orange-600" />
+            <span className="text-sm font-medium text-orange-800">Agent is asking for input</span>
+          </div>
+          <p className="text-sm text-orange-700 mb-3">{executionState.inputRequest.question}</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSubmitInput()}
+              placeholder="Type your response..."
+              className="flex-1 px-3 py-2 text-sm border border-orange-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              disabled={submittingInput}
+            />
+            <button
+              onClick={handleSubmitInput}
+              disabled={!userInput.trim() || submittingInput}
+              className="px-3 py-2 bg-orange-600 text-white rounded-md text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              {submittingInput ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              Send
+            </button>
           </div>
         </div>
       )}

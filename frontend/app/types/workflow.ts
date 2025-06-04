@@ -614,7 +614,7 @@ export const SYSTEM_MODEL_CONFIGS: SystemModelConfig[] = [
 ]
 
 // Add execution status types for progress visualization
-export type NodeExecutionStatus = 'idle' | 'pending' | 'running' | 'completed' | 'failed' | 'waiting'
+export type NodeExecutionStatus = 'idle' | 'pending' | 'running' | 'completed' | 'failed' | 'waiting' | 'waiting_for_input'
 
 export interface NodeExecutionState {
   status: NodeExecutionStatus
@@ -628,12 +628,17 @@ export interface NodeExecutionState {
 
 export interface WorkflowExecutionState {
   id: string
-  status: 'idle' | 'running' | 'completed' | 'failed'
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'waiting_for_input'
   nodes: Map<string, NodeExecutionState>
   startTime: number
   totalCost: number
   progress: number // Overall completion percentage
   currentActivity?: string // Current execution activity description
+  pendingInput?: boolean // Whether workflow is waiting for user input
+  inputRequest?: {
+    question: string
+    timestamp: number
+  }
 }
 
 export interface ExecutionProgressMessage {
@@ -646,5 +651,10 @@ export interface ExecutionProgressMessage {
   cost?: number
   output?: any
   error?: string
-  type: 'node_update' | 'workflow_update' | 'progress_update'
+  type: 'node_update' | 'workflow_update' | 'progress_update' | 'input_request' | 'input_received'
+  inputRequest?: {
+    question: string
+    timestamp: number
+  }
+  userInput?: string
 } 

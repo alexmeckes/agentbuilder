@@ -121,6 +121,28 @@ export class WorkflowService {
   }
 
   /**
+   * Submit user input for a workflow execution that's waiting for input
+   */
+  static async submitUserInput(executionId: string, inputText: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    const response = await fetch(`${BACKEND_URL}/executions/${executionId}/input`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        execution_id: executionId,
+        input_text: inputText,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to submit user input: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  /**
    * Convert ReactFlow nodes/edges to workflow definition
    */
   static convertToWorkflowDefinition(

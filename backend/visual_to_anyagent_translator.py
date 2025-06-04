@@ -468,6 +468,19 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         agent_trace = agent.run(input_data)
         logger.info(f"✅ Production subprocess: Agent execution completed, output length: {len(str(agent_trace))}")
         
+        # Extract the final output for input detection
+        final_output = agent_trace.final_output if hasattr(agent_trace, 'final_output') else str(agent_trace)
+        
+        # Check if the agent output indicates a request for user input
+        # This is a simplified detection - in a full implementation, this would be more sophisticated
+        if final_output and ("?" in final_output) and any(indicator in final_output.lower() for indicator in [
+            "what would you like", "please provide", "tell me", "what are your preferences", 
+            "what do you think", "how would you like", "what should", "what kind of"
+        ]):
+            logger.info(f"🤔 Agent output appears to be requesting user input: {final_output[:100]}...")
+            # For now, we'll just log this detection
+            # The actual input request handling would be implemented in the main execution flow
+        
         # Extract detailed trace information from the any-agent result
         trace_data = _extract_trace_from_result(agent_trace)
         

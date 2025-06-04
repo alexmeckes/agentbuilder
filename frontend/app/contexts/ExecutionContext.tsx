@@ -15,6 +15,8 @@ function mapBackendStatusToFrontend(backendStatus: string): NodeExecutionStatus 
       return 'completed'
     case 'failed':
       return 'failed'
+    case 'waiting_for_input':
+      return 'waiting_for_input'
     default:
       return 'idle'
   }
@@ -28,6 +30,7 @@ interface ExecutionContextType {
   resetExecution: () => void
   getNodeExecutionState: (nodeId: string) => NodeExecutionState | undefined
   updateNodeStatus: (nodeId: string, update: Partial<NodeExecutionState>) => void
+  submitUserInput: (inputText: string) => Promise<void>
 }
 
 const ExecutionContext = createContext<ExecutionContextType | undefined>(undefined)
@@ -76,7 +79,8 @@ export function ExecutionProvider({
       nodes: nodeStates,
       startTime: Date.now(),
       totalCost: 0,
-      progress: 0
+      progress: 0,
+      pendingInput: false
     })
   }, [])
 
@@ -109,7 +113,7 @@ export function ExecutionProvider({
         state => state.status === 'completed' || state.status === 'failed'
       )
 
-      let overallStatus: 'idle' | 'running' | 'completed' | 'failed' = prev.status
+      let overallStatus: 'idle' | 'running' | 'completed' | 'failed' | 'waiting_for_input' = prev.status
       if (hasRunning) {
         overallStatus = 'running'
       } else if (allCompleted) {
@@ -146,6 +150,35 @@ export function ExecutionProvider({
       executionId,
       (data) => {
         console.log('📡 WebSocket message received:', data)
+        
+        // Handle input request messages
+        if (data.type === 'input_request') {
+          console.log('📝 Input request received:', data.input_request)
+          setExecutionState(prev => prev ? {
+            ...prev,
+            status: 'waiting_for_input',
+            pendingInput: true,
+            inputRequest: {
+              question: data.input_request.question,
+              timestamp: data.input_request.timestamp
+            },
+            currentActivity: `Waiting for user input: ${data.input_request.question}`
+          } : prev)
+          return
+        }
+        
+        // Handle input received confirmation
+        if (data.type === 'input_received') {
+          console.log('✅ Input received confirmation:', data.user_input)
+          setExecutionState(prev => prev ? {
+            ...prev,
+            status: 'running',
+            pendingInput: false,
+            inputRequest: undefined,
+            currentActivity: 'Processing user input...'
+          } : prev)
+          return
+        }
         
         // Parse execution updates and map to node states
         if (data.status === 'running' && data.progress) {
@@ -275,6 +308,21 @@ export function ExecutionProvider({
     return executionState?.nodes.get(nodeId)
   }, [executionState])
 
+  // Submit user input for the current execution
+  const submitUserInput = useCallback(async (inputText: string) => {
+    if (!executionState?.id) {
+      throw new Error('No active execution to submit input to')
+    }
+    
+    try {
+      await WorkflowService.submitUserInput(executionState.id, inputText)
+      console.log('✅ User input submitted via context')
+    } catch (error) {
+      console.error('❌ Failed to submit user input via context:', error)
+      throw error
+    }
+  }, [executionState?.id])
+
   // Reset execution state
   const resetExecution = useCallback(() => {
     stopExecution()
@@ -297,7 +345,8 @@ export function ExecutionProvider({
     stopExecution,
     resetExecution,
     getNodeExecutionState,
-    updateNodeStatus
+    updateNodeStatus,
+    submitUserInput
   }
 
   return (
