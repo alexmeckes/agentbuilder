@@ -1,20 +1,158 @@
 'use client'
 
-import { useState, DragEvent } from 'react'
-import { Search, ChevronDown, ChevronRight, Plus } from 'lucide-react'
-import { NODE_CATEGORIES, NodeTemplate, getNodeTemplate } from '../../types/NodeTypes'
+import { useState, useEffect, DragEvent } from 'react'
+import { Search, ChevronDown, ChevronRight, Plus, Zap } from 'lucide-react'
+import { NODE_CATEGORIES, NodeTemplate, getNodeTemplate, NodeCategory } from '../../types/NodeTypes'
 
 interface NodePaletteProps {
   className?: string
+}
+
+interface UserSettings {
+  userId: string
+  composioApiKey?: string
+  enabledTools: string[]
+  preferences: any
+}
+
+// Mapping from user-enabled tools to node templates
+const createComposioNodeTemplate = (toolId: string, toolConfig: any): NodeTemplate => {
+  return {
+    id: `composio-${toolId}`,
+    type: 'tool',
+    name: toolConfig.name,
+    description: toolConfig.description,
+    category: `composio-${toolConfig.category.toLowerCase()}`,
+    icon: toolConfig.icon,
+    defaultData: {
+      type: 'tool',
+      tool_type: toolConfig.tool_type,
+      name: toolConfig.name.replace(/\s+/g, ''),
+      description: toolConfig.description,
+      isComposio: true,
+      category: toolConfig.category
+    },
+    configurable: ['name', 'description']
+  }
+}
+
+const composioToolsMapping: Record<string, any> = {
+  'github_star_repo': { 
+    name: 'GitHub Star', 
+    description: 'Star a GitHub repository', 
+    icon: '⭐',
+    category: 'Development',
+    tool_type: 'composio_github_star_repo'
+  },
+  'github_create_issue': { 
+    name: 'GitHub Issue', 
+    description: 'Create a GitHub issue', 
+    icon: '🐙',
+    category: 'Development',
+    tool_type: 'composio_github_create_issue'
+  },
+  'slack_send_message': { 
+    name: 'Slack Message', 
+    description: 'Send message to Slack', 
+    icon: '💬',
+    category: 'Communication',
+    tool_type: 'composio_slack_send_message'
+  },
+  'gmail_send_email': { 
+    name: 'Gmail Email', 
+    description: 'Send email via Gmail', 
+    icon: '📧',
+    category: 'Communication',
+    tool_type: 'composio_gmail_send_email'
+  },
+  'notion_create_page': { 
+    name: 'Notion Page', 
+    description: 'Create a Notion page', 
+    icon: '📝',
+    category: 'Productivity',
+    tool_type: 'composio_notion_create_page'
+  },
+  'linear_create_issue': { 
+    name: 'Linear Issue', 
+    description: 'Create a Linear issue', 
+    icon: '📋',
+    category: 'Productivity',
+    tool_type: 'composio_linear_create_issue'
+  },
+  'trello_create_card': { 
+    name: 'Trello Card', 
+    description: 'Create a Trello card', 
+    icon: '🗃️',
+    category: 'Productivity',
+    tool_type: 'composio_trello_create_card'
+  }
 }
 
 export default function NodePalette({ className = '' }: NodePaletteProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['ai-agents']))
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
+  const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
+  const [dynamicCategories, setDynamicCategories] = useState<NodeCategory[]>(NODE_CATEGORIES)
 
-  // Filter nodes based on search term
-  const filteredCategories = NODE_CATEGORIES.map(category => ({
+  // Load user settings and create dynamic Composio categories
+  useEffect(() => {
+    loadUserSettings()
+  }, [])
+
+  const loadUserSettings = () => {
+    try {
+      const savedSettings = localStorage.getItem('userSettings')
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings)
+        setUserSettings(settings)
+        
+        // Create dynamic Composio categories based on enabled tools
+        if (settings.enabledTools && settings.enabledTools.length > 0) {
+          createDynamicComposioCategories(settings.enabledTools)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load user settings:', error)
+    }
+  }
+
+  const createDynamicComposioCategories = (enabledTools: string[]) => {
+    // Group enabled tools by category
+    const toolsByCategory: Record<string, NodeTemplate[]> = {}
+    
+    enabledTools.forEach(toolId => {
+      const toolConfig = composioToolsMapping[toolId]
+      if (toolConfig) {
+        const categoryKey = toolConfig.category.toLowerCase()
+        if (!toolsByCategory[categoryKey]) {
+          toolsByCategory[categoryKey] = []
+        }
+        toolsByCategory[categoryKey].push(createComposioNodeTemplate(toolId, toolConfig))
+      }
+    })
+
+    // Create category objects for each category with tools
+    const composioCategories: NodeCategory[] = Object.entries(toolsByCategory).map(([categoryKey, tools]) => ({
+      id: `composio-${categoryKey}`,
+      name: `Composio ${tools[0].defaultData.category}`,
+      description: `${tools[0].defaultData.category} tools powered by Composio`,
+      icon: '⚡',
+      nodes: tools
+    }))
+
+    // Combine static categories with dynamic Composio categories
+    const allCategories = [...NODE_CATEGORIES, ...composioCategories]
+    setDynamicCategories(allCategories)
+
+    // Auto-expand first Composio category if it exists
+    if (composioCategories.length > 0) {
+      setExpandedCategories(prev => new Set([...prev, composioCategories[0].id]))
+    }
+  }
+
+  // Filter categories based on search term
+  const filteredCategories = dynamicCategories.map(category => ({
     ...category,
     nodes: category.nodes.filter(node =>
       node.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -82,7 +220,9 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                 {/* Category Header */}
                 <button
                   onClick={() => toggleCategory(category.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg hover:bg-slate-50 transition-colors"
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg hover:bg-slate-50 transition-colors ${
+                    category.id.startsWith('composio-') ? 'bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200' : ''
+                  }`}
                 >
                   {expandedCategories.has(category.id) ? (
                     <ChevronDown className="w-4 h-4 text-slate-400" />
@@ -91,10 +231,22 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                   )}
                   <span className="text-lg">{category.icon}</span>
                   <div className="flex-1">
-                    <h3 className="text-sm font-medium text-slate-900">{category.name}</h3>
-                    <p className="text-xs text-slate-600">{category.description}</p>
+                    <h3 className={`text-sm font-medium ${
+                      category.id.startsWith('composio-') ? 'text-purple-900' : 'text-slate-900'
+                    }`}>
+                      {category.name}
+                    </h3>
+                    <p className={`text-xs ${
+                      category.id.startsWith('composio-') ? 'text-purple-600' : 'text-slate-600'
+                    }`}>
+                      {category.description}
+                    </p>
                   </div>
-                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    category.id.startsWith('composio-') 
+                      ? 'text-purple-600 bg-purple-100' 
+                      : 'text-slate-400 bg-slate-100'
+                  }`}>
                     {category.nodes.length}
                   </span>
                 </button>
@@ -110,7 +262,9 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                         onMouseLeave={() => setHoveredNode(null)}
                       >
                         <div
-                          className="p-3 border border-slate-200 rounded-lg cursor-move hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200 bg-white"
+                          className={`p-3 border border-slate-200 rounded-lg cursor-move hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200 bg-white ${
+                            node.defaultData?.isComposio ? 'border-purple-200 bg-gradient-to-r from-purple-50/50 to-blue-50/50' : ''
+                          }`}
                           draggable
                           onDragStart={(e) => onDragStart(e, node.id)}
                         >
@@ -136,6 +290,16 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                                   {node.type}
                                 </span>
                                 
+                                {/* Composio indicator */}
+                                {node.defaultData?.isComposio && (
+                                  <div className="flex items-center gap-1">
+                                    <Zap className="w-3 h-3 text-purple-500" />
+                                    <span className="text-xs text-purple-600 font-medium">
+                                      Composio
+                                    </span>
+                                  </div>
+                                )}
+                                
                                 {/* Configurable indicator */}
                                 {node.configurable.length > 0 && (
                                   <span className="text-xs text-slate-500">
@@ -152,6 +316,14 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                           <div className="absolute left-full top-0 ml-2 z-50 w-64 p-3 bg-white border border-slate-200 rounded-lg shadow-lg">
                             <h4 className="font-medium text-slate-900 mb-2">{node.name}</h4>
                             <p className="text-sm text-slate-600 mb-3">{node.description}</p>
+                            
+                            {/* Composio Badge in Tooltip */}
+                            {node.defaultData?.isComposio && (
+                              <div className="flex items-center gap-1 mb-3 px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs">
+                                <Zap className="w-3 h-3" />
+                                <span>Powered by Composio</span>
+                              </div>
+                            )}
                             
                             {/* Default Configuration Preview */}
                             <div className="space-y-2">
@@ -173,6 +345,14 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                                     {node.defaultData.name}
                                   </span>
                                 </div>
+                                {node.defaultData?.tool_type && (
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-slate-600">Tool Type:</span>
+                                    <span className="text-slate-900 font-mono">
+                                      {node.defaultData.tool_type}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                               
                               {/* Configurable Fields */}
