@@ -8,8 +8,9 @@ import { AnalyticsDashboard } from './components/AnalyticsDashboard'
 import ExperimentsPage from './components/ExperimentsPage'
 import EvaluationsPage from './components/EvaluationsPage'
 import PreferencesModal from './components/settings/PreferencesModal'
+import UserSettingsModal from './components/settings/UserSettingsModal'
 import type { Node, Edge } from 'reactflow'
-import { Workflow, MessageSquare, Settings, BarChart3, Beaker, FlaskConical } from 'lucide-react'
+import { Workflow, MessageSquare, Settings, BarChart3, Beaker, FlaskConical, User } from 'lucide-react'
 
 export default function Home() {
   const [nodes, setNodes] = useState<Node[]>([])
@@ -19,7 +20,9 @@ export default function Home() {
   const [workflowExecutionInput, setWorkflowExecutionInput] = useState('Hello, please analyze this data and provide insights.')
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false)
+  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false)
   const [isManualMode, setIsManualMode] = useState(false)
+  const [userSettings, setUserSettings] = useState<any>(null)
 
   const handleWorkflowChange = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     setNodes(newNodes)
@@ -458,14 +461,20 @@ export default function Home() {
             </div>
 
             {/* Settings Button */}
-            <div className="flex items-center">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  console.log('Settings button clicked')
-                  setIsPreferencesOpen(true)
-                }}
+                onClick={() => setIsUserSettingsOpen(true)}
                 className="flex items-center gap-2 px-4 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
-                title="Settings & Preferences"
+                title="User Settings"
+              >
+                <User className="w-4 h-4" />
+                <span className="text-sm font-medium">Account</span>
+              </button>
+              
+              <button
+                onClick={() => setIsPreferencesOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors border border-transparent hover:border-slate-200"
+                title="System Preferences"
               >
                 <Settings className="w-4 h-4" />
                 <span className="text-sm font-medium">Settings</span>
@@ -611,6 +620,16 @@ export default function Home() {
       <PreferencesModal 
         isOpen={isPreferencesOpen}
         onClose={() => setIsPreferencesOpen(false)}
+      />
+      
+      {/* User Settings Modal */}
+      <UserSettingsModal 
+        isOpen={isUserSettingsOpen}
+        onClose={() => setIsUserSettingsOpen(false)}
+        onSave={(settings) => {
+          setUserSettings(settings)
+          console.log('User settings saved:', settings)
+        }}
       />
     </div>
   )
