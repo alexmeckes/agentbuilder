@@ -86,9 +86,10 @@ const getValidationStatus = (data: EnhancedNodeData) => {
     if (!data.agentConfig?.instructions && !data.instructions) {
       return { status: 'warning', message: 'Missing instructions' }
     }
-    if (!data.framework) {
-      return { status: 'warning', message: 'Missing framework selection' }
-    }
+    // Framework is optional - it can be inferred from model selection or defaulted by backend
+    // if (!data.framework) {
+    //   return { status: 'warning', message: 'Missing framework selection' }
+    // }
   }
   if (data.type === 'tool') {
     if (!data.tool_type) {
