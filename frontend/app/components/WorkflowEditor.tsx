@@ -284,30 +284,50 @@ function WorkflowEditorInner({
 
   // Handle node data updates from the node components
   const handleNodeUpdate = useCallback((nodeId: string, updatedData: any) => {
+    console.log(`🔧 Updating node ${nodeId}:`, updatedData)
+    
     const updateNodes = (currentNodes: Node[]) => {
-      return currentNodes.map(node => 
+      const nodeExists = currentNodes.find(node => node.id === nodeId)
+      if (!nodeExists) {
+        console.error(`❌ Node ${nodeId} not found! Cannot update.`)
+        return currentNodes // Return unchanged if node doesn't exist
+      }
+      
+      const updatedNodes = currentNodes.map(node => 
         node.id === nodeId 
           ? { ...node, data: { ...node.data, ...updatedData } }
           : node
       )
+      
+      console.log(`✅ Node ${nodeId} updated successfully`)
+      return updatedNodes
     }
 
-    if (externalOnNodesChange) {
-      // Update external state
-      const updatedNodes = updateNodes(baseNodes)
-      externalOnNodesChange(updatedNodes)
-      if (onWorkflowChange) {
-        onWorkflowChange(updatedNodes, edges)
+    try {
+      if (externalOnNodesChange) {
+        // Update external state
+        const updatedNodes = updateNodes(baseNodes)
+        externalOnNodesChange(updatedNodes)
+        if (onWorkflowChange) {
+          onWorkflowChange(updatedNodes, edges)
+        }
+      } else {
+        // Update internal state
+        setInternalNodes(updateNodes)
       }
-    } else {
-      // Update internal state
-      setInternalNodes(updateNodes)
+    } catch (error) {
+      console.error(`❌ Error updating node ${nodeId}:`, error)
+      // Don't update anything if there's an error to prevent node loss
     }
   }, [baseNodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
 
   // Ensure all nodes have the onNodeUpdate and onNodeDelete callbacks
   useEffect(() => {
     const updateNodesWithCallback = (currentNodes: Node[]) => {
+      if (!currentNodes || currentNodes.length === 0) {
+        return currentNodes
+      }
+      
       return currentNodes.map(node => {
         const hasCallbacks = node.data.onNodeUpdate && node.data.onNodeDelete
         if (!hasCallbacks) {
@@ -324,22 +344,41 @@ function WorkflowEditorInner({
       })
     }
 
-    // Always update nodes to ensure callbacks are fresh
-    if (externalOnNodesChange && externalNodes && externalNodes.length > 0) {
-      console.log('🔧 Updating external nodes with callbacks:', externalNodes.length)
-      const updatedNodes = updateNodesWithCallback(externalNodes)
-      
-      // Only call externalOnNodesChange if something actually changed
-      const hasChanges = externalNodes.some((node, index) => 
-        !updatedNodes[index]?.data?.onNodeUpdate || !updatedNodes[index]?.data?.onNodeDelete
-      )
-      
-      if (hasChanges) {
-        externalOnNodesChange(updatedNodes)
+    try {
+      // Always update nodes to ensure callbacks are fresh
+      if (externalOnNodesChange && externalNodes && externalNodes.length > 0) {
+        console.log('🔧 Updating external nodes with callbacks:', externalNodes.length)
+        const updatedNodes = updateNodesWithCallback(externalNodes)
+        
+        // Safety check: ensure we don't lose any nodes
+        if (updatedNodes.length !== externalNodes.length) {
+          console.error(`❌ Node count mismatch! Original: ${externalNodes.length}, Updated: ${updatedNodes.length}`)
+          return // Don't update if we lost nodes
+        }
+        
+        // Only call externalOnNodesChange if something actually changed
+        const hasChanges = externalNodes.some((node, index) => 
+          !updatedNodes[index]?.data?.onNodeUpdate || !updatedNodes[index]?.data?.onNodeDelete
+        )
+        
+        if (hasChanges) {
+          console.log(`🔧 Applying callback updates to ${externalNodes.length} nodes`)
+          externalOnNodesChange(updatedNodes)
+        }
+      } else if (internalNodes.length > 0) {
+        console.log('🔧 Updating internal nodes with callbacks:', internalNodes.length)
+        const updatedNodes = updateNodesWithCallback(internalNodes)
+        
+        // Safety check for internal nodes too
+        if (updatedNodes.length === internalNodes.length) {
+          setInternalNodes(updatedNodes)
+        } else {
+          console.error(`❌ Internal node count mismatch! Original: ${internalNodes.length}, Updated: ${updatedNodes.length}`)
+        }
       }
-    } else if (internalNodes.length > 0) {
-      console.log('🔧 Updating internal nodes with callbacks:', internalNodes.length)
-      setInternalNodes(updateNodesWithCallback(internalNodes))
+    } catch (error) {
+      console.error('❌ Error updating nodes with callbacks:', error)
+      // Don't update anything if there's an error
     }
   }, [externalNodes, internalNodes, handleNodeUpdate, handleNodeDelete, externalOnNodesChange, setInternalNodes])
 
