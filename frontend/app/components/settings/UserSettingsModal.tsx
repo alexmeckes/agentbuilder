@@ -97,6 +97,12 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
 
       const result = await response.json()
       
+      // Log the complete API response for debugging
+      console.log('🔍 FULL API RESPONSE:', JSON.stringify(result, null, 2))
+      console.log('📱 Available Apps from API:', result.availableApps)
+      console.log('🔗 Connected Accounts from API:', result.connectedAccounts)
+      console.log('🐛 Debug Info:', result.debug)
+      
       if (response.ok && result.success && result.availableApps) {
         const discoveredTools = mapComposioAppsToTools(result.availableApps, result.userInfo)
         setAvailableTools(discoveredTools)
@@ -156,6 +162,12 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
       })
 
       const result = await response.json()
+      
+      // Log the complete API response for debugging
+      console.log('🔍 FULL API RESPONSE:', JSON.stringify(result, null, 2))
+      console.log('📱 Available Apps from API:', result.availableApps)
+      console.log('🔗 Connected Accounts from API:', result.connectedAccounts)
+      console.log('🐛 Debug Info:', result.debug)
       
       if (response.ok && result.success) {
         // Map Composio apps to our tool definitions
