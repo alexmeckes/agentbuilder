@@ -127,9 +127,8 @@ class VisualToAnyAgentTranslator:
             try:
                 # Import here to avoid circular imports
                 from composio_mcp_bridge import UserComposioManager, UserContext
-                
-                # TODO: Get user context from workflow execution context
-                # For now, we'll return a descriptive message about what would happen
+                import asyncio
+                import os
                 
                 # Extract parameters from args/kwargs
                 if args:
@@ -137,17 +136,85 @@ class VisualToAnyAgentTranslator:
                 else:
                     params = kwargs
                 
-                # In a real execution, this would:
-                # 1. Get user's API key from workflow execution context
-                # 2. Create UserContext with user's settings
-                # 3. Execute via UserComposioManager.execute_tool_for_user()
+                # Get user context from environment (set by MCP server config)
+                api_key = os.getenv('COMPOSIO_API_KEY', '')
+                user_id = os.getenv('USER_ID', 'default_user')
+                enabled_tools_str = os.getenv('ENABLED_TOOLS', '')
                 
-                result = f"🔧 Composio {tool_name} would execute with parameters: {params}\n"
-                result += f"💡 To enable real execution, configure your Composio API key in user settings.\n"
-                result += f"🎯 This tool will use your connected {tool_name.split('_')[0]} account."
+                # Parse enabled tools
+                enabled_tools = []
+                if enabled_tools_str:
+                    enabled_tools = [tool.strip() for tool in enabled_tools_str.split(',') if tool.strip()]
                 
-                logging.info(f"🔧 Composio tool wrapper executed: {tool_name} with params: {params}")
-                return result
+                # Check if we have a valid API key
+                if not api_key:
+                    return f"❌ No Composio API key configured. Please set your API key in user settings to enable real {tool_name} execution."
+                
+                # Create user context
+                user_context = UserContext(
+                    user_id=user_id,
+                    api_key=api_key,
+                    enabled_tools=enabled_tools if enabled_tools else None,
+                    preferences={}
+                )
+                
+                # Execute the tool for real using the UserComposioManager
+                manager = UserComposioManager()
+                
+                # Run the async execution in the current event loop or create a new one
+                try:
+                    # Try to get the current event loop
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # If we're already in an async context, create a new event loop in a thread
+                        import concurrent.futures
+                        import threading
+                        
+                        def run_in_new_loop():
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            try:
+                                return new_loop.run_until_complete(
+                                    manager.execute_tool_for_user(tool_name, params, user_context)
+                                )
+                            finally:
+                                new_loop.close()
+                        
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(run_in_new_loop)
+                            result = future.result(timeout=30)  # 30 second timeout
+                    else:
+                        # We can run directly in the current loop
+                        result = loop.run_until_complete(
+                            manager.execute_tool_for_user(tool_name, params, user_context)
+                        )
+                except RuntimeError:
+                    # No event loop, create one
+                    result = asyncio.run(
+                        manager.execute_tool_for_user(tool_name, params, user_context)
+                    )
+                
+                # Format the result for the workflow
+                if result.get("success"):
+                    success_msg = f"✅ Successfully executed {tool_name}"
+                    if "result" in result:
+                        success_msg += f"\n\nResult: {result['result']}"
+                    logging.info(f"🎯 Composio tool executed successfully: {tool_name} for user {user_context.user_id}")
+                    return success_msg
+                elif "mock_result" in result:
+                    # This is a mock execution (no real API key or connection)
+                    mock_msg = f"🔧 Mock execution of {tool_name}: {result['mock_result']}"
+                    if "message" in result:
+                        mock_msg += f"\n💡 {result['message']}"
+                    logging.info(f"🔧 Composio tool mock execution: {tool_name}")
+                    return mock_msg
+                else:
+                    # Real execution failed
+                    error_msg = f"❌ Failed to execute {tool_name}: {result.get('error', 'Unknown error')}"
+                    if "message" in result:
+                        error_msg += f"\n💡 {result['message']}"
+                    logging.error(f"❌ Composio tool execution failed: {tool_name} - {result.get('error')}")
+                    return error_msg
                 
             except Exception as e:
                 error_msg = f"❌ Error executing Composio tool {tool_name}: {str(e)}"
@@ -156,7 +223,7 @@ class VisualToAnyAgentTranslator:
         
         # Set function metadata for debugging
         composio_tool_wrapper.__name__ = f"composio_{tool_name}"
-        composio_tool_wrapper.__doc__ = f"Composio {tool_name} integration"
+        composio_tool_wrapper.__doc__ = f"Composio {tool_name} integration - executes real actions"
         
         return composio_tool_wrapper
     
