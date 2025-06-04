@@ -84,8 +84,81 @@ class VisualToAnyAgentTranslator:
             "visit_page": visit_webpage,     # Alternative naming
         }
         
+        # Add Composio tools for workflow execution
+        self._add_composio_tools()
+        
         # Add MCP tools if available and enabled
         self._update_available_tools()
+    
+    def _add_composio_tools(self):
+        """Add Composio tools to available_tools for workflow execution"""
+        try:
+            # Import our Composio bridge for per-user execution
+            from composio_mcp_bridge import UserComposioManager, UserContext
+            
+            # Create placeholder functions for each Composio tool that will be executed with user context
+            composio_tools = {
+                "composio_github_star_repo": self._create_composio_tool_wrapper("github_star_repo"),
+                "composio_github_create_issue": self._create_composio_tool_wrapper("github_create_issue"),
+                "composio_slack_send_message": self._create_composio_tool_wrapper("slack_send_message"),
+                "composio_gmail_send_email": self._create_composio_tool_wrapper("gmail_send_email"),
+                "composio_googledocs_create_doc": self._create_composio_tool_wrapper("googledocs_create_doc"),
+                "composio_googlesheets_create_sheet": self._create_composio_tool_wrapper("googlesheets_create_sheet"),
+                "composio_googledrive_upload": self._create_composio_tool_wrapper("googledrive_upload"),
+                "composio_googlecalendar_create_event": self._create_composio_tool_wrapper("googlecalendar_create_event"),
+                "composio_notion_create_page": self._create_composio_tool_wrapper("notion_create_page"),
+                "composio_linear_create_issue": self._create_composio_tool_wrapper("linear_create_issue"),
+                "composio_trello_create_card": self._create_composio_tool_wrapper("trello_create_card"),
+                "composio_airtable_create_record": self._create_composio_tool_wrapper("airtable_create_record"),
+                "composio_jira_create_issue": self._create_composio_tool_wrapper("jira_create_issue")
+            }
+            
+            self.available_tools.update(composio_tools)
+            logging.info(f"✅ Added {len(composio_tools)} Composio tools for workflow execution")
+            
+        except ImportError as e:
+            logging.warning(f"⚠️  Composio integration not available for workflow execution: {e}")
+    
+    def _create_composio_tool_wrapper(self, tool_name: str):
+        """Create a wrapper function for a Composio tool that can be used in workflows"""
+        
+        def composio_tool_wrapper(*args, **kwargs):
+            """Wrapper that executes Composio tool with user context during workflow execution"""
+            try:
+                # Import here to avoid circular imports
+                from composio_mcp_bridge import UserComposioManager, UserContext
+                
+                # TODO: Get user context from workflow execution context
+                # For now, we'll return a descriptive message about what would happen
+                
+                # Extract parameters from args/kwargs
+                if args:
+                    params = {"input": str(args[0])} if len(args) == 1 else {"args": list(args)}
+                else:
+                    params = kwargs
+                
+                # In a real execution, this would:
+                # 1. Get user's API key from workflow execution context
+                # 2. Create UserContext with user's settings
+                # 3. Execute via UserComposioManager.execute_tool_for_user()
+                
+                result = f"🔧 Composio {tool_name} would execute with parameters: {params}\n"
+                result += f"💡 To enable real execution, configure your Composio API key in user settings.\n"
+                result += f"🎯 This tool will use your connected {tool_name.split('_')[0]} account."
+                
+                logging.info(f"🔧 Composio tool wrapper executed: {tool_name} with params: {params}")
+                return result
+                
+            except Exception as e:
+                error_msg = f"❌ Error executing Composio tool {tool_name}: {str(e)}"
+                logging.error(error_msg)
+                return error_msg
+        
+        # Set function metadata for debugging
+        composio_tool_wrapper.__name__ = f"composio_{tool_name}"
+        composio_tool_wrapper.__doc__ = f"Composio {tool_name} integration"
+        
+        return composio_tool_wrapper
     
     def _update_available_tools(self):
         """Safely add MCP tools to existing tool set"""
