@@ -277,16 +277,41 @@ user_manager = UserComposioManager()
 class PerUserMCPServer:
     def __init__(self):
         self.user_manager = user_manager
+        # Get user context from environment variables (set by MCP server config)
+        self.default_user_context = self._get_user_context_from_env()
         
-    def _parse_user_context(self, request: Dict[str, Any]) -> UserContext:
-        """Extract user context from request"""
-        user_data = request.get('user_context', {})
+    def _get_user_context_from_env(self) -> UserContext:
+        """Get user context from environment variables set by MCP server configuration"""
+        api_key = os.getenv('COMPOSIO_API_KEY', '')
+        user_id = os.getenv('USER_ID', 'default_user')
+        enabled_tools_str = os.getenv('ENABLED_TOOLS', '')
+        
+        # Parse enabled tools from comma-separated string
+        enabled_tools = []
+        if enabled_tools_str:
+            enabled_tools = [tool.strip() for tool in enabled_tools_str.split(',') if tool.strip()]
+        
+        logging.info(f"🔧 Composio MCP Bridge initialized for user: {user_id}")
+        logging.info(f"🔧 API key configured: {'✅ Yes' if api_key else '❌ No'}")
+        logging.info(f"🔧 Enabled tools: {enabled_tools if enabled_tools else 'All tools'}")
         
         return UserContext(
-            user_id=user_data.get('user_id', 'anonymous'),
-            api_key=user_data.get('composio_api_key'),
-            enabled_tools=user_data.get('enabled_tools', []),
-            preferences=user_data.get('preferences', {})
+            user_id=user_id,
+            api_key=api_key if api_key else None,
+            enabled_tools=enabled_tools,
+            preferences={}
+        )
+        
+    def _parse_user_context(self, request: Dict[str, Any]) -> UserContext:
+        """Extract user context from request, fallback to environment"""
+        user_data = request.get('user_context', {})
+        
+        # Use environment context as default, override with request data if provided
+        return UserContext(
+            user_id=user_data.get('user_id', self.default_user_context.user_id),
+            api_key=user_data.get('composio_api_key', self.default_user_context.api_key),
+            enabled_tools=user_data.get('enabled_tools', self.default_user_context.enabled_tools),
+            preferences=user_data.get('preferences', self.default_user_context.preferences)
         )
     
     async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:

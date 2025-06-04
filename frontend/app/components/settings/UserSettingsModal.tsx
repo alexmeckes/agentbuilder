@@ -116,23 +116,46 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
   }
 
   const handleSave = async () => {
-    setIsLoading(true)
     try {
-      // Save to localStorage
+      setIsLoading(true)
+      
+      // Save settings to localStorage
       localStorage.setItem('userSettings', JSON.stringify(settings))
       
-      // Save to backend (optional - for sync across devices)
-      try {
-        await fetch('/api/user-settings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(settings)
-        })
-      } catch (e) {
-        console.warn('Could not sync settings to backend:', e)
-      }
-
+      // Also call the save callback
       onSave(settings)
+      
+      // NEW: Update MCP Composio server configuration if API key is provided
+      if (settings.composioApiKey) {
+        try {
+          console.log('🔧 Updating MCP Composio server with new API key...')
+          
+          const mcpUpdateResponse = await fetch('/api/mcp/update-composio-server', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              userId: settings.userId,
+              apiKey: settings.composioApiKey,
+              enabledTools: settings.enabledTools
+            })
+          })
+          
+          if (mcpUpdateResponse.ok) {
+            const updateResult = await mcpUpdateResponse.json()
+            console.log('✅ MCP Composio server updated:', updateResult)
+          } else {
+            console.warn('⚠️ Failed to update MCP Composio server:', mcpUpdateResponse.status)
+            // Don't fail the save operation, just log the warning
+          }
+        } catch (mcpError) {
+          console.warn('⚠️ MCP update failed:', mcpError)
+          // Don't fail the save operation, just log the warning
+        }
+      }
+      
+      console.log('💾 User settings saved successfully')
       onClose()
     } catch (error) {
       console.error('Failed to save settings:', error)

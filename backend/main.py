@@ -3818,6 +3818,63 @@ async def remove_mcp_server(server_id: str):
         logging.error(f"Failed to remove MCP server: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/mcp/servers/{server_id}")
+async def update_mcp_server(server_id: str, server_config: dict):
+    """Update an existing MCP server configuration"""
+    if not is_mcp_enabled() or not MCP_AVAILABLE:
+        raise HTTPException(status_code=400, detail="MCP not enabled")
+    
+    try:
+        mcp_manager = get_mcp_manager()
+        
+        # Check if server exists
+        if server_id not in mcp_manager.servers:
+            raise HTTPException(status_code=404, detail=f"Server {server_id} not found")
+        
+        # Get existing server config
+        existing_config = mcp_manager.servers[server_id]
+        
+        # Update the configuration with new values
+        updated_env = existing_config.env.copy() if existing_config.env else {}
+        if 'env' in server_config:
+            updated_env.update(server_config['env'])
+        
+        # Create updated server config
+        updated_config = MCPServerConfig(
+            id=server_id,
+            name=server_config.get('name', existing_config.name),
+            description=server_config.get('description', existing_config.description),
+            command=server_config.get('command', existing_config.command),
+            args=server_config.get('args', existing_config.args or []),
+            env=updated_env,
+            working_dir=server_config.get('working_dir', existing_config.working_dir),
+            host=server_config.get('host', existing_config.host),
+            port=server_config.get('port', existing_config.port),
+            credentials=server_config.get('credentials', existing_config.credentials or {})
+        )
+        
+        # Remove old server and add updated one
+        mcp_manager.remove_server(server_id)
+        success = await mcp_manager.add_server(updated_config)
+        
+        if success:
+            logging.info(f"✅ Updated MCP server '{server_id}' configuration")
+            return {
+                "message": "Server updated successfully", 
+                "server_id": server_id,
+                "status": updated_config.status
+            }
+        else:
+            error_msg = updated_config.last_error or "Failed to connect to updated server"
+            logging.error(f"❌ Failed to update MCP server '{server_id}': {error_msg}")
+            raise HTTPException(status_code=400, detail=error_msg)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Failed to update MCP server: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/mcp/servers/{server_id}/test")
 async def test_mcp_server(server_id: str):
     """Test connection to an MCP server"""
