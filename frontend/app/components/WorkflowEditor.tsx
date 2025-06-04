@@ -707,6 +707,28 @@ function WorkflowEditorInner({
       return
     }
 
+    // Get user context from localStorage
+    let userContext = null
+    try {
+      const userSettings = localStorage.getItem('userSettings')
+      if (userSettings) {
+        const settings = JSON.parse(userSettings)
+        userContext = {
+          userId: settings.userId,
+          composioApiKey: settings.composioApiKey,
+          enabledTools: settings.enabledTools || [],
+          preferences: settings.preferences || {}
+        }
+        console.log('👤 User context loaded:', {
+          userId: userContext.userId,
+          hasApiKey: !!userContext.composioApiKey,
+          enabledToolsCount: userContext.enabledTools.length
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load user context:', error)
+    }
+
     console.log('✅ Starting workflow execution...')
     setIsExecuting(true)
     setExecutionResult(null)
@@ -774,7 +796,9 @@ function WorkflowEditorInner({
         framework: 'openai',
         // Add workflow identity context if available, otherwise let backend generate it
         workflow_identity: workflowDefinition.identity,
-        workflow_name: workflowDefinition.identity?.name
+        workflow_name: workflowDefinition.identity?.name,
+        // Include user context for per-user tool execution
+        userContext
       })
       
       console.log('📥 Backend response:', {

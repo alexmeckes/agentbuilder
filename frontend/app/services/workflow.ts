@@ -34,6 +34,12 @@ export interface ExecutionRequest {
   workflow_identity?: WorkflowIdentity
   workflow_name?: string
   workflow_id?: string
+  userContext?: {
+    userId: string
+    composioApiKey?: string
+    enabledTools: string[]
+    preferences: Record<string, any>
+  }
 }
 
 export interface ExecutionResponse {
