@@ -318,8 +318,15 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
   }
 
   const handleModalSave = (updatedData: EnhancedNodeData) => {
+    console.log('🔧 AgentNode handleModalSave called for node:', id)
+    console.log('📊 Updated data being saved:', updatedData)
+    console.log('📊 Current node data before update:', data)
+    
     if (onNodeUpdate) {
       onNodeUpdate(id, updatedData)
+      console.log('✅ onNodeUpdate called successfully')
+    } else {
+      console.error('❌ No onNodeUpdate callback available!')
     }
   }
 

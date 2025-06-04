@@ -329,7 +329,8 @@ function WorkflowEditorInner({
 
   // Handle node data updates from the node components
   const handleNodeUpdate = useCallback((nodeId: string, updatedData: any) => {
-    console.log(`🔧 Updating node ${nodeId}:`, updatedData)
+    console.log(`🔧 WorkflowEditor handleNodeUpdate called for node: ${nodeId}`)
+    console.log(`📊 Updated data received:`, updatedData)
     
     const updateNodes = (currentNodes: Node[]) => {
       const nodeExists = currentNodes.find(node => node.id === nodeId)
@@ -339,13 +340,19 @@ function WorkflowEditorInner({
         return currentNodes // Return unchanged if node doesn't exist
       }
       
+      console.log(`📊 Current node data before update:`, nodeExists.data)
+      
       const updatedNodes = currentNodes.map(node => 
         node.id === nodeId 
           ? { ...node, data: { ...node.data, ...updatedData } }
           : node
       )
       
+      // Log the updated node to verify the merge
+      const updatedNode = updatedNodes.find(n => n.id === nodeId)
+      console.log(`📊 Node data after update:`, updatedNode?.data)
       console.log(`✅ Node ${nodeId} updated successfully`)
+      
       return updatedNodes
     }
 
@@ -395,7 +402,9 @@ function WorkflowEditorInner({
         if (!hasCallbacks) {
           console.log(`🔧 Adding callbacks to node: ${node.id}`)
         }
-        return {
+        
+        // CRITICAL: Preserve existing data when adding callbacks
+        const updatedNode = {
           ...node,
           data: {
             ...node.data,
@@ -403,6 +412,14 @@ function WorkflowEditorInner({
             onNodeDelete: handleNodeDelete
           }
         }
+        
+        // Debug: Log data preservation
+        if (node.data.agentConfig?.instructions) {
+          console.log(`🔍 Preserving instructions for node ${node.id}:`, node.data.agentConfig.instructions)
+          console.log(`🔍 Updated node data:`, updatedNode.data.agentConfig?.instructions)
+        }
+        
+        return updatedNode
       })
     }
 
