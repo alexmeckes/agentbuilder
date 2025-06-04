@@ -304,13 +304,26 @@ class VisualToAnyAgentTranslator:
         
         main_agent_node = agent_nodes[0]
         
+        # CRITICAL DEBUG: Log visual workflow analysis
+        logging.info(f"🔧 TRANSLATION: Processing {len(tool_nodes)} tool nodes from visual workflow")
+        for i, tool_node in enumerate(tool_nodes):
+            tool_type = tool_node.data.get("type", "search_web")
+            logging.info(f"🔧 TRANSLATION: Tool node {i+1}: id={tool_node.id}, type={tool_type}, name={tool_node.data.get('name', 'unnamed')}")
+        
         # Collect tools
         available_tools = []
         for tool_node in tool_nodes:
             tool_type = tool_node.data.get("type", "search_web")
+            logging.info(f"🔧 TRANSLATION: Looking up tool '{tool_type}' in available_tools")
             if tool_type in self.available_tools:
-                available_tools.append(self.available_tools[tool_type])
+                tool_function = self.available_tools[tool_type]
+                available_tools.append(tool_function)
+                logging.info(f"🔧 TRANSLATION: ✅ Added tool '{tool_type}': {tool_function.__name__ if hasattr(tool_function, '__name__') else str(tool_function)}")
+            else:
+                logging.warning(f"🔧 TRANSLATION: ❌ Tool '{tool_type}' not found in available_tools: {list(self.available_tools.keys())}")
         
+        logging.info(f"🔧 TRANSLATION: Final tool assignment: {len(available_tools)} tools for agent '{main_agent_node.data.get('name', 'agent')}'")
+
         # Create single agent with tools
         main_agent = AgentConfig(
             name=main_agent_node.data.get("name", "agent"),
@@ -319,6 +332,8 @@ class VisualToAnyAgentTranslator:
                 "You are a helpful assistant. Use the available tools to help users."),
             tools=available_tools
         )
+        
+        logging.info(f"🔧 TRANSLATION: Created agent '{main_agent.name}' with {len(main_agent.tools) if main_agent.tools else 0} tools")
         
         return main_agent, []
     
@@ -670,6 +685,17 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                         new_loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(new_loop)
                         
+                        # CRITICAL DEBUG: Log what tools are being used in thread execution
+                        import logging
+                        logging.basicConfig(level=logging.INFO)
+                        logger = logging.getLogger(__name__)
+                        logger.info(f"🧵 THREAD EXECUTION: Agent '{main_agent_config.name}' has {len(main_agent_config.tools) if main_agent_config.tools else 0} tools")
+                        if main_agent_config.tools:
+                            for i, tool in enumerate(main_agent_config.tools):
+                                logger.info(f"🧵 THREAD EXECUTION: Tool {i+1}: {tool.__name__ if hasattr(tool, '__name__') else str(tool)}")
+                        else:
+                            logger.info("🧵 THREAD EXECUTION: NO TOOLS assigned to agent!")
+                        
                         # Convert framework string to AgentFramework enum
                         framework_enum = AgentFramework.from_string(framework.upper())
                         
@@ -683,7 +709,9 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                             )
                         )
                         
+                        logger.info(f"🧵 THREAD EXECUTION: Starting agent run with input: '{input_data[:50]}...'")
                         agent_trace = agent.run(input_data)
+                        logger.info(f"🧵 THREAD EXECUTION: Agent completed, output length: {len(str(agent_trace))}")
                         
                         result_queue.put({
                             "success": True,
