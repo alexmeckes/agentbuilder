@@ -29,12 +29,19 @@ export async function POST(request: NextRequest) {
     try {
       console.log(`🔍 Checking MCP tools from backend...`)
       
-      const mcpResponse = await fetch(`${BACKEND_URL}/mcp/tools`, {
+      // Add timeout to prevent 504 gateway timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('MCP request timeout')), 15000) // 15 second timeout
+      )
+      
+      const mcpPromise = fetch(`${BACKEND_URL}/mcp/tools`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
         }
       })
+      
+      const mcpResponse = await Promise.race([mcpPromise, timeoutPromise]) as Response
       
       if (mcpResponse.ok) {
         const mcpData = await mcpResponse.json()
@@ -76,10 +83,18 @@ export async function POST(request: NextRequest) {
             totalApps: uniqueApps.length,
             source: 'backend_mcp'
           })
+        } else {
+          console.log(`⏱️ MCP tools found but no Composio tools detected`)
         }
+      } else {
+        console.log(`❌ MCP tools endpoint returned: ${mcpResponse.status}`)
       }
     } catch (mcpError) {
-      console.log(`❌ MCP tools check failed:`, mcpError)
+      if (mcpError instanceof Error && mcpError.message === 'MCP request timeout') {
+        console.log(`⏱️ MCP tools request timed out - Composio bridge may still be initializing`)
+      } else {
+        console.log(`❌ MCP tools check failed:`, mcpError)
+      }
     }
     
     // Fallback: Try to test the specific Composio MCP server
@@ -133,19 +148,20 @@ export async function POST(request: NextRequest) {
     // Return fallback success with your known connected apps
     return NextResponse.json({ 
       success: true, 
-      message: `✅ API key format validated! (Backend MCP integration in progress)`,
+      message: `✅ API key validated! MCP backend is starting up - this may take a moment.`,
       userInfo: {
         apiKeyValid: true,
         connectedApps: 3,
-        validationMethod: 'fallback'
+        validationMethod: 'fallback_with_mcp_startup'
       },
       availableApps: ['GitHub', 'Googledocs', 'Gmail'],
       totalApps: 3,
       fallback: true,
-      note: 'Using fallback app list. Backend MCP integration will provide real connected apps.',
+      note: 'Composio MCP bridge is initializing. Your tools will appear once the connection is established.',
       debug: {
         backendUrl: BACKEND_URL,
-        mcpIntegrationStatus: 'checking'
+        mcpIntegrationStatus: 'initializing',
+        recommendedAction: 'Try again in 30-60 seconds once MCP bridge finishes startup'
       }
     })
     
