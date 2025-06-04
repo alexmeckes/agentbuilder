@@ -49,6 +49,8 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
   const [showApiKey, setShowApiKey] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [availableTools, setAvailableTools] = useState(AVAILABLE_TOOLS)
+  const [isDiscoveringTools, setIsDiscoveringTools] = useState(false)
 
   // Load settings on mount
   useEffect(() => {
@@ -70,8 +72,40 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings)
       setSettings({ ...parsed, userId })
+      
+      // Auto-discover tools if API key exists
+      if (parsed.composioApiKey) {
+        console.log('🔍 Auto-discovering tools for existing API key...')
+        setTimeout(() => {
+          discoverToolsForApiKey(parsed.composioApiKey, userId)
+        }, 500) // Small delay to let UI settle
+      }
     } else {
       setSettings(prev => ({ ...prev, userId }))
+    }
+  }
+
+  const discoverToolsForApiKey = async (apiKey: string, userId: string) => {
+    setIsDiscoveringTools(true)
+    
+    try {
+      const response = await fetch('/api/test-composio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, userId })
+      })
+
+      const result = await response.json()
+      
+      if (response.ok && result.success && result.availableApps) {
+        const discoveredTools = mapComposioAppsToTools(result.availableApps, result.userInfo)
+        setAvailableTools(discoveredTools)
+        console.log(`🔍 Auto-discovered ${discoveredTools.length} tools from saved API key`)
+      }
+    } catch (error) {
+      console.error('Failed to auto-discover tools:', error)
+    } finally {
+      setIsDiscoveringTools(false)
     }
   }
 
@@ -108,6 +142,7 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
     }
 
     setIsLoading(true)
+    setIsDiscoveringTools(true)
     setTestResult(null)
 
     try {
@@ -121,15 +156,94 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
       })
 
       const result = await response.json()
-      setTestResult({
-        success: response.ok,
-        message: result.message || (response.ok ? 'Connection successful!' : 'Connection failed')
-      })
+      
+      if (response.ok && result.success) {
+        // Map Composio apps to our tool definitions
+        const discoveredTools = mapComposioAppsToTools(result.availableApps || [], result.userInfo)
+        
+        setAvailableTools(discoveredTools)
+        
+        // Update enabled tools to only include tools that are actually available
+        setSettings(prev => ({
+          ...prev,
+          enabledTools: prev.enabledTools.filter(toolId => 
+            discoveredTools.some(tool => tool.id === toolId)
+          )
+        }))
+        
+        const message = result.fallback 
+          ? result.message 
+          : `✅ Connected successfully! Found ${discoveredTools.length} available tools${result.userInfo?.email ? ` for ${result.userInfo.email}` : ''}`
+        
+        setTestResult({
+          success: true,
+          message
+        })
+      } else {
+        setTestResult({
+          success: false,
+          message: result.message || 'Connection failed'
+        })
+        
+        // Fallback to default tools if connection fails
+        setAvailableTools(AVAILABLE_TOOLS)
+      }
+      
     } catch (error) {
       setTestResult({ success: false, message: 'Failed to test connection' })
+      setAvailableTools(AVAILABLE_TOOLS)
     } finally {
       setIsLoading(false)
+      setIsDiscoveringTools(false)
     }
+  }
+
+  const mapComposioAppsToTools = (availableApps: string[], userInfo?: any) => {
+    const toolMapping: Record<string, any> = {
+      'github': { id: 'github_star_repo', name: 'GitHub Operations', icon: '🐙', category: 'Development' },
+      'slack': { id: 'slack_send_message', name: 'Slack Messaging', icon: '💬', category: 'Communication' },
+      'gmail': { id: 'gmail_send_email', name: 'Gmail Operations', icon: '📧', category: 'Communication' },
+      'notion': { id: 'notion_create_page', name: 'Notion Pages', icon: '📝', category: 'Productivity' },
+      'linear': { id: 'linear_create_issue', name: 'Linear Issues', icon: '📋', category: 'Productivity' },
+      // Add more mappings as needed
+      'google': { id: 'gmail_send_email', name: 'Gmail Operations', icon: '📧', category: 'Communication' },
+      'microsoft': { id: 'outlook_send_email', name: 'Outlook Operations', icon: '📮', category: 'Communication' },
+      'trello': { id: 'trello_create_card', name: 'Trello Cards', icon: '📋', category: 'Productivity' },
+      'asana': { id: 'asana_create_task', name: 'Asana Tasks', icon: '✅', category: 'Productivity' }
+    }
+    
+    const discoveredTools: any[] = []
+    
+    // Map available apps to tools
+    availableApps.forEach(appName => {
+      const normalizedName = appName.toLowerCase()
+      
+      // Try exact match first
+      if (toolMapping[normalizedName]) {
+        discoveredTools.push(toolMapping[normalizedName])
+        return
+      }
+      
+      // Try partial matches
+      Object.keys(toolMapping).forEach(key => {
+        if (normalizedName.includes(key) || key.includes(normalizedName)) {
+          if (!discoveredTools.some(tool => tool.id === toolMapping[key].id)) {
+            discoveredTools.push(toolMapping[key])
+          }
+        }
+      })
+    })
+    
+    // If no tools discovered, show all available tools as fallback
+    if (discoveredTools.length === 0) {
+      console.log('No specific tools mapped, showing all available tools')
+      return AVAILABLE_TOOLS
+    }
+    
+    console.log(`🔍 Discovered ${discoveredTools.length} tools from ${availableApps.length} connected apps:`, 
+      discoveredTools.map(t => t.name))
+    
+    return discoveredTools
   }
 
   const toggleTool = (toolId: string) => {
@@ -231,32 +345,57 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
 
           {/* Available Tools */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              <Shield className="w-4 h-4 inline mr-1" />
-              Enabled Tools
-            </label>
-            <div className="space-y-2">
-              {AVAILABLE_TOOLS.map(tool => (
-                <div key={tool.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-xl">{tool.icon}</span>
-                    <div>
-                      <div className="font-medium text-gray-900">{tool.name}</div>
-                      <div className="text-xs text-gray-500">{tool.category}</div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-gray-700">
+                <Shield className="w-4 h-4 inline mr-1" />
+                Available Tools
+              </label>
+              {isDiscoveringTools && (
+                <div className="flex items-center text-sm text-blue-600">
+                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Discovering tools...
+                </div>
+              )}
+            </div>
+            
+            {availableTools.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Shield className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p>No tools available</p>
+                <p className="text-xs">Connect apps in your Composio dashboard</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {availableTools.map(tool => (
+                  <div key={tool.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">{tool.icon}</span>
+                      <div>
+                        <div className="font-medium text-gray-900">{tool.name}</div>
+                        <div className="text-xs text-gray-500">{tool.category}</div>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.enabledTools.includes(tool.id)}
+                        onChange={() => toggleTool(tool.id)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+                ))}
+                
+                {testResult?.success && availableTools.length > 0 && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                    <div className="text-blue-800">
+                      <strong>✨ Dynamic Discovery:</strong> These tools were discovered from your connected Composio apps.
                     </div>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={settings.enabledTools.includes(tool.id)}
-                      onChange={() => toggleTool(tool.id)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-              ))}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Preferences */}
