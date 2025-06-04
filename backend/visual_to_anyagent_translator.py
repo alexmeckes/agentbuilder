@@ -602,26 +602,26 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
             import asyncio
             from functools import partial
             
-                    # Convert AgentConfig objects to dictionaries for multiprocessing
-        # IMPORTANT: Include the tools information so subprocess knows what tools to assign
-        main_agent_dict = {
-            "name": main_agent_config.name,
-            "model_id": main_agent_config.model_id,
-            "instructions": main_agent_config.instructions,
-            "description": main_agent_config.description,
-            "tools": [tool.__name__ for tool in main_agent_config.tools] if main_agent_config.tools else []
-        }
-        
-        managed_agents_dict = []
-        if managed_agents_config:
-            for agent in managed_agents_config:
-                managed_agents_dict.append({
-                    "name": agent.name,
-                    "model_id": agent.model_id,
-                    "instructions": agent.instructions,
-                    "description": agent.description,
-                    "tools": [tool.__name__ for tool in agent.tools] if agent.tools else []
-                })
+            # Convert AgentConfig objects to dictionaries for multiprocessing
+            # IMPORTANT: Include the tools information so subprocess knows what tools to assign
+            main_agent_dict = {
+                "name": main_agent_config.name,
+                "model_id": main_agent_config.model_id,
+                "instructions": main_agent_config.instructions,
+                "description": main_agent_config.description,
+                "tools": [tool.__name__ for tool in main_agent_config.tools] if main_agent_config.tools else []
+            }
+            
+            managed_agents_dict = []
+            if managed_agents_config:
+                for agent in managed_agents_config:
+                    managed_agents_dict.append({
+                        "name": agent.name,
+                        "model_id": agent.model_id,
+                        "instructions": agent.instructions,
+                        "description": agent.description,
+                        "tools": [tool.__name__ for tool in agent.tools] if agent.tools else []
+                    })
             
             # Run any-agent in a separate process to avoid asyncio conflicts
             logging.info(f"🔧 Production: About to execute subprocess with main_agent={main_agent_dict['name']}")
@@ -654,7 +654,7 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                 }
             else:
                 raise Exception(f"Process execution failed: {process_result.get('error', 'Unknown error')}")
-            
+                
         except Exception as e:
             # SOLUTION 2: If process execution fails, try thread-based approach
             logging.warning(f"⚠️ Production: Process execution failed: {e}, trying thread approach")
