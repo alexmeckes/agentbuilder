@@ -3910,21 +3910,23 @@ async def list_available_tools():
             }
         }
         
-        # Add MCP tools if available
+        # Add Composio tools directly (bypass hanging MCP subprocess)
+        await _add_composio_tools_direct(tools)
+        
+        # Add other MCP tools if available (skip composio-tools server to avoid hang)
         if MCP_INTEGRATION_AVAILABLE and MCP_AVAILABLE:
             try:
-                # Initialize MCP manager
                 mcp_manager = get_mcp_manager()
-                
-                # Get all connected servers
                 servers = mcp_manager.get_server_status()
                 
                 for server_id, server_info in servers.items():
+                    # Skip composio-tools server to avoid subprocess hang
+                    if server_id == 'composio-tools':
+                        continue
+                        
                     if server_info.get('status') == 'connected' and server_info.get('tool_count', 0) > 0:
-                        # Get tools from the MCP manager's tools cache
                         server_tools = mcp_manager.tools_cache.get(server_id, [])
                         
-                        # Add each individual tool from the server
                         for tool in server_tools:
                             tool_id = f"{server_id}_{tool.name}"
                             tools[tool_id] = {
@@ -3935,7 +3937,7 @@ async def list_available_tools():
                                 "server_id": server_id,
                                 "server_name": server_info.get('name', server_id),
                                 "server_status": server_info.get('status', 'unknown'),
-                                "source": server_id  # Add source for filtering
+                                "source": server_id
                             }
                         
                         logging.info(f"Added {len(server_tools)} tools from {server_id}")
@@ -3949,6 +3951,52 @@ async def list_available_tools():
     except Exception as e:
         logging.error(f"Failed to list available tools: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+async def _add_composio_tools_direct(tools: dict):
+    """Add Composio tools via direct API calls (bypass MCP subprocess hang)"""
+    try:
+        # Import the bridge manager directly (not subprocess)
+        from composio_mcp_bridge import UserComposioManager, UserContext
+        
+        # Get user context from environment (set by MCP server config)
+        api_key = os.getenv('COMPOSIO_API_KEY', '')
+        user_id = os.getenv('USER_ID', 'default_user')
+        
+        if not api_key:
+            logging.info("No Composio API key configured, skipping Composio tools")
+            return
+            
+        # Create user context and get tools directly
+        user_context = UserContext(
+            user_id=user_id,
+            api_key=api_key,
+            enabled_tools=None  # All tools
+        )
+        
+        manager = UserComposioManager()
+        composio_tools = manager.get_available_tools_for_user(user_context)
+        
+        # Add each Composio tool to the tools dict
+        for tool in composio_tools:
+            tool_id = f"composio_{tool['name']}"
+            tools[tool_id] = {
+                "type": "composio",
+                "name": tool['name'],
+                "description": tool['description'],
+                "category": tool['category'],
+                "server_id": "composio-tools",
+                "server_name": "Composio Universal Tools",
+                "server_status": "connected",
+                "source": "composio-direct",
+                "user_id": user_context.user_id
+            }
+        
+        logging.info(f"✅ Added {len(composio_tools)} Composio tools via direct API")
+        
+    except ImportError:
+        logging.info("Composio bridge not available for direct import")
+    except Exception as e:
+        logging.error(f"Failed to get Composio tools directly: {e}")
 
 def _categorize_tool(tool_name: str, server_id: str) -> str:
     """Categorize a tool based on its name and server"""
