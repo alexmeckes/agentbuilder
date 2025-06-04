@@ -385,14 +385,25 @@ function WorkflowEditorInner({
 
   const onConnect = useCallback(
     (params: Connection) => {
+      console.log('🔗 Creating new edge:', params)
+      
       if (externalOnEdgesChange) {
-        const newEdges = addEdge(params, edges)
+        const newEdges = addEdge(params, edges).map(edge => ({
+          ...edge,
+          selectable: true,
+          focusable: true,
+        }))
+        console.log('🔗 New edges array:', newEdges)
         externalOnEdgesChange(newEdges)
         if (onWorkflowChange) {
           onWorkflowChange(baseNodes, newEdges)
         }
       } else {
-        setInternalEdges((eds) => addEdge(params, eds))
+        setInternalEdges((eds) => addEdge(params, eds).map(edge => ({
+          ...edge,
+          selectable: true,
+          focusable: true,
+        })))
       }
     },
     [edges, baseNodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange],
@@ -633,9 +644,11 @@ function WorkflowEditorInner({
   // Use baseNodes directly to avoid circular dependency issues
   const nodes = baseNodes
   
-  // Ensure all edges have the onEdgeDelete callback
+  // Ensure all edges have the onEdgeDelete callback and are selectable
   const edgesWithCallbacks = edges.map(edge => ({
     ...edge,
+    selectable: true,
+    focusable: true,
     data: {
       ...edge.data,
       onEdgeDelete: handleEdgeDelete
@@ -1092,6 +1105,9 @@ function WorkflowEditorInner({
           onDragOver={onDragOver}
           onPaneClick={onPaneClick}
           onNodesDelete={handleNodesDelete}
+          onEdgeClick={(event, edge) => {
+            console.log('🔵 Edge clicked:', edge.id, 'selected:', edge.selected)
+          }}
           onPaneMouseMove={(event) => {
             // Reset drag state if pane is hovered with no buttons pressed
             if (event.buttons === 0) {
@@ -1118,6 +1134,7 @@ function WorkflowEditorInner({
           nodesDraggable={true}
           nodesConnectable={true}
           elementsSelectable={true}
+          edgesFocusable={true}
           selectNodesOnDrag={false}
           panOnDrag={true}
           panOnScroll={false}
