@@ -61,11 +61,15 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Success with endpoint: ${endpoint}`)
           const data = await response.json()
           
+          console.log(`🔍 Raw API Response from ${endpoint}:`, JSON.stringify(data, null, 2))
+          
           // Try to extract available apps from response
           if (data.items && Array.isArray(data.items)) {
             availableApps = data.items.slice(0, 20).map((app: any) => 
               app.name || app.appName || app.slug || app.key
             ).filter(Boolean)
+            
+            console.log(`📋 Extracted apps from items:`, availableApps)
             
             // If this is connected accounts endpoint, get more detailed info
             if (endpoint.includes('connectedAccounts')) {
@@ -75,15 +79,19 @@ export async function POST(request: NextRequest) {
                 status: account.status,
                 connectedAt: account.createdAt
               }))
+              console.log(`🔗 Connected accounts:`, connectedAccounts)
             }
           } else if (Array.isArray(data)) {
             // Handle direct array responses
             availableApps = data.slice(0, 20).map((app: any) => 
               app.name || app.appName || app.slug || app.key
             ).filter(Boolean)
+            console.log(`📋 Extracted apps from direct array:`, availableApps)
+          } else {
+            console.log(`❓ Unexpected response format:`, Object.keys(data))
           }
           
-          console.log(`📱 Found ${availableApps.length} apps:`, availableApps)
+          console.log(`📱 Final apps list (${availableApps.length}):`, availableApps)
           
           validationSuccessful = true
           break
