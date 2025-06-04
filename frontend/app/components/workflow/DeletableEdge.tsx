@@ -29,7 +29,9 @@ export default function DeletableEdge({
   // Debug log to check if selection is working
   React.useEffect(() => {
     if (selected) {
-      console.log('🔵 Edge selected:', id)
+      console.log('🔵 Edge selected:', id, 'X button should be visible!')
+    } else {
+      console.log('⚪ Edge deselected:', id, 'X button hidden')
     }
   }, [selected, id])
   const [edgePath, labelX, labelY] = getBezierPath({
@@ -60,8 +62,9 @@ export default function DeletableEdge({
         markerEnd={markerEnd} 
         style={{
           ...style,
-          strokeWidth: selected ? 3 : 2,
-          stroke: selected ? '#3b82f6' : style?.stroke || '#b1b1b7',
+          strokeWidth: selected ? 4 : 2,
+          stroke: selected ? '#ef4444' : style?.stroke || '#b1b1b7',
+          strokeDasharray: selected ? '5,5' : 'none',
         }} 
       />
       <EdgeLabelRenderer>
@@ -78,16 +81,20 @@ export default function DeletableEdge({
         >
           {/* Larger hover area to make button easier to discover */}
           <div 
-            className={`w-8 h-8 flex items-center justify-center transition-opacity duration-200 ${
-              selected ? 'opacity-100' : 'opacity-0 hover:opacity-100'
+            className={`w-10 h-10 flex items-center justify-center transition-all duration-200 ${
+              selected 
+                ? 'opacity-100 bg-red-100 rounded-full' 
+                : 'opacity-0 hover:opacity-100'
             }`}
             title="Delete connection"
           >
             <button
-              className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+              className={`w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110 ${
+                selected ? 'animate-pulse' : ''
+              }`}
               onClick={onEdgeClick}
             >
-              <X className="w-3 h-3" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
