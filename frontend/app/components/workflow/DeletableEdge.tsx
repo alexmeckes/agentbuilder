@@ -26,6 +26,12 @@ export default function DeletableEdge({
   selected,
   data,
 }: DeletableEdgeProps) {
+  // Debug log to check if selection is working
+  React.useEffect(() => {
+    if (selected) {
+      console.log('🔵 Edge selected:', id)
+    }
+  }, [selected, id])
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -49,7 +55,15 @@ export default function DeletableEdge({
 
   return (
     <>
-      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
+      <BaseEdge 
+        path={edgePath} 
+        markerEnd={markerEnd} 
+        style={{
+          ...style,
+          strokeWidth: selected ? 3 : 2,
+          stroke: selected ? '#3b82f6' : style?.stroke || '#b1b1b7',
+        }} 
+      />
       <EdgeLabelRenderer>
         <div
           style={{
@@ -62,15 +76,20 @@ export default function DeletableEdge({
           }}
           className="nodrag nopan"
         >
-          <button
-            className={`w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-opacity duration-200 shadow-lg ${
+          {/* Larger hover area to make button easier to discover */}
+          <div 
+            className={`w-8 h-8 flex items-center justify-center transition-opacity duration-200 ${
               selected ? 'opacity-100' : 'opacity-0 hover:opacity-100'
             }`}
-            onClick={onEdgeClick}
             title="Delete connection"
           >
-            <X className="w-3 h-3" />
-          </button>
+            <button
+              className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110"
+              onClick={onEdgeClick}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       </EdgeLabelRenderer>
     </>
