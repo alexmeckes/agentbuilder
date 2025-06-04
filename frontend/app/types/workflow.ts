@@ -49,6 +49,10 @@ export interface EnhancedNodeData {
   tool_type?: string
   zIndex?: number
   
+  // Composio-specific fields
+  isComposio?: boolean
+  category?: string
+  
   // New any-agent integration
   framework?: AgentFramework
   agentConfig?: AgentConfig

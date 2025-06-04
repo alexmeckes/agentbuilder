@@ -407,6 +407,19 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-sm text-gray-500 capitalize">{data.type}</span>
                 
+                {/* Composio Tool Indicator */}
+                {data.isComposio && (
+                  <>
+                    <span className="text-gray-300">•</span>
+                    <div className="flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-purple-500" />
+                      <span className="text-xs text-purple-600 font-medium">
+                        Composio
+                      </span>
+                    </div>
+                  </>
+                )}
+                
                 {/* AI Enhancement Status */}
                 {aiEnhancements.length > 0 && (
                   <>

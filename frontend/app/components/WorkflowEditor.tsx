@@ -543,6 +543,17 @@ function WorkflowEditorInner({
         return
       }
 
+      // Check if it's a Composio tool (JSON format)
+      let composioToolData = null
+      try {
+        const parsedType = JSON.parse(type)
+        if (parsedType?.isComposio) {
+          composioToolData = parsedType
+        }
+      } catch {
+        // Not JSON, proceed normally
+      }
+
       const position = reactFlowInstance.project({
         x: event.clientX - reactFlowBounds.left,
         y: event.clientY - reactFlowBounds.top,
@@ -585,7 +596,20 @@ function WorkflowEditorInner({
 
       // Check if we have template data from the new NodePalette
       let nodeData: any
-      if (templateData) {
+      if (composioToolData) {
+        // Handle Composio tools
+        nodeData = {
+          label: composioToolData.label,
+          type: 'tool',
+          tool_type: composioToolData.toolType,
+          name: `${composioToolData.label.replace(/\s+/g, '_')}_${nodes.length + 1}`,
+          description: composioToolData.description,
+          category: composioToolData.category,
+          isComposio: true,
+          onNodeUpdate: handleNodeUpdate,
+          onNodeDelete: handleNodeDelete
+        }
+      } else if (templateData) {
         try {
           const template = JSON.parse(templateData)
           // Use template data with unique name suffix
@@ -598,11 +622,11 @@ function WorkflowEditorInner({
           }
         } catch (error) {
           console.warn('Failed to parse template data, falling back to defaults:', error)
-          nodeData = getNodeDefaults(type)
+          nodeData = getNodeDefaults(composioToolData ? 'tool' : type)
         }
       } else {
         // Fallback to old behavior for legacy sidebar
-        nodeData = getNodeDefaults(type)
+        nodeData = getNodeDefaults(composioToolData ? 'tool' : type)
       }
 
       // Enhanced node data based on type (fallback function)
