@@ -13,6 +13,7 @@ import ReactFlow, {
 import type { Node, Edge, Connection, ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
 import AgentNode from './workflow/AgentNode'
+import DeletableEdge from './workflow/DeletableEdge'
 import Sidebar from './workflow/Sidebar'
 import NodePalette from './workflow/NodePalette'
 import { WorkflowService, type ExecutionResponse } from '../services/workflow'
@@ -25,6 +26,10 @@ const nodeTypes = {
   tool: AgentNode,
   input: AgentNode,
   output: AgentNode,
+}
+
+const edgeTypes = {
+  default: DeletableEdge,
 }
 
 const initialNodes: Node[] = []
@@ -1080,6 +1085,7 @@ function WorkflowEditorInner({
             }, 50)
           }}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           nodesDraggable={true}
           nodesConnectable={true}
           elementsSelectable={true}
