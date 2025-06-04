@@ -15,17 +15,19 @@ export async function POST(request: NextRequest) {
     // This is a mock implementation - in a real app you'd test the actual API
     
     // For now, we'll validate the format and simulate a connection test
-    if (apiKey.length < 10) {
+    if (apiKey.length < 8) {
       return NextResponse.json({ 
         success: false, 
-        message: 'API key appears to be invalid (too short)' 
+        message: 'API key appears to be too short' 
       }, { status: 400 })
     }
 
-    if (!apiKey.startsWith('comp_') && !apiKey.includes('api')) {
+    // Accept various formats: comp_xxx, xxx-xxx-xxx, or alphanumeric keys
+    const isValidFormat = /^[a-zA-Z0-9_-]{8,}$/.test(apiKey)
+    if (!isValidFormat) {
       return NextResponse.json({ 
         success: false, 
-        message: 'API key format appears incorrect' 
+        message: 'API key contains invalid characters' 
       }, { status: 400 })
     }
 
