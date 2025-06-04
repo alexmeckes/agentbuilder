@@ -9,6 +9,7 @@ import ReactFlow, {
   addEdge,
   Panel,
   applyNodeChanges,
+  applyEdgeChanges,
 } from 'reactflow'
 import type { Node, Edge, Connection, ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
@@ -375,13 +376,22 @@ function WorkflowEditorInner({
 
   // Handle edge changes  
   const handleEdgesChange = useCallback((changes: any) => {
-    if (externalOnEdgesChange && externalEdges) {
-      // Apply changes to external edges and update parent
-      onInternalEdgesChange(changes)
+    console.log('🔄 Edge changes:', changes)
+    
+    if (externalOnEdgesChange) {
+      // Apply changes to external edges using React Flow's utility
+      const updatedEdges = applyEdgeChanges(changes, edges)
+      console.log('📊 Updated edges after changes:', updatedEdges.map((e: Edge) => ({ id: e.id, selected: e.selected })))
+      externalOnEdgesChange(updatedEdges)
+      
+      if (onWorkflowChange) {
+        onWorkflowChange(baseNodes, updatedEdges)
+      }
     } else {
+      // Use internal state management
       onInternalEdgesChange(changes)
     }
-  }, [externalOnEdgesChange, externalEdges, onInternalEdgesChange])
+  }, [externalOnEdgesChange, edges, baseNodes, onInternalEdgesChange, onWorkflowChange])
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -414,23 +424,30 @@ function WorkflowEditorInner({
     event.dataTransfer.dropEffect = 'move'
   }, [])
 
-  // Handle clicking on empty canvas to deselect nodes and reset any stuck drag state
+  // Handle clicking on empty canvas to deselect nodes and edges and reset any stuck drag state
   const onPaneClick = useCallback(() => {
-    console.log('🖱️ Pane clicked - deselecting all nodes and resetting drag state')
+    console.log('🖱️ Pane clicked - deselecting all nodes and edges and resetting drag state')
     
     // Reset any potential stuck drag state
     document.body.style.cursor = ''
     
-    // Simple deselection - let ReactFlow handle its own cursor states
+    // Deselect all nodes
     const updatedNodes = baseNodes.map(node => ({
       ...node,
       selected: false
     }))
     
-    if (externalOnNodesChange) {
+    // Deselect all edges
+    const updatedEdges = edges.map(edge => ({
+      ...edge,
+      selected: false
+    }))
+    
+    if (externalOnNodesChange && externalOnEdgesChange) {
       externalOnNodesChange(updatedNodes)
+      externalOnEdgesChange(updatedEdges)
       if (onWorkflowChange) {
-        onWorkflowChange(updatedNodes, edges)
+        onWorkflowChange(updatedNodes, updatedEdges)
       }
     } else {
       setInternalNodes(currentNodes => 
@@ -439,8 +456,14 @@ function WorkflowEditorInner({
           selected: false
         }))
       )
+      setInternalEdges(currentEdges => 
+        currentEdges.map(edge => ({
+          ...edge,
+          selected: false
+        }))
+      )
     }
-  }, [baseNodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
+  }, [baseNodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange])
 
   // Handle keyboard shortcuts
   useEffect(() => {
