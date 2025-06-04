@@ -179,12 +179,58 @@ Always respond with helpful explanations and actionable workflow suggestions. Fo
       throw new Error(`Backend error: ${backendResponse.status} - ${errorText}`)
     }
 
-    const result = await backendResponse.json()
-    console.log('Backend result:', result)
+    const initialResult = await backendResponse.json()
+    console.log('Backend initial result:', initialResult)
 
-    if (result.status === 'failed') {
-      console.error('Backend execution failed:', result.error)
-      throw new Error(result.error || 'Unknown backend error')
+    if (initialResult.status === 'failed') {
+      console.error('Backend execution failed:', initialResult.error)
+      throw new Error(initialResult.error || 'Unknown backend error')
+    }
+
+    let result = initialResult
+
+    // If backend is running asynchronously, poll for completion
+    if (result.status === 'running' && result.execution_id) {
+      console.log('🔄 Backend is running asynchronously, polling for completion...')
+      
+      const maxAttempts = 30 // 30 seconds timeout
+      const pollInterval = 1000 // 1 second
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval))
+        
+        try {
+          const pollResponse = await fetch(`${BACKEND_URL}/executions/${result.execution_id}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+
+          if (pollResponse.ok) {
+            const pollResult = await pollResponse.json()
+            console.log(`🔄 Poll attempt ${attempt + 1}:`, pollResult.status)
+            
+            if (pollResult.status === 'completed') {
+              result = pollResult
+              console.log('✅ Execution completed successfully')
+              break
+            } else if (pollResult.status === 'failed') {
+              console.error('❌ Execution failed during polling:', pollResult.error)
+              throw new Error(pollResult.error || 'Execution failed during processing')
+            }
+            // Continue polling if still running
+          }
+        } catch (pollError) {
+          console.error('Poll request failed:', pollError)
+          // Continue polling on network errors
+        }
+      }
+
+      if (result.status === 'running') {
+        console.warn('⏰ Polling timeout reached')
+        throw new Error('Request timeout - the AI is taking longer than expected to respond')
+      }
     }
 
     const responseText = result.result || 'I apologize, but I couldn\'t generate a response. Please try asking about workflow building!'
