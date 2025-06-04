@@ -18,14 +18,18 @@ from dataclasses import dataclass
 try:
     from composio import ComposioToolSet, Action, App
     COMPOSIO_AVAILABLE = True
+    ComposioToolSetType = ComposioToolSet
 except ImportError:
     try:
         # Alternative import path
         from composio.client import Composio
         from composio.tools import ComposioToolSet
         COMPOSIO_AVAILABLE = True
+        ComposioToolSetType = ComposioToolSet
     except ImportError:
         COMPOSIO_AVAILABLE = False
+        # Create dummy type for type annotations when Composio is not available
+        ComposioToolSetType = Any
 
 @dataclass
 class UserContext:
@@ -39,7 +43,7 @@ class UserComposioManager:
     """Manages per-user Composio clients"""
     
     def __init__(self):
-        self.user_clients: Dict[str, ComposioToolSet] = {}
+        self.user_clients: Dict[str, ComposioToolSetType] = {}
         self.available_tools = {}
         self._discover_base_tools()
     
@@ -178,7 +182,7 @@ class UserComposioManager:
         
         self.available_tools = popular_tools
     
-    def get_user_client(self, user_context: UserContext) -> Optional[ComposioToolSet]:
+    def get_user_client(self, user_context: UserContext) -> Optional[ComposioToolSetType]:
         """Get or create Composio client for specific user"""
         if not user_context.api_key or not COMPOSIO_AVAILABLE:
             return None
@@ -188,7 +192,7 @@ class UserComposioManager:
         if client_key not in self.user_clients:
             try:
                 # Create user-specific client with entity isolation
-                self.user_clients[client_key] = ComposioToolSet(
+                self.user_clients[client_key] = ComposioToolSetType(
                     api_key=user_context.api_key,
                     entity_id=user_context.user_id  # Isolate user's connected accounts
                 )
