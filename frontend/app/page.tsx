@@ -108,11 +108,8 @@ export default function Home() {
             type: action.nodeType,
             name: action.name,
             instructions: action.instructions,
+            model_id: action.model || 'gpt-4.1',
             description: `AI-generated ${action.nodeType} node`,
-            // Only assign model_id to agent nodes
-            ...(action.nodeType === 'agent' && {
-              model_id: action.model || 'gpt-4.1'
-            }),
             // Auto-detect tool_type for tool nodes
             ...(action.nodeType === 'tool' && {
               tool_type: action.name?.toLowerCase().includes('search') || action.name?.toLowerCase().includes('web') 
@@ -128,7 +125,25 @@ export default function Home() {
                 : action.name?.toLowerCase().includes('image')
                 ? 'image_generation'
                 : 'web_search' // default to web_search for tool nodes
-            })
+            }),
+            // Add the missing callbacks for node deletion and updates
+            onNodeUpdate: (nodeId: string, updatedData: any) => {
+              setNodes(currentNodes => 
+                currentNodes.map(node => 
+                  node.id === nodeId 
+                    ? { ...node, data: { ...node.data, ...updatedData } }
+                    : node
+                )
+              )
+            },
+            onNodeDelete: (nodeId: string) => {
+              setNodes(currentNodes => currentNodes.filter(node => node.id !== nodeId))
+              setEdges(currentEdges => 
+                currentEdges.filter(edge => 
+                  edge.source !== nodeId && edge.target !== nodeId
+                )
+              )
+            }
           }
         }
         newNodes.push(newNode)

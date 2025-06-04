@@ -341,7 +341,7 @@ function WorkflowEditorInner({
       console.log('🔧 Updating internal nodes with callbacks:', internalNodes.length)
       setInternalNodes(updateNodesWithCallback(internalNodes))
     }
-  }, [handleNodeUpdate, handleNodeDelete])
+  }, [externalNodes, internalNodes, handleNodeUpdate, handleNodeDelete, externalOnNodesChange, setInternalNodes])
 
   // Separate effect to handle when nodes array changes (new nodes added)
   useEffect(() => {
@@ -351,8 +351,26 @@ function WorkflowEditorInner({
         hasUpdate: !!n.data.onNodeUpdate, 
         hasDelete: !!n.data.onNodeDelete 
       })))
+      
+      // Ensure callbacks are present on all nodes
+      const needsCallbacks = baseNodes.some(node => 
+        !node.data.onNodeUpdate || !node.data.onNodeDelete
+      )
+      
+      if (needsCallbacks && externalOnNodesChange) {
+        console.log('🔧 Some nodes missing callbacks, updating...')
+        const updatedNodes = baseNodes.map(node => ({
+          ...node,
+          data: {
+            ...node.data,
+            onNodeUpdate: node.data.onNodeUpdate || handleNodeUpdate,
+            onNodeDelete: node.data.onNodeDelete || handleNodeDelete
+          }
+        }))
+        externalOnNodesChange(updatedNodes)
+      }
     }
-  }, [baseNodes])
+  }, [baseNodes, handleNodeUpdate, handleNodeDelete, externalOnNodesChange])
 
   // Handle edge deletion from custom delete button
   const handleEdgeDelete = useCallback((edgeId: string) => {
