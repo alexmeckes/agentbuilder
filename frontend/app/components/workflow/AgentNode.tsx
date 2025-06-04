@@ -711,12 +711,22 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
         <Handle
           type="target"
           position={Position.Left}
-          className="w-3 h-3 !bg-gray-400 !border-2 !border-white"
+          className="!w-5 !h-5 !bg-blue-500 !border-3 !border-white !shadow-lg hover:!bg-blue-600 hover:!scale-110 !transition-all !duration-200"
+          style={{
+            left: -12, // Position slightly outside the node
+            zIndex: 10,
+          }}
+          title="Input connection point"
         />
         <Handle
           type="source"
           position={Position.Right}
-          className="w-3 h-3 !bg-gray-400 !border-2 !border-white"
+          className="!w-5 !h-5 !bg-green-500 !border-3 !border-white !shadow-lg hover:!bg-green-600 hover:!scale-110 !transition-all !duration-200"
+          style={{
+            right: -12, // Position slightly outside the node
+            zIndex: 10,
+          }}
+          title="Output connection point"
         />
       </div>
 
