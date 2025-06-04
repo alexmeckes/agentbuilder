@@ -33,6 +33,7 @@ cd any-agent-main
 ### 🎨 Visual Designer Tab  
 - **Manual Design Mode**: Direct drag-and-drop workflow building with node palette
 - **AI Assistant Mode**: Natural language workflow generation and modification
+- **Enhanced Navigation**: Improved zoom (10%-500%) and drag-to-pan workflow navigation
 - **Pre-configured templates**: Ready-to-use agent and tool nodes
 - **Smart node positioning**: Collision detection and automatic layout
 - **Real-time execution**: Live workflow testing and monitoring
@@ -120,6 +121,7 @@ any-agent-main/
 - ✅ **Progress Visualization**: Real-time node status indicators and execution tracking
 - ✅ **WebSocket Integration**: Live workflow execution updates with visual feedback
 - ✅ **Enhanced UI Components**: Dynamic node styling and progress dashboard
+- ✅ **Improved Navigation**: Enhanced zoom range (10%-500%) and intuitive drag-to-pan controls
 
 ### Environment Setup
 
@@ -198,6 +200,9 @@ Visit http://localhost:8000/docs for the full API documentation.
 
 1. **Open the Frontend**: http://localhost:3000
 2. **Drag Components**: Add agent nodes, tool nodes, and connections
+3. **Navigate Workflows**: Use enhanced zoom (10%-500%) and drag-to-pan controls
+
+📖 **See [USER_INTERFACE_GUIDE.md](USER_INTERFACE_GUIDE.md) for detailed navigation instructions**
 3. **Configure Agents**: Set models, instructions, and tools
 4. **Execute**: Run your workflow and see real-time results
 

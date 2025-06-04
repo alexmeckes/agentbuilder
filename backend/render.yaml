@@ -11,5 +11,7 @@ services:
         value: 0.0.0.0
       - key: OPENAI_API_KEY
         sync: false  # This will be set manually in Render dashboard
+      - key: COMPOSIO_API_KEY
+        sync: false  # This will be set manually in Render dashboard
     healthCheckPath: /
     autoDeploy: true 

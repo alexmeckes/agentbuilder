@@ -148,6 +148,55 @@ export const TOOL_TEMPLATES: NodeTemplate[] = [
       description: 'Performs GitHub operations like repository management'
     },
     configurable: ['name', 'description', 'tool_type']
+  },
+  // 🚀 NEW: Composio Tools (lightweight addition)
+  {
+    id: 'composio-github-star',
+    type: 'tool',
+    name: 'GitHub Star (Composio)',
+    description: 'Star GitHub repositories using Composio',
+    category: 'composio-dev',
+    icon: '⭐',
+    defaultData: {
+      type: 'tool',
+      tool_type: 'composio_github_star_repo',
+      name: 'GitHubStar',
+      description: 'Star a GitHub repository',
+      tool_source: 'composio'
+    },
+    configurable: ['name', 'description']
+  },
+  {
+    id: 'composio-slack-message',
+    type: 'tool',
+    name: 'Slack Message (Composio)',
+    description: 'Send Slack messages using Composio',
+    category: 'composio-communication',
+    icon: '💬',
+    defaultData: {
+      type: 'tool',
+      tool_type: 'composio_slack_send_message',
+      name: 'SlackMessage',
+      description: 'Send message to Slack channel',
+      tool_source: 'composio'
+    },
+    configurable: ['name', 'description']
+  },
+  {
+    id: 'composio-notion-page',
+    type: 'tool',
+    name: 'Notion Page (Composio)',
+    description: 'Create Notion pages using Composio',
+    category: 'composio-productivity',
+    icon: '📝',
+    defaultData: {
+      type: 'tool',
+      tool_type: 'composio_notion_create_page',
+      name: 'NotionPage',
+      description: 'Create a new Notion page',
+      tool_source: 'composio'
+    },
+    configurable: ['name', 'description']
   }
 ]
 
