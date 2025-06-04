@@ -471,15 +471,15 @@ function WorkflowEditorInner({
         y: event.clientY - reactFlowBounds.top,
       })
 
-      // Adjust position to avoid overlaps with existing nodes
+      // Smart overlap detection with reasonable dimensions
       const adjustedPosition = { ...position }
-      const nodeWidth = 500 // Much larger width to account for any expanded state
-      const nodeHeight = 400 // Much larger height for any expanded content  
-      const padding = 200 // Very large padding between nodes
+      const nodeWidth = 250  // Realistic node width
+      const nodeHeight = 150 // Realistic node height
+      const padding = 50     // Reasonable padding between nodes
 
-      // Check for overlaps and adjust position
+      // Only adjust position if there's an actual overlap
       let attempts = 0
-      const maxAttempts = 30 // More attempts for better positioning
+      const maxAttempts = 10
       
       while (attempts < maxAttempts) {
         const hasOverlap = nodes.some(node => {
@@ -490,18 +490,18 @@ function WorkflowEditorInner({
 
         if (!hasOverlap) break
 
-        // Try different positions with very generous spacing
-        if (attempts < 10) {
-          // Try to the right with much more spacing
+        // Gentle position adjustments - try to stay near drop location
+        if (attempts < 3) {
+          // Try small shifts to the right
           adjustedPosition.x += nodeWidth + padding
-        } else if (attempts < 20) {
-          // Try below with much more spacing
+        } else if (attempts < 6) {
+          // Try small shifts down
           adjustedPosition.x = position.x
           adjustedPosition.y += nodeHeight + padding
         } else {
-          // Try diagonal positioning with very generous spacing
-          adjustedPosition.x = position.x + (attempts - 20) * (nodeWidth + padding)
-          adjustedPosition.y = position.y + (attempts - 20) * (nodeHeight + padding)
+          // Try diagonal with small increments
+          adjustedPosition.x = position.x + (attempts - 6) * 100
+          adjustedPosition.y = position.y + (attempts - 6) * 80
         }
         attempts++
       }
