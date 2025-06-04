@@ -112,10 +112,10 @@ function extractSimpleContext(userMessage: string): string | null {
     return 'Research information'
   }
   
-  // Generic fallback
+  // Generic fallback - take more words to preserve user intent
   if (userMessage.length > 20) {
-    const firstWords = userMessage.split(' ').slice(0, 6).join(' ')
-    if (firstWords.length >= 10) {
+    const firstWords = userMessage.split(' ').slice(0, 12).join(' ') // Increased from 6 to 12 words
+    if (firstWords.length >= 10 && firstWords.length <= 80) { // Added upper limit
       return firstWords.charAt(0).toUpperCase() + firstWords.slice(1)
     }
   }
