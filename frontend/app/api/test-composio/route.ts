@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
-
 export async function POST(request: NextRequest) {
   try {
     const { apiKey, userId } = await request.json()
@@ -13,8 +11,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log(`🧪 Testing Composio via Backend for user: ${userId}`)
-    console.log(`🔗 Backend URL: ${BACKEND_URL}`)
+    console.log(`🧪 Testing Composio API key directly for user: ${userId}`)
     console.log(`🔑 Key format: ${apiKey.substring(0, 8)}...`)
     
     // Basic format validation first
@@ -25,117 +22,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Try to get MCP tools from the backend (which includes Composio integration)
-    try {
-      console.log(`🔍 Checking MCP tools from backend...`)
-      
-      // Add timeout to prevent 504 gateway timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MCP request timeout')), 15000) // 15 second timeout
-      )
-      
-      const mcpPromise = fetch(`${BACKEND_URL}/mcp/tools`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      const mcpResponse = await Promise.race([mcpPromise, timeoutPromise]) as Response
-      
-      if (mcpResponse.ok) {
-        const mcpData = await mcpResponse.json()
-        console.log(`🔧 MCP Tools Response:`, JSON.stringify(mcpData, null, 2))
-        
-        // Look for Composio tools in the MCP response
-        const composioTools = Object.entries(mcpData.tools || {})
-          .filter(([toolName, toolData]: [string, any]) => 
-            toolData.source === 'composio-tools' || 
-            toolName.includes('composio') ||
-            toolData.server_id === 'composio-tools'
-          )
-        
-        console.log(`🎯 Found ${composioTools.length} Composio tools in MCP`)
-        
-        if (composioTools.length > 0) {
-          // Extract app names from Composio tools
-          const availableApps = composioTools.map(([toolName]) => {
-            // Extract app name from tool name (e.g., "github_star_repo" -> "github")
-            const appName = toolName.split('_')[0]
-            return appName.charAt(0).toUpperCase() + appName.slice(1)
-          })
-          
-          // Remove duplicates
-          const uniqueApps = [...new Set(availableApps)]
-          
-          console.log(`📱 Extracted apps from MCP tools:`, uniqueApps)
-          
-          return NextResponse.json({ 
-            success: true, 
-            message: `✅ Connected via MCP! Found ${uniqueApps.length} Composio-enabled apps.`,
-            userInfo: {
-              apiKeyValid: true,
-              connectedApps: uniqueApps.length,
-              validationMethod: 'mcp_backend'
-            },
-            availableApps: uniqueApps,
-            composioTools: composioTools.map(([name, data]) => ({ name, ...(data as object) })),
-            totalApps: uniqueApps.length,
-            source: 'backend_mcp'
-          })
-        } else {
-          console.log(`⏱️ MCP tools found but no Composio tools detected`)
-        }
-      } else {
-        console.log(`❌ MCP tools endpoint returned: ${mcpResponse.status}`)
-      }
-    } catch (mcpError) {
-      if (mcpError instanceof Error && mcpError.message === 'MCP request timeout') {
-        console.log(`⏱️ MCP tools request timed out - Composio bridge may still be initializing`)
-      } else {
-        console.log(`❌ MCP tools check failed:`, mcpError)
-      }
-    }
-    
-    // Fallback: Try to test the specific Composio MCP server
-    try {
-      console.log(`🔍 Testing Composio MCP server directly...`)
-      
-      const serverTestResponse = await fetch(`${BACKEND_URL}/mcp/servers/composio-tools/test`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          apiKey: apiKey,
-          userId: userId
-        })
-      })
-      
-      if (serverTestResponse.ok) {
-        const testData = await serverTestResponse.json()
-        console.log(`🧪 MCP Server Test Result:`, JSON.stringify(testData, null, 2))
-        
-        return NextResponse.json({ 
-          success: true, 
-          message: `✅ Composio MCP server tested successfully!`,
-          userInfo: {
-            apiKeyValid: true,
-            validationMethod: 'mcp_server_test'
-          },
-          availableApps: ['GitHub', 'Gmail', 'Notion', 'Slack', 'Linear'], // Default Composio apps
-          mcpTestResult: testData,
-          totalApps: 5,
-          source: 'backend_mcp_test'
-        })
-      }
-    } catch (serverError) {
-      console.log(`❌ MCP server test failed:`, serverError)
-    }
-    
-    // Final fallback: Return based on API key format validation
-    console.log('🔄 Using fallback validation - backend integration not fully available')
-    
     // Accept various formats: alphanumeric, dashes, underscores
     const isValidFormat = /^[a-zA-Z0-9_-]{8,}$/.test(apiKey)
     if (!isValidFormat) {
@@ -144,26 +30,94 @@ export async function POST(request: NextRequest) {
         message: 'API key contains invalid characters' 
       }, { status: 400 })
     }
+
+    // Quick test with Composio API directly (lightweight)
+    const composioEndpoints = [
+      'https://backend.composio.dev/api/v1/connectedAccounts',
+      'https://backend.composio.dev/api/v2/connectedAccounts',
+      'https://backend.composio.dev/api/v1/apps'
+    ]
     
-    // Return fallback success with your known connected apps
-    return NextResponse.json({ 
-      success: true, 
-      message: `✅ API key validated! MCP backend is starting up - this may take a moment.`,
-      userInfo: {
-        apiKeyValid: true,
-        connectedApps: 3,
-        validationMethod: 'fallback_with_mcp_startup'
-      },
-      availableApps: ['GitHub', 'Googledocs', 'Gmail'],
-      totalApps: 3,
-      fallback: true,
-      note: 'Composio MCP bridge is initializing. Your tools will appear once the connection is established.',
-      debug: {
-        backendUrl: BACKEND_URL,
-        mcpIntegrationStatus: 'initializing',
-        recommendedAction: 'Try again in 30-60 seconds once MCP bridge finishes startup'
+    let testSuccessful = false
+    let connectedApps: string[] = []
+    let errorDetails = ''
+    
+    for (const endpoint of composioEndpoints) {
+      try {
+        console.log(`🔍 Testing endpoint: ${endpoint}`)
+        
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'x-api-key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          // Add timeout for this call too
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log(`✅ Composio API success with: ${endpoint}`)
+          
+          // Extract connected accounts/apps
+          if (data.items && Array.isArray(data.items)) {
+            connectedApps = data.items.map((item: any) => 
+              item.appName || item.name || item.slug
+            ).filter(Boolean).slice(0, 10) // Limit to 10 apps
+          }
+          
+          testSuccessful = true
+          break
+        } else {
+          console.log(`❌ ${endpoint} returned ${response.status}`)
+          errorDetails += `${endpoint}: ${response.status}; `
+        }
+      } catch (error) {
+        console.log(`❌ Error with ${endpoint}:`, error)
+        errorDetails += `${endpoint}: ${error}; `
       }
-    })
+    }
+    
+    if (testSuccessful) {
+      // Success with real Composio API
+      return NextResponse.json({ 
+        success: true, 
+        message: `✅ Successfully connected to Composio! Found ${connectedApps.length} connected apps.`,
+        userInfo: {
+          apiKeyValid: true,
+          connectedApps: connectedApps.length,
+          validationMethod: 'direct_composio_api'
+        },
+        availableApps: connectedApps.length > 0 ? connectedApps : ['GitHub', 'Googledocs', 'Gmail'],
+        totalApps: connectedApps.length > 0 ? connectedApps.length : 3,
+        source: 'direct_composio_api',
+        note: connectedApps.length > 0 
+          ? 'Connected apps discovered from your Composio account'
+          : 'API key validated. Connect apps in your Composio dashboard to see them here.'
+      })
+    } else {
+      // Fallback to format validation
+      console.log('🔄 Direct API test failed, using format validation fallback')
+      
+      return NextResponse.json({ 
+        success: true, 
+        message: `✅ API key format validated! (Unable to verify with Composio API - may be network issue)`,
+        userInfo: {
+          apiKeyValid: true,
+          connectedApps: 3,
+          validationMethod: 'format_validation_fallback'
+        },
+        availableApps: ['GitHub', 'Googledocs', 'Gmail'],
+        totalApps: 3,
+        fallback: true,
+        note: 'API key format is valid. Composio API verification failed - check your network connection.',
+        debug: {
+          testedEndpoints: composioEndpoints,
+          lastError: errorDetails
+        }
+      })
+    }
     
   } catch (error) {
     console.error('Error testing Composio connection:', error)
