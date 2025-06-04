@@ -77,6 +77,11 @@ class VisualToAnyAgentTranslator:
         self.available_tools = {
             "search_web": search_web,
             "visit_webpage": visit_webpage,
+            # Add aliases for frontend compatibility
+            "web_search": search_web,  # Frontend alias for search_web
+            "WebSearch": search_web,   # UI display name alias
+            "webpage_visit": visit_webpage,  # Alternative naming
+            "visit_page": visit_webpage,     # Alternative naming
         }
         
         # Add MCP tools if available and enabled
