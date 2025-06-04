@@ -1,6 +1,8 @@
 # 🎨 Any-Agent Workflow Composer
 
-A visual workflow composer for the [any-agent](https://github.com/mozilla-ai/any-agent) framework. Create, edit, and execute AI agent workflows through an intuitive drag-and-drop interface.
+<!-- Rollback deployment - Steps 1 & 2 working implementation -->
+
+A visual, drag-and-drop interface for building AI agent workflows using any-agent as the execution engine.
 
 ## 🚀 Quick Start
 
