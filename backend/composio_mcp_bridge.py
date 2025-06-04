@@ -85,6 +85,44 @@ class UserComposioManager:
                 }
             },
             
+            # Google Workspace
+            "googledocs_create_doc": {
+                "description": "Create a new Google Docs document",
+                "category": "productivity",
+                "parameters": {
+                    "title": {"type": "string", "description": "Document title"},
+                    "content": {"type": "string", "description": "Document content"},
+                    "folder_id": {"type": "string", "description": "Folder ID (optional)", "required": False}
+                }
+            },
+            "googlesheets_create_sheet": {
+                "description": "Create a new Google Sheets spreadsheet",
+                "category": "productivity",
+                "parameters": {
+                    "title": {"type": "string", "description": "Spreadsheet title"},
+                    "folder_id": {"type": "string", "description": "Folder ID (optional)", "required": False}
+                }
+            },
+            "googledrive_upload": {
+                "description": "Upload file to Google Drive",
+                "category": "productivity",
+                "parameters": {
+                    "file_name": {"type": "string", "description": "File name"},
+                    "content": {"type": "string", "description": "File content or path"},
+                    "folder_id": {"type": "string", "description": "Folder ID (optional)", "required": False}
+                }
+            },
+            "googlecalendar_create_event": {
+                "description": "Create a Google Calendar event",
+                "category": "productivity",
+                "parameters": {
+                    "title": {"type": "string", "description": "Event title"},
+                    "start_time": {"type": "string", "description": "Start time (ISO format)"},
+                    "end_time": {"type": "string", "description": "End time (ISO format)"},
+                    "description": {"type": "string", "description": "Event description (optional)", "required": False}
+                }
+            },
+            
             # Productivity
             "notion_create_page": {
                 "description": "Create a new Notion page",
@@ -102,6 +140,38 @@ class UserComposioManager:
                     "title": {"type": "string", "description": "Issue title"},
                     "description": {"type": "string", "description": "Issue description"},
                     "team_id": {"type": "string", "description": "Team ID (optional)", "required": False}
+                }
+            },
+            "trello_create_card": {
+                "description": "Create a Trello card",
+                "category": "productivity",
+                "parameters": {
+                    "name": {"type": "string", "description": "Card name"},
+                    "description": {"type": "string", "description": "Card description"},
+                    "list_id": {"type": "string", "description": "List ID"}
+                }
+            },
+            
+            # Business/CRM
+            "airtable_create_record": {
+                "description": "Create record in Airtable",
+                "category": "productivity",
+                "parameters": {
+                    "base_id": {"type": "string", "description": "Base ID"},
+                    "table_name": {"type": "string", "description": "Table name"},
+                    "fields": {"type": "object", "description": "Record fields"}
+                }
+            },
+            
+            # Development Tools
+            "jira_create_issue": {
+                "description": "Create a JIRA issue",
+                "category": "development",
+                "parameters": {
+                    "project_key": {"type": "string", "description": "Project key"},
+                    "summary": {"type": "string", "description": "Issue summary"},
+                    "description": {"type": "string", "description": "Issue description"},
+                    "issue_type": {"type": "string", "description": "Issue type (optional)", "required": False}
                 }
             }
         }

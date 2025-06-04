@@ -200,48 +200,100 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
 
   const mapComposioAppsToTools = (availableApps: string[], userInfo?: any) => {
     const toolMapping: Record<string, any> = {
+      // Core apps - exact matches
       'github': { id: 'github_star_repo', name: 'GitHub Operations', icon: '🐙', category: 'Development' },
       'slack': { id: 'slack_send_message', name: 'Slack Messaging', icon: '💬', category: 'Communication' },
       'gmail': { id: 'gmail_send_email', name: 'Gmail Operations', icon: '📧', category: 'Communication' },
       'notion': { id: 'notion_create_page', name: 'Notion Pages', icon: '📝', category: 'Productivity' },
       'linear': { id: 'linear_create_issue', name: 'Linear Issues', icon: '📋', category: 'Productivity' },
-      // Add more mappings as needed
+      
+      // Google apps - specific mappings
       'google': { id: 'gmail_send_email', name: 'Gmail Operations', icon: '📧', category: 'Communication' },
+      'googledocs': { id: 'googledocs_create_doc', name: 'Google Docs', icon: '📄', category: 'Productivity' },
+      'googlesheets': { id: 'googlesheets_create_sheet', name: 'Google Sheets', icon: '📊', category: 'Productivity' },
+      'googledrive': { id: 'googledrive_upload', name: 'Google Drive', icon: '💾', category: 'Productivity' },
+      'googlecalendar': { id: 'googlecalendar_create_event', name: 'Google Calendar', icon: '📅', category: 'Productivity' },
+      
+      // Microsoft apps
       'microsoft': { id: 'outlook_send_email', name: 'Outlook Operations', icon: '📮', category: 'Communication' },
+      'outlook': { id: 'outlook_send_email', name: 'Outlook Operations', icon: '📮', category: 'Communication' },
+      'teams': { id: 'teams_send_message', name: 'Microsoft Teams', icon: '👥', category: 'Communication' },
+      'onedrive': { id: 'onedrive_upload', name: 'OneDrive', icon: '☁️', category: 'Productivity' },
+      
+      // Other productivity tools
       'trello': { id: 'trello_create_card', name: 'Trello Cards', icon: '📋', category: 'Productivity' },
-      'asana': { id: 'asana_create_task', name: 'Asana Tasks', icon: '✅', category: 'Productivity' }
+      'asana': { id: 'asana_create_task', name: 'Asana Tasks', icon: '✅', category: 'Productivity' },
+      'jira': { id: 'jira_create_issue', name: 'Jira Issues', icon: '🎯', category: 'Development' },
+      'confluence': { id: 'confluence_create_page', name: 'Confluence Pages', icon: '📑', category: 'Productivity' },
+      
+      // Communication tools
+      'discord': { id: 'discord_send_message', name: 'Discord Message', icon: '🎮', category: 'Communication' },
+      'telegram': { id: 'telegram_send_message', name: 'Telegram Message', icon: '📱', category: 'Communication' },
+      'whatsapp': { id: 'whatsapp_send_message', name: 'WhatsApp Message', icon: '💬', category: 'Communication' },
+      
+      // Development tools
+      'gitlab': { id: 'gitlab_create_issue', name: 'GitLab Issues', icon: '🦊', category: 'Development' },
+      'bitbucket': { id: 'bitbucket_create_issue', name: 'Bitbucket Issues', icon: '🪣', category: 'Development' },
+      'jenkins': { id: 'jenkins_trigger_build', name: 'Jenkins Build', icon: '🔧', category: 'Development' },
+      
+      // CRM and business tools
+      'hubspot': { id: 'hubspot_create_contact', name: 'HubSpot CRM', icon: '🎯', category: 'Business' },
+      'salesforce': { id: 'salesforce_create_lead', name: 'Salesforce CRM', icon: '☁️', category: 'Business' },
+      'airtable': { id: 'airtable_create_record', name: 'Airtable Records', icon: '🗃️', category: 'Productivity' },
+      'zapier': { id: 'zapier_trigger_zap', name: 'Zapier Automation', icon: '⚡', category: 'Automation' }
     }
     
     const discoveredTools: any[] = []
     
+    console.log(`🔍 Mapping ${availableApps.length} connected apps:`, availableApps)
+    
     // Map available apps to tools
     availableApps.forEach(appName => {
-      const normalizedName = appName.toLowerCase()
+      const normalizedName = appName.toLowerCase().replace(/[\s-_]/g, '')
+      console.log(`📱 Processing app: "${appName}" -> "${normalizedName}"`)
       
       // Try exact match first
       if (toolMapping[normalizedName]) {
+        console.log(`✅ Exact match found: ${normalizedName} -> ${toolMapping[normalizedName].name}`)
         discoveredTools.push(toolMapping[normalizedName])
         return
       }
       
-      // Try partial matches
+      // Try partial matches (both directions)
+      let matchFound = false
       Object.keys(toolMapping).forEach(key => {
-        if (normalizedName.includes(key) || key.includes(normalizedName)) {
+        if (!matchFound && (normalizedName.includes(key) || key.includes(normalizedName))) {
+          console.log(`🔍 Partial match found: ${normalizedName} contains/matches ${key} -> ${toolMapping[key].name}`)
           if (!discoveredTools.some(tool => tool.id === toolMapping[key].id)) {
             discoveredTools.push(toolMapping[key])
+            matchFound = true
           }
         }
       })
+      
+      // If no match found, create a generic tool for this app
+      if (!matchFound) {
+        console.log(`❓ No mapping found for "${appName}", creating generic tool`)
+        const genericTool = {
+          id: `${normalizedName}_generic`,
+          name: `${appName} Operations`,
+          icon: '🔗',
+          category: 'Generic'
+        }
+        discoveredTools.push(genericTool)
+      }
     })
     
     // If no tools discovered, show all available tools as fallback
     if (discoveredTools.length === 0) {
-      console.log('No specific tools mapped, showing all available tools')
+      console.log('❌ No specific tools mapped, showing all available tools')
       return AVAILABLE_TOOLS
     }
     
-    console.log(`🔍 Discovered ${discoveredTools.length} tools from ${availableApps.length} connected apps:`, 
-      discoveredTools.map(t => t.name))
+    console.log(`✅ Discovered ${discoveredTools.length} tools from ${availableApps.length} connected apps:`)
+    discoveredTools.forEach(tool => {
+      console.log(`   - ${tool.name} (${tool.category})`)
+    })
     
     return discoveredTools
   }
