@@ -1084,10 +1084,12 @@ function WorkflowEditorInner({
           nodesConnectable={true}
           elementsSelectable={true}
           selectNodesOnDrag={false}
-          panOnDrag={false}
-          panOnScroll={true}
+          panOnDrag={true}
+          panOnScroll={false}
           zoomOnScroll={true}
           zoomOnDoubleClick={false}
+          minZoom={0.1}
+          maxZoom={5}
           fitView
           deleteKeyCode="Delete"
           className="bg-gradient-to-br from-slate-50 to-blue-50 workflow-editor"
