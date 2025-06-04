@@ -175,14 +175,27 @@ export function NodeEditorModal({ isOpen, nodeData, onSave, onClose }: NodeEdito
       const defaultFramework = nodeData.framework || AgentFramework.OPENAI
       const defaultModelId = nodeData.agentConfig?.model_id || nodeData.model_id || 'gpt-4o-mini'
       
+      // Prioritize saved data from agentConfig, then fallback to top-level properties
+      const savedInstructions = nodeData.agentConfig?.instructions || nodeData.instructions || ''
+      const savedName = nodeData.agentConfig?.name || nodeData.name || ''
+      const savedDescription = nodeData.agentConfig?.description || nodeData.description || ''
+      
+      console.log('NodeEditorModal: Loading saved data -', {
+        instructions: savedInstructions,
+        name: savedName,
+        description: savedDescription,
+        agentConfig: nodeData.agentConfig
+      })
+      
       setFormData({
         ...nodeData,
         framework: defaultFramework,
+        instructions: savedInstructions, // Ensure top-level instructions is set
         agentConfig: {
           model_id: defaultModelId,
-          instructions: nodeData.instructions || nodeData.agentConfig?.instructions || '',
-          name: nodeData.name || nodeData.agentConfig?.name || '',
-          description: nodeData.description || nodeData.agentConfig?.description || '',
+          instructions: savedInstructions,
+          name: savedName,
+          description: savedDescription,
           ...nodeData.agentConfig
         },
         modelOptions: {
@@ -193,16 +206,20 @@ export function NodeEditorModal({ isOpen, nodeData, onSave, onClose }: NodeEdito
       })
       setHasUnsavedChanges(false)
       setErrors({})
-      console.log('NodeEditorModal: Form data initialized')
+      console.log('NodeEditorModal: Form data initialized with saved instructions:', savedInstructions)
     }
   }, [isOpen, nodeData])
 
-  // Track changes
+  // Track changes (only after initial load)
   useEffect(() => {
-    if (nodeData) {
-      setHasUnsavedChanges(true)
+    if (nodeData && isOpen) {
+      // Small delay to avoid triggering on initial form data setup
+      const timer = setTimeout(() => {
+        setHasUnsavedChanges(true)
+      }, 100)
+      return () => clearTimeout(timer)
     }
-  }, [formData])
+  }, [formData, nodeData, isOpen])
 
   // Handle escape key to close modal
   useEffect(() => {
@@ -259,15 +276,20 @@ export function NodeEditorModal({ isOpen, nodeData, onSave, onClose }: NodeEdito
 
   const handleSave = () => {
     if (validateForm()) {
-      // Ensure agentConfig is properly structured for any-agent
+      // Ensure agentConfig is properly structured for any-agent and data consistency
       const enhancedData: EnhancedNodeData = {
         ...formData,
+        // Ensure top-level properties are synchronized with agentConfig
+        instructions: formData.agentConfig?.instructions || formData.instructions,
+        name: formData.agentConfig?.name || formData.name,
+        description: formData.agentConfig?.description || formData.description,
         agentConfig: {
           ...formData.agentConfig!,
           model_args: formData.modelOptions
         }
       }
       
+      console.log('NodeEditorModal: Saving enhanced data:', enhancedData)
       onSave(enhancedData)
       onClose()
     }
