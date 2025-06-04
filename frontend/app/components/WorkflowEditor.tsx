@@ -353,6 +353,26 @@ function WorkflowEditorInner({
     }
   }, [baseNodes])
 
+  // Handle edge deletion from custom delete button
+  const handleEdgeDelete = useCallback((edgeId: string) => {
+    console.log('🗑️ Deleting edge via button:', edgeId)
+    
+    if (externalOnEdgesChange) {
+      // Filter out deleted edge and update parent
+      const updatedEdges = edges.filter(edge => edge.id !== edgeId)
+      externalOnEdgesChange(updatedEdges)
+      
+      if (onWorkflowChange) {
+        onWorkflowChange(baseNodes, updatedEdges)
+      }
+    } else {
+      // Update internal state
+      setInternalEdges(currentEdges => 
+        currentEdges.filter(edge => edge.id !== edgeId)
+      )
+    }
+  }, [edges, baseNodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange])
+
   // Handle edge changes  
   const handleEdgesChange = useCallback((changes: any) => {
     if (externalOnEdgesChange && externalEdges) {
@@ -612,6 +632,15 @@ function WorkflowEditorInner({
 
   // Use baseNodes directly to avoid circular dependency issues
   const nodes = baseNodes
+  
+  // Ensure all edges have the onEdgeDelete callback
+  const edgesWithCallbacks = edges.map(edge => ({
+    ...edge,
+    data: {
+      ...edge.data,
+      onEdgeDelete: handleEdgeDelete
+    }
+  }))
 
   const executeWorkflow = async () => {
     console.log('🚀🚀🚀 EXECUTE WORKFLOW BUTTON CLICKED! 🚀🚀🚀')
@@ -1054,7 +1083,7 @@ function WorkflowEditorInner({
       <div className="flex-1 h-full" ref={reactFlowWrapper}>
         <ReactFlow
           nodes={nodes}
-          edges={edges}
+          edges={edgesWithCallbacks}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           onConnect={onConnect}

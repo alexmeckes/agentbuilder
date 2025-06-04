@@ -6,9 +6,12 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
-  useReactFlow,
 } from 'reactflow'
 import { X } from 'lucide-react'
+
+interface DeletableEdgeProps extends EdgeProps {
+  onEdgeDelete?: (edgeId: string) => void
+}
 
 export default function DeletableEdge({
   id,
@@ -21,8 +24,8 @@ export default function DeletableEdge({
   style = {},
   markerEnd,
   selected,
-}: EdgeProps) {
-  const { setEdges } = useReactFlow()
+  data,
+}: DeletableEdgeProps) {
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -35,7 +38,13 @@ export default function DeletableEdge({
   const onEdgeClick = (event: React.MouseEvent) => {
     event.stopPropagation()
     event.preventDefault()
-    setEdges((edges) => edges.filter((edge) => edge.id !== id))
+    
+    console.log('🗑️ Deleting edge:', id)
+    
+    // Use the callback passed from the parent component
+    if (data?.onEdgeDelete) {
+      data.onEdgeDelete(id)
+    }
   }
 
   return (
