@@ -4,10 +4,13 @@
       "id": "web_search",
       "name": "Web Search Tool",
       "description": "Search the web for real-time information using DuckDuckGo",
-      "command": ["python3", "simple_mcp_server.py"],
+      "command": [
+        "python3",
+        "simple_mcp_server.py"
+      ],
       "args": [],
       "env": {},
-      "working_dir": "./",
+      "working_dir": "/opt/render/project/src/backend",
       "host": null,
       "port": null,
       "credentials": {},
@@ -16,13 +19,18 @@
       "capabilities": []
     },
     {
-      "id": "github",
-      "name": "GitHub Integration",
-      "description": "Comprehensive GitHub repository management, issues, pull requests, and more",
-      "command": ["./github-mcp-server"],
+      "id": "composio-tools",
+      "name": "Composio Universal Tools", 
+      "description": "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
+      "command": [
+        "python3",
+        "composio_mcp_bridge.py"
+      ],
       "args": [],
-      "env": {},
-      "working_dir": "./",
+      "env": {
+        "COMPOSIO_API_KEY": ""
+      },
+      "working_dir": "/opt/render/project/src/backend",
       "host": null,
       "port": null,
       "credentials": {},

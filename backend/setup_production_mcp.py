@@ -184,6 +184,23 @@ def setup_production_mcp():
                 "status": "disconnected",
                 "last_error": None,
                 "capabilities": []
+            },
+            {
+                "id": "composio-tools",
+                "name": "Composio Universal Tools",
+                "description": "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
+                "command": [python_cmd, "composio_mcp_bridge.py"],
+                "args": [],
+                "env": {
+                    "COMPOSIO_API_KEY": os.getenv('COMPOSIO_API_KEY', '')
+                },
+                "working_dir": working_dir,
+                "host": None,
+                "port": None,
+                "credentials": {},
+                "status": "disconnected",
+                "last_error": None,
+                "capabilities": []
             }
         ]
     }
@@ -245,7 +262,8 @@ def setup_production_mcp():
     # Verify required files exist
     required_files = [
         "simple_mcp_server.py",
-        "mcp_manager.py"
+        "mcp_manager.py",
+        "composio_mcp_bridge.py"
     ]
     
     missing_files = []
