@@ -91,7 +91,7 @@ class UserComposioManager:
             },
             
             # Google Workspace
-            "create_document": {
+            "GOOGLEDOCS_CREATE_DOCUMENT": {
                 "description": "Create a new Google Docs document",
                 "category": "productivity",
                 "parameters": {
@@ -239,7 +239,7 @@ class UserComposioManager:
                 for app_name in connected_apps[:5]:  # Limit to 5 apps for performance
                     try:
                         async with session.get(
-                            f'https://backend.composio.dev/api/v2/actions?appNames={app_name}&limit=10',
+                            f'https://backend.composio.dev/api/v1/actions?appNames={app_name}',
                             headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
                             timeout=aiohttp.ClientTimeout(total=10)
                         ) as actions_response:
