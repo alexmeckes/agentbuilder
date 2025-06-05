@@ -959,6 +959,48 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
                         else:
                             logger.info("🧵 THREAD EXECUTION: NO TOOLS assigned to agent!")
                         
+                        # CRITICAL FIX: Set up Composio environment for thread execution
+                        # The thread execution needs access to user's Composio API key and context
+                        import os
+                        
+                        # Try to get user context from main process environment or MCP system
+                        composio_api_key = os.getenv('COMPOSIO_API_KEY', '')
+                        user_id = os.getenv('USER_ID', 'default_user')
+                        
+                        # If not available in environment, try to get from MCP config or direct lookup
+                        if not composio_api_key:
+                            try:
+                                # Try to get from MCP server config
+                                if MCP_INTEGRATION_AVAILABLE:
+                                    mcp_manager = get_mcp_manager()
+                                    if mcp_manager:
+                                        # Check if composio-tools server has config with API key
+                                        server_configs = mcp_manager.get_server_status()
+                                        composio_config = server_configs.get('composio-tools', {})
+                                        env_vars = composio_config.get('environment', {})
+                                        composio_api_key = env_vars.get('COMPOSIO_API_KEY', '')
+                                        if composio_api_key:
+                                            user_id = env_vars.get('USER_ID', 'default_user')
+                                            logger.info(f"🧵 THREAD: Loaded Composio config from MCP server")
+                                        else:
+                                            logger.info(f"🧵 THREAD: No API key in MCP server config")
+                                
+                                # Fallback: try localStorage-style approach (browser settings may be stored server-side)
+                                if not composio_api_key:
+                                    # This would be implemented if there's a server-side user settings storage
+                                    logger.info(f"🧵 THREAD: No user settings storage available, will use mock mode")
+                                    
+                            except Exception as e:
+                                logger.warning(f"🧵 THREAD: Could not load user context: {e}")
+                        
+                        # Set environment for this thread
+                        if composio_api_key:
+                            os.environ['COMPOSIO_API_KEY'] = composio_api_key
+                            os.environ['USER_ID'] = user_id
+                            logger.info(f"🧵 THREAD: Set Composio environment - API key available: {bool(composio_api_key)}")
+                        else:
+                            logger.warning(f"🧵 THREAD: No Composio API key available - tools will use mock mode")
+                        
                         # Convert framework string to AgentFramework enum
                         framework_enum = AgentFramework.from_string(framework.upper())
                         
