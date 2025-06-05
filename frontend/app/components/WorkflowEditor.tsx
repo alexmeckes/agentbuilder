@@ -684,10 +684,6 @@ function WorkflowEditorInner({
     }
   }, [])
 
-  // Define which tools are "Action Tools" (attachable) vs. "Process Tools" (standalone)
-  const ACTION_TOOLS = ['composio_googledocs_create_doc', 'composio_slack_send_message', 'composio_github_create_issue'];
-  const PROCESS_TOOLS = ['web_search', 'file_read', 'file_write'];
-
   // HTML5 Drag & Drop: Handle dropping nodes FROM sidebar TO canvas
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
@@ -758,15 +754,12 @@ function WorkflowEditorInner({
         attempts++
       }
 
-      const toolType = composioToolData ? composioToolData.toolType : type;
-      const isActionTool = ACTION_TOOLS.includes(toolType);
-
-      if (droppedOnNode && droppedOnNode.data.type === 'agent' && isActionTool) {
-        // ATTACH TOOL to agent node
+      // If a Composio tool is dropped on an agent, attach it.
+      if (droppedOnNode && droppedOnNode.data.type === 'agent' && composioToolData?.isComposio) {
         const newTool = {
-          id: `${toolType}-${Date.now()}`,
-          name: composioToolData ? composioToolData.label : 'New Tool',
-          description: composioToolData ? composioToolData.description : 'An action tool',
+          id: `${composioToolData.toolType}-${Date.now()}`,
+          name: composioToolData.label,
+          description: composioToolData.description,
           // icon could be added here
         };
 
