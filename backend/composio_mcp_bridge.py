@@ -96,7 +96,7 @@ class UserComposioManager:
                 "category": "productivity",
                 "parameters": {
                     "title": {"type": "string", "description": "Document title"},
-                    "content": {"type": "string", "description": "Document content"},
+                    "text": {"type": "string", "description": "Document text content"},
                     "folder_id": {"type": "string", "description": "Folder ID (optional)", "required": False}
                 }
             },
@@ -315,7 +315,7 @@ class UserComposioManager:
                 # Create user-specific client with entity isolation
                 self.user_clients[client_key] = ComposioToolSetType(
                     api_key=user_context.api_key,
-                    entity_id=user_context.user_id  # Isolate user's connected accounts
+                    entity_id="default"  # Use default entity as per API requirements
                 )
                 logging.info(f"✅ Created Composio client for user: {user_context.user_id}")
             except Exception as e:
@@ -362,7 +362,7 @@ class UserComposioManager:
                 lambda: client.execute_action(
                     action=tool_name,
                     params=params,
-                    entity_id=user_context.user_id
+                    entity_id="default"  # Use default entity ID as per API requirements
                 )
             )
             

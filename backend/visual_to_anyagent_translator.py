@@ -122,7 +122,7 @@ class VisualToAnyAgentTranslator:
     def _create_composio_tool_wrapper(self, tool_name: str):
         """Create a wrapper function for a Composio tool that can be used in workflows"""
         
-        def composio_tool_wrapper(input_text: str = "", title: str = "", content: str = "") -> str:
+        def composio_tool_wrapper(input_text: str = "", title: str = "", text: str = "") -> str:
             """Wrapper that executes Composio tool with user context during workflow execution"""
             try:
                 # Import here to avoid circular imports
@@ -136,8 +136,8 @@ class VisualToAnyAgentTranslator:
                     params["input"] = input_text
                 if title:
                     params["title"] = title
-                if content:
-                    params["content"] = content
+                if text:
+                    params["text"] = text
                 
                 # Get user context from environment (set by MCP server config)
                 api_key = os.getenv('COMPOSIO_API_KEY', '')
@@ -656,7 +656,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
                 
                 # Create Composio tool wrappers in subprocess
                 def create_composio_wrapper(tool_name):
-                    def wrapper(input_text: str = "", title: str = "", content: str = "") -> str:
+                    def wrapper(input_text: str = "", title: str = "", text: str = "") -> str:
                         try:
                             import asyncio
                             import os
@@ -682,8 +682,8 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
                                 params["input"] = input_text
                             if title:
                                 params["title"] = title
-                            if content:
-                                params["content"] = content
+                            if text:
+                                params["text"] = text
                             
                             # Execute the tool
                             manager = UserComposioManager()
