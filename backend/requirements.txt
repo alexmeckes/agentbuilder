@@ -20,6 +20,7 @@ git+https://github.com/mozilla-ai/any-agent.git
 
 # Add Composio (lightweight)
 composio-core>=0.7.0
+aiohttp>=3.8.0
 
 # Additional dependencies
 httpx>=0.25.0

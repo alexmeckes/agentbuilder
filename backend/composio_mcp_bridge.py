@@ -46,6 +46,7 @@ class UserComposioManager:
         self.user_clients: Dict[str, ComposioToolSetType] = {}
         self.available_tools = {}
         self._discover_base_tools()
+        self._dynamic_discovery_cache = {}
     
     def _discover_base_tools(self):
         """Discover popular Composio tools (lightweight subset)"""
@@ -90,7 +91,7 @@ class UserComposioManager:
             },
             
             # Google Workspace
-            "googledocs_create_document": {
+            "create_document": {
                 "description": "Create a new Google Docs document",
                 "category": "productivity",
                 "parameters": {
@@ -182,6 +183,126 @@ class UserComposioManager:
         
         self.available_tools = popular_tools
     
+    async def discover_actions_for_user(self, user_context: UserContext) -> Dict[str, Dict[str, Any]]:
+        """Dynamically discover real actions from Composio API for user's connected apps"""
+        if not user_context.api_key:
+            logging.info("No API key provided, using fallback tools")
+            return self.available_tools
+        
+        # Check cache first (cache for 1 hour per user)
+        cache_key = f"{user_context.user_id}_{hash(user_context.api_key)}"
+        if cache_key in self._dynamic_discovery_cache:
+            cached_data = self._dynamic_discovery_cache[cache_key]
+            if cached_data.get('timestamp', 0) > asyncio.get_event_loop().time() - 3600:  # 1 hour cache
+                logging.info(f"Using cached actions for user {user_context.user_id}")
+                return cached_data['tools']
+        
+        discovered_tools = {}
+        
+        try:
+            # Dynamic import to avoid startup issues
+            import aiohttp
+            
+            async with aiohttp.ClientSession() as session:
+                # First, get connected accounts
+                try:
+                    async with session.get(
+                        'https://backend.composio.dev/api/v2/connectedAccounts',
+                        headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
+                        timeout=aiohttp.ClientTimeout(total=15)
+                    ) as response:
+                        connected_apps = []
+                        if response.status == 200:
+                            accounts_data = await response.json()
+                            
+                            if accounts_data.get('items'):
+                                connected_apps = [
+                                    item.get('appName') or item.get('name') or item.get('slug') 
+                                    for item in accounts_data['items']
+                                ]
+                                connected_apps = [app for app in connected_apps if app]
+                            
+                            logging.info(f"🔍 User {user_context.user_id} connected apps: {connected_apps}")
+                        else:
+                            logging.warning(f"Failed to fetch connected accounts: {response.status}")
+                            
+                except Exception as e:
+                    logging.warning(f"Error fetching connected accounts: {e}")
+                    connected_apps = []
+                
+                # If no connected apps found, use common ones
+                if not connected_apps:
+                    connected_apps = ['googledocs', 'github', 'gmail', 'slack', 'notion']
+                    logging.info(f"Using fallback apps for user {user_context.user_id}")
+                
+                # Fetch actions for each connected app
+                for app_name in connected_apps[:5]:  # Limit to 5 apps for performance
+                    try:
+                        async with session.get(
+                            f'https://backend.composio.dev/api/v2/actions?appNames={app_name}&limit=10',
+                            headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
+                            timeout=aiohttp.ClientTimeout(total=10)
+                        ) as actions_response:
+                            if actions_response.status == 200:
+                                actions_data = await actions_response.json()
+                                
+                                if actions_data.get('items'):
+                                    for action in actions_data['items']:
+                                        action_name = action.get('name')
+                                        if action_name:
+                                            discovered_tools[action_name] = {
+                                                "description": action.get('description', f"Action for {app_name}"),
+                                                "category": self._categorize_app(app_name),
+                                                "parameters": action.get('parameters', {}),
+                                                "app_name": app_name,
+                                                "display_name": action.get('displayName', action_name),
+                                                "source": "dynamic_discovery"
+                                            }
+                                    
+                                    logging.info(f"✅ Discovered {len(actions_data['items'])} actions for {app_name}")
+                            else:
+                                logging.warning(f"Failed to fetch actions for {app_name}: {actions_response.status}")
+                    except Exception as e:
+                        logging.warning(f"Error fetching actions for {app_name}: {e}")
+                        
+        except ImportError:
+            logging.warning("aiohttp not available, using fallback tools")
+            return self.available_tools
+        except Exception as e:
+            logging.error(f"Error during dynamic action discovery: {e}")
+            return self.available_tools
+        
+        # If we discovered any tools, merge with fallback tools and cache
+        if discovered_tools:
+            # Merge discovered tools with fallback tools (discovered takes priority)
+            final_tools = {**self.available_tools, **discovered_tools}
+            
+            # Cache the result
+            self._dynamic_discovery_cache[cache_key] = {
+                'tools': final_tools,
+                'timestamp': asyncio.get_event_loop().time()
+            }
+            
+            logging.info(f"🎉 Successfully discovered {len(discovered_tools)} real actions for user {user_context.user_id}")
+            return final_tools
+        else:
+            logging.info(f"No dynamic actions discovered for user {user_context.user_id}, using fallback")
+            return self.available_tools
+    
+    def _categorize_app(self, app_name: str) -> str:
+        """Categorize app by name"""
+        app_categories = {
+            'github': 'development',
+            'slack': 'communication',
+            'gmail': 'communication',
+            'googledocs': 'productivity',
+            'googlesheets': 'productivity',
+            'notion': 'productivity',
+            'linear': 'productivity',
+            'trello': 'productivity'
+        }
+        return app_categories.get(app_name.lower(), 'general')
+    
     def get_user_client(self, user_context: UserContext) -> Optional[ComposioToolSetType]:
         """Get or create Composio client for specific user"""
         if not user_context.api_key or not COMPOSIO_AVAILABLE:
@@ -213,9 +334,16 @@ class UserComposioManager:
                 "available_tools": user_context.enabled_tools
             }
         
+        # Get available tools for this user (includes dynamic discovery)
+        try:
+            available_tools = await self.discover_actions_for_user(user_context)
+        except Exception as e:
+            logging.warning(f"Dynamic discovery failed for execution, using fallback: {e}")
+            available_tools = self.available_tools
+        
         # Check if tool exists
-        if tool_name not in self.available_tools:
-            return {"error": f"Tool '{tool_name}' not found"}
+        if tool_name not in available_tools:
+            return {"error": f"Tool '{tool_name}' not found in available tools: {list(available_tools.keys())[:10]}"}
         
         # Get user's Composio client
         client = self.get_user_client(user_context)
@@ -224,7 +352,7 @@ class UserComposioManager:
             return {
                 "error": "No valid Composio API key provided for user",
                 "mock_result": f"Mock execution of {tool_name} with params: {params}",
-                "message": "Provide valid API key in user settings to enable real tool execution"
+                "message": "💡 Check your tool connections in Composio dashboard"
             }
         
         try:
@@ -250,11 +378,41 @@ class UserComposioManager:
             return {
                 "error": f"Tool execution failed: {str(e)}",
                 "mock_result": f"Mock execution of {tool_name} with params: {params}",
-                "message": "Check your tool connections in Composio dashboard"
+                "message": "💡 Check your tool connections in Composio dashboard"
             }
     
-    def get_available_tools_for_user(self, user_context: UserContext) -> List[Dict[str, Any]]:
-        """Get tools available to specific user"""
+    async def get_available_tools_for_user(self, user_context: UserContext) -> List[Dict[str, Any]]:
+        """Get tools available to specific user (with dynamic discovery)"""
+        # Use dynamic discovery to get real actions if API key is available
+        try:
+            available_tools = await self.discover_actions_for_user(user_context)
+        except Exception as e:
+            logging.warning(f"Dynamic discovery failed, using fallback: {e}")
+            available_tools = self.available_tools
+        
+        tools = []
+        
+        for tool_id, tool_info in available_tools.items():
+            # Filter by user's enabled tools if specified
+            if user_context.enabled_tools and tool_id not in user_context.enabled_tools:
+                continue
+                
+            tools.append({
+                "name": tool_id,
+                "description": tool_info["description"],
+                "category": tool_info.get("category", "general"),
+                "parameters": tool_info.get("parameters", {}),
+                "source": tool_info.get("source", "composio"),
+                "app_name": tool_info.get("app_name", "unknown"),
+                "display_name": tool_info.get("display_name", tool_id),
+                "enabled": True,
+                "user_id": user_context.user_id
+            })
+        
+        return tools
+    
+    def get_available_tools_for_user_sync(self, user_context: UserContext) -> List[Dict[str, Any]]:
+        """Synchronous version - fallback for sync contexts"""
         tools = []
         
         for tool_id, tool_info in self.available_tools.items():
@@ -341,7 +499,7 @@ class PerUserMCPServer:
     
     async def _list_tools_for_user(self, user_context: UserContext) -> Dict[str, Any]:
         """List tools available to specific user"""
-        tools = self.user_manager.get_available_tools_for_user(user_context)
+        tools = await self.user_manager.get_available_tools_for_user(user_context)
         
         return {
             "tools": tools,
