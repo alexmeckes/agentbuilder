@@ -5,17 +5,16 @@ import WorkflowEditor from './components/WorkflowEditor'
 import ChatInterface from './components/ChatInterface'
 import { TraceViewer } from './components/TraceViewer'
 import { AnalyticsDashboard } from './components/AnalyticsDashboard'
-import ExperimentsPage from './components/ExperimentsPage'
 import EvaluationsPage from './components/EvaluationsPage'
 import PreferencesModal from './components/settings/PreferencesModal'
 import UserSettingsModal from './components/settings/UserSettingsModal'
 import type { Node, Edge } from 'reactflow'
-import { Workflow, MessageSquare, Settings, BarChart3, Beaker, FlaskConical, User } from 'lucide-react'
+import { Workflow, MessageSquare, Settings, BarChart3, FlaskConical, User } from 'lucide-react'
 
 export default function Home() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
-  const [activeTab, setActiveTab] = useState<'design' | 'chat' | 'analytics' | 'experiments' | 'evaluations'>('chat')
+  const [activeTab, setActiveTab] = useState<'design' | 'chat' | 'analytics' | 'evaluations'>('chat')
 
   const [workflowExecutionInput, setWorkflowExecutionInput] = useState('Hello, please analyze this data and provide insights.')
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
@@ -436,18 +435,6 @@ export default function Home() {
               </button>
               
               <button
-                onClick={() => setActiveTab('experiments')}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  activeTab === 'experiments' 
-                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
-              >
-                <Beaker className="w-4 h-4" />
-                <span>A/B Testing</span>
-              </button>
-              
-              <button
                 onClick={() => setActiveTab('evaluations')}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeTab === 'evaluations' 
@@ -508,10 +495,6 @@ export default function Home() {
               onSuggestionToWorkflow={handleSuggestionToWorkflow}
               onUseWorkflow={handleUseWorkflow}
             />
-          </div>
-        ) : activeTab === 'experiments' ? (
-          <div className="h-full">
-            <ExperimentsPage />
           </div>
         ) : activeTab === 'analytics' ? (
           <div className="h-full">
