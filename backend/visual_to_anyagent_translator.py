@@ -122,7 +122,7 @@ class VisualToAnyAgentTranslator:
     def _create_composio_tool_wrapper(self, tool_name: str):
         """Create a wrapper function for a Composio tool that can be used in workflows"""
         
-        def composio_tool_wrapper(*args, **kwargs):
+        def composio_tool_wrapper(*args, **kwargs) -> str:
             """Wrapper that executes Composio tool with user context during workflow execution"""
             try:
                 # Import here to avoid circular imports
@@ -617,7 +617,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
                 
                 # Create Composio tool wrappers in subprocess
                 def create_composio_wrapper(tool_name):
-                    def wrapper(*args, **kwargs):
+                    def wrapper(*args, **kwargs) -> str:
                         try:
                             import asyncio
                             import os
