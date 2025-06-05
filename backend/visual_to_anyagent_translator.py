@@ -305,10 +305,31 @@ class VisualToAnyAgentTranslator:
         ]
         
         # Separate agent nodes and other types
-        agent_nodes = [node for node in visual_nodes if node.type == "agent"]
-        tool_nodes = [node for node in visual_nodes if node.type == "tool"]
-        input_nodes = [node for node in visual_nodes if node.type == "input"]
-        output_nodes = [node for node in visual_nodes if node.type == "output"]
+        # CRITICAL FIX: Check data.type for Composio tools, not just node.type
+        agent_nodes = []
+        tool_nodes = []
+        input_nodes = []
+        output_nodes = []
+        
+        for node in visual_nodes:
+            # Check if it's a Composio tool by looking at data.type
+            if node.data.get("type", "").startswith("composio-"):
+                tool_nodes.append(node)
+                logging.info(f"🔧 CLASSIFICATION: Node {node.id} classified as TOOL (Composio: {node.data.get('type')})")
+            elif node.type == "agent":
+                agent_nodes.append(node)
+                logging.info(f"🔧 CLASSIFICATION: Node {node.id} classified as AGENT")
+            elif node.type == "tool":
+                tool_nodes.append(node)
+                logging.info(f"🔧 CLASSIFICATION: Node {node.id} classified as TOOL (regular)")
+            elif node.type == "input":
+                input_nodes.append(node)
+                logging.info(f"🔧 CLASSIFICATION: Node {node.id} classified as INPUT")
+            elif node.type == "output":
+                output_nodes.append(node)
+                logging.info(f"🔧 CLASSIFICATION: Node {node.id} classified as OUTPUT")
+        
+        logging.info(f"🔧 CLASSIFICATION SUMMARY: {len(agent_nodes)} agents, {len(tool_nodes)} tools, {len(input_nodes)} inputs, {len(output_nodes)} outputs")
         
         if not agent_nodes:
             raise ValueError("Workflow must contain at least one agent node")
@@ -360,8 +381,16 @@ class VisualToAnyAgentTranslator:
         available_tools = []
         for tool_node in tool_nodes:
             tool_type = tool_node.data.get("type", "search_web")
-            if tool_type in self.available_tools:
+            
+            # Handle Composio tool naming conversion (hyphens to underscores)
+            normalized_type = tool_type.replace("-", "_")
+            
+            if normalized_type in self.available_tools:
+                available_tools.append(self.available_tools[normalized_type])
+                logging.info(f"🔧 SEQUENTIAL: Added tool '{normalized_type}' (from '{tool_type}')")
+            elif tool_type in self.available_tools:
                 available_tools.append(self.available_tools[tool_type])
+                logging.info(f"🔧 SEQUENTIAL: Added tool '{tool_type}' (exact match)")
         
         # Create managed agents (specialized agents)
         managed_agents = []
@@ -407,8 +436,16 @@ class VisualToAnyAgentTranslator:
         available_tools = []
         for tool_node in tool_nodes:
             tool_type = tool_node.data.get("type", "search_web")
-            if tool_type in self.available_tools:
+            
+            # Handle Composio tool naming conversion (hyphens to underscores)
+            normalized_type = tool_type.replace("-", "_")
+            
+            if normalized_type in self.available_tools:
+                available_tools.append(self.available_tools[normalized_type])
+                logging.info(f"🔧 COLLABORATIVE: Added tool '{normalized_type}' (from '{tool_type}')")
+            elif tool_type in self.available_tools:
                 available_tools.append(self.available_tools[tool_type])
+                logging.info(f"🔧 COLLABORATIVE: Added tool '{tool_type}' (exact match)")
         
         # Create specialist agents
         managed_agents = []
@@ -475,10 +512,19 @@ class VisualToAnyAgentTranslator:
             # Try to find the actual tool type from various fields
             actual_tool_type = None
             for possible_type in possible_tool_types:
-                if possible_type and possible_type in self.available_tools:
-                    actual_tool_type = possible_type
-                    logging.info(f"🔧 TRANSLATION: Found matching tool type '{actual_tool_type}' in field")
-                    break
+                if possible_type:
+                    # CRITICAL FIX: Handle Composio tool naming conversion
+                    # Convert "composio-googledocs_create_doc" to "composio_googledocs_create_doc"
+                    normalized_type = possible_type.replace("-", "_")
+                    
+                    if normalized_type in self.available_tools:
+                        actual_tool_type = normalized_type
+                        logging.info(f"🔧 TRANSLATION: Found matching tool type '{actual_tool_type}' (normalized from '{possible_type}')")
+                        break
+                    elif possible_type in self.available_tools:
+                        actual_tool_type = possible_type
+                        logging.info(f"🔧 TRANSLATION: Found matching tool type '{actual_tool_type}' (exact match)")
+                        break
             
             if actual_tool_type:
                 tool_function = self.available_tools[actual_tool_type]
