@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     
     if (!appNames || appNames.length === 0) {
       try {
-        const accountsResponse = await fetch('https://backend.composio.dev/api/v2/connectedAccounts', {
+        const accountsResponse = await fetch('https://backend.composio.dev/api/v1/connectedAccounts', {
           method: 'GET',
           headers: {
             'x-api-key': apiKey,
