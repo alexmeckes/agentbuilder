@@ -90,7 +90,7 @@ class UserComposioManager:
             },
             
             # Google Workspace
-            "googledocs_create_doc": {
+            "googledocs_create_document": {
                 "description": "Create a new Google Docs document",
                 "category": "productivity",
                 "parameters": {

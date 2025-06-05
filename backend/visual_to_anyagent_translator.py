@@ -102,7 +102,7 @@ class VisualToAnyAgentTranslator:
                 "composio_github_create_issue": self._create_composio_tool_wrapper("github_create_issue"),
                 "composio_slack_send_message": self._create_composio_tool_wrapper("slack_send_message"),
                 "composio_gmail_send_email": self._create_composio_tool_wrapper("gmail_send_email"),
-                "composio_googledocs_create_doc": self._create_composio_tool_wrapper("googledocs_create_doc"),
+                "composio_googledocs_create_doc": self._create_composio_tool_wrapper("googledocs_create_document"),
                 "composio_googlesheets_create_sheet": self._create_composio_tool_wrapper("googlesheets_create_sheet"),
                 "composio_googledrive_upload": self._create_composio_tool_wrapper("googledrive_upload"),
                 "composio_googlecalendar_create_event": self._create_composio_tool_wrapper("googlecalendar_create_event"),
@@ -704,7 +704,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
                 
                 # Add Composio tools to the map
                 composio_tools = {
-                    "composio_googledocs_create_doc": create_composio_wrapper("googledocs_create_doc"),
+                    "composio_googledocs_create_doc": create_composio_wrapper("googledocs_create_document"),
                     "composio_github_star_repo": create_composio_wrapper("github_star_repo"),
                     "composio_github_create_issue": create_composio_wrapper("github_create_issue"),
                     "composio_slack_send_message": create_composio_wrapper("slack_send_message"),
