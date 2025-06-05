@@ -206,11 +206,11 @@ class UserComposioManager:
             async with aiohttp.ClientSession() as session:
                 # First, get connected accounts
                 try:
-                                         async with session.get(
-                         'https://backend.composio.dev/api/v1/connectedAccounts',
-                         headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
-                         timeout=aiohttp.ClientTimeout(total=15)
-                     ) as response:
+                    async with session.get(
+                        'https://backend.composio.dev/api/v1/connectedAccounts',
+                        headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
+                        timeout=aiohttp.ClientTimeout(total=15)
+                    ) as response:
                         connected_apps = []
                         if response.status == 200:
                             accounts_data = await response.json()
