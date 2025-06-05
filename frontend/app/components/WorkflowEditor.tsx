@@ -349,11 +349,13 @@ function WorkflowEditorInner({
       
       console.log(`📊 Current node data before update:`, nodeExists.data)
       
-      const updatedNodes = currentNodes.map(node => 
-        node.id === nodeId 
-          ? { ...node, data: { ...node.data, ...updatedData } }
-          : node
-      )
+      const updatedNodes = currentNodes.map(node => {
+        if (node.id === nodeId) {
+          // Create a new node object to ensure re-render
+          return { ...node, data: { ...node.data, ...updatedData } };
+        }
+        return node;
+      });
       
       // Log the updated node to verify the merge
       const updatedNode = updatedNodes.find(n => n.id === nodeId)
