@@ -4,6 +4,24 @@
 
 A visual, drag-and-drop interface for building AI agent workflows using any-agent as the execution engine.
 
+## 🌟 **NEW: Composio Integration - 100+ Real-World Tools Available!**
+
+**Transform your AI workflows into real-world automation!** The Any-Agent Workflow Composer now features full integration with **Composio**, unlocking access to **100+ production-ready tools**:
+
+- 📄 **Google Workspace**: Create real Google Docs, Sheets, Calendar events
+- 💻 **Development**: Create GitHub issues, manage repositories, automate deployments  
+- 💬 **Communication**: Send Slack messages, Gmail emails, team notifications
+- 📊 **CRM & Data**: Update Salesforce records, Notion databases, Airtable entries
+- 🎯 **Project Management**: Create Jira tickets, Linear issues, Trello cards
+
+**[📖 Complete Setup Guide →](./COMPOSIO_INTEGRATION_GUIDE.md)**
+
+### Quick Start with Composio
+1. Get your free API key at [app.composio.dev](https://app.composio.dev)
+2. Connect your apps (Google Docs, GitHub, Slack, etc.)
+3. Add your API key in Any-Agent user settings
+4. Start building workflows that create real documents, send real messages, and automate real business processes!
+
 ## 🚀 Quick Start
 
 ```bash
@@ -24,6 +42,12 @@ cd any-agent-main
 **That's it!** Open http://localhost:3000 to start building workflows.
 
 ## 🎯 Main Features
+
+### 🌟 Composio Integration - 100+ Real Tools
+- **Production-Ready Automation**: Connect to real Google Docs, GitHub, Slack, CRM systems
+- **Per-User Authentication**: Secure API key management and tool access isolation  
+- **Dynamic Tool Discovery**: Automatically detects your connected apps and available actions
+- **Enterprise Workflows**: Transform AI reasoning into real business process automation
 
 ### 🤖 AI Assistant Tab
 - Chat interface for creating workflows through natural language
@@ -114,6 +138,10 @@ any-agent-main/
 - **API Keys** for your chosen AI providers (OpenAI, Anthropic, etc.)
 
 ### Recent Updates (January 2025)
+- 🌟 **Composio Integration (MAJOR BREAKTHROUGH)**: Full integration with 100+ real-world tools
+  - Google Workspace (Docs, Sheets, Calendar), GitHub, Slack, CRM systems, and more
+  - Per-user authentication and dynamic tool discovery
+  - Transform workflows from simulations into real business automation
 - ✅ **Cost Calculation Fix**: Implemented GenAI semantic convention support
 - ✅ **Production Analytics**: Fixed cost tracking in Vercel/Render deployment
 - ✅ **Dual Convention Support**: Compatible with both GenAI and OpenInference formats
