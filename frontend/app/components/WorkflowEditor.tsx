@@ -698,10 +698,20 @@ function WorkflowEditorInner({
         return
       }
 
-      const targetElement = event.target as HTMLElement;
-      const nodeElement = targetElement.closest('.react-flow__node') as HTMLElement;
-      const droppedOnNodeId = nodeElement?.dataset?.id;
-      const droppedOnNode = droppedOnNodeId ? reactFlowInstance.getNode(droppedOnNodeId) : null;
+      const position = reactFlowInstance.project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      })
+
+      // Find which node the tool was dropped on, if any.
+      const allNodes = reactFlowInstance.getNodes();
+      const droppedOnNode = allNodes.find(
+        (node) =>
+          position.x >= node.position.x &&
+          position.x <= node.position.x + (node.width || 0) &&
+          position.y >= node.position.y &&
+          position.y <= node.position.y + (node.height || 0)
+      );
 
       // Check if it's a Composio tool (JSON format)
       let composioToolData = null
@@ -713,11 +723,6 @@ function WorkflowEditorInner({
       } catch {
         // Not JSON, proceed normally
       }
-
-      const position = reactFlowInstance.project({
-        x: event.clientX - reactFlowBounds.left,
-        y: event.clientY - reactFlowBounds.top,
-      })
 
       // Smart overlap detection with reasonable dimensions
       const adjustedPosition = { ...position }
