@@ -244,15 +244,23 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
     setExpandedCategories(newExpanded)
   }
 
-  const onDragStart = (event: DragEvent<HTMLDivElement>, templateId: string) => {
-    event.dataTransfer.setData('application/reactflow', templateId)
-    event.dataTransfer.effectAllowed = 'move'
-    
-    // Set custom drag image
-    const template = getNodeTemplate(templateId)
-    if (template) {
-      event.dataTransfer.setData('application/template', JSON.stringify(template))
+  const onDragStart = (event: DragEvent<HTMLDivElement>, template: NodeTemplate) => {
+    // For Composio tools, we need to pass a structured object
+    if (template.defaultData?.isComposio) {
+      const toolData = {
+        isComposio: true,
+        toolType: template.defaultData.tool_type,
+        label: template.name,
+        description: template.description
+      };
+      event.dataTransfer.setData('application/reactflow', JSON.stringify(toolData));
+    } else {
+      // For other nodes, pass the template ID as before
+      event.dataTransfer.setData('application/reactflow', template.id);
     }
+    
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/template', JSON.stringify(template))
   }
 
   return (
@@ -340,7 +348,7 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                             node.defaultData?.isComposio ? 'border-purple-200 bg-gradient-to-r from-purple-50/50 to-blue-50/50' : ''
                           }`}
                           draggable
-                          onDragStart={(e) => onDragStart(e, node.id)}
+                          onDragStart={(e) => onDragStart(e, node)}
                         >
                           <div className="flex items-start gap-3">
                             <span className="text-lg flex-shrink-0">{node.icon}</span>
