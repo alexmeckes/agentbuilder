@@ -763,6 +763,7 @@ function WorkflowEditorInner({
 
       // If a Composio tool is dropped on an agent, attach it.
       if (droppedOnNode && droppedOnNode.data.type === 'agent' && composioToolData?.isComposio) {
+        event.stopPropagation(); // Prevent other handlers from firing
         const newTool = {
           id: `${composioToolData.toolType}-${Date.now()}`,
           name: composioToolData.label,
