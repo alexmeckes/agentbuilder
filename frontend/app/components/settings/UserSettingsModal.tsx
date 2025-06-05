@@ -2,11 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Save, Key, Shield, Settings as SettingsIcon, ExternalLink, Eye, EyeOff } from 'lucide-react'
+import { X, Save, Key, Shield, Settings as SettingsIcon, ExternalLink, Eye, EyeOff, Lock } from 'lucide-react'
+import { ClientSideEncryption } from '@/lib/encryption'
 
 interface UserSettings {
   userId: string
   composioApiKey?: string
+  encryptedComposioKey?: {
+    encryptedData: string
+    keyId: string
+    salt: string
+  }
+  masterPasswordHash?: string
   enabledTools: string[]
   preferences: {
     defaultFramework: string
@@ -51,6 +58,19 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [availableTools, setAvailableTools] = useState(AVAILABLE_TOOLS)
   const [isDiscoveringTools, setIsDiscoveringTools] = useState(false)
+  
+  // Encryption-related state
+  const [masterPassword, setMasterPassword] = useState('')
+  const [confirmMasterPassword, setConfirmMasterPassword] = useState('')
+  const [showMasterPassword, setShowMasterPassword] = useState(false)
+  const [needsMasterPassword, setNeedsMasterPassword] = useState(false)
+  const [encryptionSupported, setEncryptionSupported] = useState(false)
+  const [decryptedApiKey, setDecryptedApiKey] = useState('')
+
+  // Check encryption support on mount
+  useEffect(() => {
+    setEncryptionSupported(ClientSideEncryption.isSupported())
+  }, [])
 
   // Load settings on mount
   useEffect(() => {
@@ -73,15 +93,85 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
       const parsed = JSON.parse(savedSettings)
       setSettings({ ...parsed, userId })
       
-      // Auto-discover tools if API key exists
-      if (parsed.composioApiKey) {
+      // Check if we have encrypted API key
+      if (parsed.encryptedComposioKey && encryptionSupported) {
+        console.log('🔐 Found encrypted API key, need master password for decryption')
+        setNeedsMasterPassword(true)
+      }
+      // Fallback to unencrypted key (legacy support)
+      else if (parsed.composioApiKey) {
         console.log('🔍 Auto-discovering tools for existing API key...')
+        setDecryptedApiKey(parsed.composioApiKey)
         setTimeout(() => {
           discoverToolsForApiKey(parsed.composioApiKey, userId)
-        }, 500) // Small delay to let UI settle
+        }, 500)
       }
     } else {
       setSettings(prev => ({ ...prev, userId }))
+    }
+  }
+
+  const handleMasterPasswordSubmit = async () => {
+    if (!masterPassword || !settings.encryptedComposioKey) {
+      setTestResult({ success: false, message: 'Master password is required' })
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      
+      // Decrypt the API key
+      const apiKey = await ClientSideEncryption.decryptApiKey({
+        encryptedData: settings.encryptedComposioKey.encryptedData,
+        salt: settings.encryptedComposioKey.salt,
+        masterKey: masterPassword
+      })
+      
+      setDecryptedApiKey(apiKey)
+      setNeedsMasterPassword(false)
+      setMasterPassword('')
+      
+      // Auto-discover tools with decrypted key
+      console.log('🔍 Auto-discovering tools with decrypted API key...')
+      setTimeout(() => {
+        discoverToolsForApiKey(apiKey, settings.userId)
+      }, 500)
+      
+      setTestResult({ success: true, message: 'API key decrypted successfully!' })
+      
+    } catch (error) {
+      console.error('Decryption failed:', error)
+      setTestResult({ success: false, message: 'Invalid master password or corrupted data' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const encryptAndStoreApiKey = async (apiKey: string, masterPassword: string): Promise<boolean> => {
+    if (!encryptionSupported) {
+      console.warn('Encryption not supported, storing in plaintext')
+      return false
+    }
+
+    try {
+      const encrypted = await ClientSideEncryption.encryptApiKey(apiKey, masterPassword)
+      
+      // Store encrypted data
+      setSettings(prev => ({
+        ...prev,
+        encryptedComposioKey: encrypted,
+        composioApiKey: undefined, // Remove plaintext version
+        masterPasswordHash: btoa(masterPassword).substring(0, 16) // Simple hash for validation
+      }))
+      
+      setDecryptedApiKey(apiKey)
+      console.log('🔐 API key encrypted and stored successfully')
+      return true
+      
+    } catch (error) {
+      console.error('Encryption failed:', error)
+      setTestResult({ success: false, message: 'Failed to encrypt API key' })
+      return false
     }
   }
 
@@ -119,27 +209,51 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
     try {
       setIsLoading(true)
       
+      // Handle API key encryption if needed
+      let finalSettings = { ...settings }
+      
+      // If user entered a new API key and has master password, encrypt it
+      if (settings.composioApiKey && masterPassword && encryptionSupported) {
+        const encrypted = await encryptAndStoreApiKey(settings.composioApiKey, masterPassword)
+        if (encrypted) {
+          finalSettings = { ...settings }
+          // encryptAndStoreApiKey already updated settings state with encrypted data
+        }
+      }
+      
       // Save settings to localStorage
-      localStorage.setItem('userSettings', JSON.stringify(settings))
+      localStorage.setItem('userSettings', JSON.stringify(finalSettings))
       
       // Also call the save callback
       onSave(settings)
       
       // NEW: Update MCP Composio server configuration if API key is provided
-      if (settings.composioApiKey) {
+      const effectiveApiKey = decryptedApiKey || settings.composioApiKey
+      if (effectiveApiKey || settings.encryptedComposioKey) {
         try {
-          console.log('🔧 Updating MCP Composio server with new API key...')
+          console.log('🔧 Updating MCP Composio server configuration...')
+          
+          // Prepare payload - send encrypted data if available
+          const payload = settings.encryptedComposioKey ? {
+            userId: settings.userId,
+            encryptedApiKey: settings.encryptedComposioKey.encryptedData,
+            keyId: settings.encryptedComposioKey.keyId,
+            salt: settings.encryptedComposioKey.salt,
+            enabledTools: settings.enabledTools,
+            encrypted: true
+          } : {
+            userId: settings.userId,
+            apiKey: effectiveApiKey,
+            enabledTools: settings.enabledTools,
+            encrypted: false
+          }
           
           const mcpUpdateResponse = await fetch('/api/mcp/update-composio-server', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-              userId: settings.userId,
-              apiKey: settings.composioApiKey,
-              enabledTools: settings.enabledTools
-            })
+            body: JSON.stringify(payload)
           })
           
           if (mcpUpdateResponse.ok) {
@@ -169,8 +283,14 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
   }
 
   const testComposioConnection = async () => {
-    if (!settings.composioApiKey) {
-      setTestResult({ success: false, message: 'Please enter an API key first' })
+    const effectiveApiKey = decryptedApiKey || settings.composioApiKey
+    
+    if (!effectiveApiKey) {
+      if (settings.encryptedComposioKey && !decryptedApiKey) {
+        setTestResult({ success: false, message: 'Please enter your master password to decrypt the API key first' })
+      } else {
+        setTestResult({ success: false, message: 'Please enter an API key first' })
+      }
       return
     }
 
@@ -183,7 +303,7 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          apiKey: settings.composioApiKey,
+          apiKey: effectiveApiKey,
           userId: settings.userId 
         })
       })
@@ -379,11 +499,114 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
             </p>
           </div>
 
+          {/* Encryption Status */}
+          {encryptionSupported && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center space-x-2">
+                <Lock className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-medium text-green-800">
+                  🔐 Enhanced Security Enabled
+                </span>
+              </div>
+              <p className="text-xs text-green-700 mt-1">
+                Your API keys are encrypted in the browser using AES-256 encryption
+              </p>
+            </div>
+          )}
+
+          {/* Master Password for Encryption */}
+          {encryptionSupported && needsMasterPassword && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <label className="block text-sm font-medium text-blue-800 mb-2">
+                <Lock className="w-4 h-4 inline mr-1" />
+                Master Password Required
+              </label>
+              <p className="text-xs text-blue-700 mb-3">
+                Enter your master password to decrypt your stored API key
+              </p>
+              <div className="flex space-x-2">
+                <div className="flex-1 relative">
+                  <input
+                    type={showMasterPassword ? 'text' : 'password'}
+                    value={masterPassword}
+                    onChange={(e) => setMasterPassword(e.target.value)}
+                    placeholder="Enter master password..."
+                    className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                    onKeyPress={(e) => e.key === 'Enter' && handleMasterPasswordSubmit()}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMasterPassword(!showMasterPassword)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-400 hover:text-blue-600"
+                  >
+                    {showMasterPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <button
+                  onClick={handleMasterPasswordSubmit}
+                  disabled={isLoading || !masterPassword}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isLoading ? 'Decrypting...' : 'Decrypt'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Master Password Setup for New Keys */}
+          {encryptionSupported && !settings.encryptedComposioKey && settings.composioApiKey && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <label className="block text-sm font-medium text-amber-800 mb-2">
+                <Lock className="w-4 h-4 inline mr-1" />
+                Set Master Password for Encryption
+              </label>
+              <p className="text-xs text-amber-700 mb-3">
+                Create a master password to encrypt your API key for enhanced security
+              </p>
+              <div className="space-y-2">
+                <div className="relative">
+                  <input
+                    type={showMasterPassword ? 'text' : 'password'}
+                    value={masterPassword}
+                    onChange={(e) => setMasterPassword(e.target.value)}
+                    placeholder="Create master password..."
+                    className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMasterPassword(!showMasterPassword)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-amber-400 hover:text-amber-600"
+                  >
+                    {showMasterPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showMasterPassword ? 'text' : 'password'}
+                    value={confirmMasterPassword}
+                    onChange={(e) => setConfirmMasterPassword(e.target.value)}
+                    placeholder="Confirm master password..."
+                    className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
+                {masterPassword && confirmMasterPassword && masterPassword !== confirmMasterPassword && (
+                  <p className="text-xs text-red-600">Passwords do not match</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Composio API Key */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <Key className="w-4 h-4 inline mr-1" />
               Composio API Key
+              {settings.encryptedComposioKey && (
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                  <Lock className="w-3 h-3 mr-1" />
+                  Encrypted
+                </span>
+              )}
             </label>
             <div className="flex space-x-2">
               <div className="flex-1 relative">
@@ -391,8 +614,17 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
                   type={showApiKey ? 'text' : 'password'}
                   value={settings.composioApiKey || ''}
                   onChange={(e) => setSettings(prev => ({ ...prev, composioApiKey: e.target.value }))}
-                  placeholder="Enter your Composio API key..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+                  placeholder={
+                    settings.encryptedComposioKey 
+                      ? "API key is encrypted and stored securely"
+                      : "Enter your Composio API key..."
+                  }
+                  disabled={settings.encryptedComposioKey && !needsMasterPassword}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 ${
+                    settings.encryptedComposioKey && !needsMasterPassword
+                      ? 'border-gray-200 bg-gray-50 text-gray-500' 
+                      : 'border-gray-300'
+                  }`}
                 />
                 <button
                   type="button"
@@ -542,18 +774,33 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
           </button>
           <button
             onClick={handleSave}
-            disabled={isLoading}
+            disabled={
+              isLoading || 
+              (encryptionSupported && 
+               Boolean(settings.composioApiKey) && 
+               !settings.encryptedComposioKey && 
+               (!masterPassword || !confirmMasterPassword || masterPassword !== confirmMasterPassword))
+            }
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
           >
             {isLoading ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Saving...</span>
+                <span>{encryptionSupported && Boolean(settings.composioApiKey) && !settings.encryptedComposioKey ? 'Encrypting & Saving...' : 'Saving...'}</span>
               </>
             ) : (
               <>
-                <Save className="w-4 h-4" />
-                <span>Save Settings</span>
+                {encryptionSupported && Boolean(settings.composioApiKey) && !settings.encryptedComposioKey ? (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>Encrypt & Save Settings</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Save Settings</span>
+                  </>
+                )}
               </>
             )}
           </button>

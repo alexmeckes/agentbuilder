@@ -9,6 +9,7 @@ license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
 dynamic = ["version"]
 dependencies = [
+  "cryptography",
   "duckduckgo_search",
   "fire",
   "litellm",
@@ -24,6 +25,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+
+serving = [
+  "fastapi",
+  "uvicorn[standard]",
+  "aiohttp",
+]
 
 google = [
   "google-adk>=0.3.0"

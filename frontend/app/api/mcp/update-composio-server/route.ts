@@ -4,16 +4,33 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, apiKey, enabledTools } = await request.json()
+    const { userId, apiKey, encryptedApiKey, keyId, salt, enabledTools, encrypted } = await request.json()
     
-    if (!apiKey) {
+    if (!apiKey && !encryptedApiKey) {
       return NextResponse.json({ 
         success: false, 
-        message: 'API key is required' 
+        message: 'API key or encrypted API key is required' 
       }, { status: 400 })
     }
 
-    console.log(`🔧 Updating MCP Composio server for user: ${userId}`)
+    console.log(`🔧 Updating MCP Composio server for user: ${userId} (encrypted: ${encrypted})`)
+    
+    // Prepare environment variables based on encryption status
+    const env = encrypted ? {
+      // For encrypted keys, store the encrypted data and metadata
+      ENCRYPTED_COMPOSIO_KEY: encryptedApiKey,
+      KEY_ID: keyId,
+      SALT: salt,
+      USER_ID: userId,
+      ENABLED_TOOLS: enabledTools ? enabledTools.join(',') : '',
+      ENCRYPTION_ENABLED: 'true'
+    } : {
+      // For legacy unencrypted keys
+      COMPOSIO_API_KEY: apiKey,
+      USER_ID: userId,
+      ENABLED_TOOLS: enabledTools ? enabledTools.join(',') : '',
+      ENCRYPTION_ENABLED: 'false'
+    }
     
     // Update the Composio MCP server configuration
     const updateResponse = await fetch(`${BACKEND_URL}/mcp/servers/composio-tools`, {
@@ -21,13 +38,7 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        env: {
-          COMPOSIO_API_KEY: apiKey,
-          USER_ID: userId,
-          ENABLED_TOOLS: enabledTools ? enabledTools.join(',') : ''
-        }
-      })
+      body: JSON.stringify({ env })
     })
     
     if (updateResponse.ok) {

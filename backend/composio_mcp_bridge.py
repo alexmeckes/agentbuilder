@@ -14,6 +14,14 @@ import logging
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
+# Import encryption service for handling encrypted API keys
+try:
+    from encryption_service import get_encryption_service
+    ENCRYPTION_AVAILABLE = True
+except ImportError:
+    ENCRYPTION_AVAILABLE = False
+    logging.warning("Encryption service not available, encrypted keys won't be supported")
+
 # Try to import Composio with correct import path
 try:
     from composio import ComposioToolSet, Action, App
@@ -185,12 +193,18 @@ class UserComposioManager:
     
     async def discover_actions_for_user(self, user_context: UserContext) -> Dict[str, Dict[str, Any]]:
         """Dynamically discover real actions from Composio API for user's connected apps"""
-        if not user_context.api_key:
-            logging.info("No API key provided, using fallback tools")
+        # Get decrypted API key for discovery
+        actual_api_key = user_context.api_key
+        if user_context.api_key and user_context.api_key.startswith('encrypted:'):
+            logging.warning("🔐 API key is encrypted - using fallback tools for discovery")
+            actual_api_key = None
+        
+        if not actual_api_key:
+            logging.info("No decrypted API key available, using fallback tools")
             return self.available_tools
         
         # Check cache first (cache for 1 hour per user)
-        cache_key = f"{user_context.user_id}_{hash(user_context.api_key)}"
+        cache_key = f"{user_context.user_id}_{hash(actual_api_key)}"
         if cache_key in self._dynamic_discovery_cache:
             cached_data = self._dynamic_discovery_cache[cache_key]
             if cached_data.get('timestamp', 0) > asyncio.get_event_loop().time() - 3600:  # 1 hour cache
@@ -208,7 +222,7 @@ class UserComposioManager:
                 try:
                     async with session.get(
                         'https://backend.composio.dev/api/v1/connectedAccounts',
-                        headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
+                        headers={'x-api-key': actual_api_key, 'Content-Type': 'application/json'},
                         timeout=aiohttp.ClientTimeout(total=15)
                     ) as response:
                         connected_apps = []
@@ -240,7 +254,7 @@ class UserComposioManager:
                     try:
                         async with session.get(
                             f'https://backend.composio.dev/api/v1/actions?appNames={app_name}',
-                            headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
+                            headers={'x-api-key': actual_api_key, 'Content-Type': 'application/json'},
                             timeout=aiohttp.ClientTimeout(total=10)
                         ) as actions_response:
                             if actions_response.status == 200:
@@ -326,16 +340,19 @@ class UserComposioManager:
     
     def get_user_client(self, user_context: UserContext) -> Optional[ComposioToolSetType]:
         """Get or create Composio client for specific user"""
-        if not user_context.api_key or not COMPOSIO_AVAILABLE:
+        # Get the actual API key (decrypted if needed)
+        actual_api_key = self._get_decrypted_api_key(user_context)
+        
+        if not actual_api_key or not COMPOSIO_AVAILABLE:
             return None
             
-        client_key = f"{user_context.user_id}_{hash(user_context.api_key)}"
+        client_key = f"{user_context.user_id}_{hash(actual_api_key)}"
         
         if client_key not in self.user_clients:
             try:
                 # Create user-specific client with entity isolation
                 self.user_clients[client_key] = ComposioToolSetType(
-                    api_key=user_context.api_key,
+                    api_key=actual_api_key,
                     entity_id="default"  # Use default entity as per API requirements
                 )
                 logging.info(f"✅ Created Composio client for user: {user_context.user_id}")
@@ -381,6 +398,17 @@ class UserComposioManager:
             }
         
         try:
+            # Get decrypted API key for HTTP calls
+            actual_api_key = self._get_decrypted_api_key(user_context)
+            
+            if not actual_api_key:
+                return {
+                    "error": "API key is encrypted and cannot be decrypted for direct execution",
+                    "message": "💡 Encrypted keys require frontend decryption",
+                    "user_id": user_context.user_id,
+                    "tool": tool_name
+                }
+            
             # Execute with direct HTTP API (same approach as successful test)
             import aiohttp
             
@@ -388,7 +416,7 @@ class UserComposioManager:
                 # Use the same HTTP API approach that worked in testing
                 async with session.post(
                     f'https://backend.composio.dev/api/v2/actions/{tool_name}/execute',
-                    headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
+                    headers={'x-api-key': actual_api_key, 'Content-Type': 'application/json'},
                                          json={
                          "input": params,
                          "entityId": "default",
@@ -450,6 +478,22 @@ class UserComposioManager:
         
         return tools
     
+    def _get_decrypted_api_key(self, user_context: UserContext) -> Optional[str]:
+        """Get decrypted API key for actual API calls"""
+        if not user_context.api_key:
+            return None
+        
+        # Check if it's an encrypted key
+        if user_context.api_key.startswith('encrypted:'):
+            # For now, we'll need the frontend to provide the decrypted key
+            # In a real implementation, this would require client-side decryption
+            # or a secure key decryption service with user authentication
+            logging.warning("🔐 API key is encrypted - frontend needs to provide decrypted key for API calls")
+            return None
+        else:
+            # Unencrypted key - return as is
+            return user_context.api_key
+    
     def get_available_tools_for_user_sync(self, user_context: UserContext) -> List[Dict[str, Any]]:
         """Synchronous version - fallback for sync contexts"""
         tools = []
@@ -483,9 +527,41 @@ class PerUserMCPServer:
         
     def _get_user_context_from_env(self) -> UserContext:
         """Get user context from environment variables set by MCP server configuration"""
-        api_key = os.getenv('COMPOSIO_API_KEY', '')
+        # Check if we have encrypted keys
+        encryption_enabled = os.getenv('ENCRYPTION_ENABLED', 'false').lower() == 'true'
         user_id = os.getenv('USER_ID', 'default_user')
         enabled_tools_str = os.getenv('ENABLED_TOOLS', '')
+        
+        api_key = None
+        
+        if encryption_enabled and ENCRYPTION_AVAILABLE:
+            # Handle encrypted API key
+            encrypted_key = os.getenv('ENCRYPTED_COMPOSIO_KEY', '')
+            key_id = os.getenv('KEY_ID', '')
+            
+            if encrypted_key and key_id:
+                try:
+                    # Use server-side encryption service to get client-encrypted data
+                    encryption_service = get_encryption_service()
+                    client_encrypted = encryption_service.retrieve_encrypted_api_key(user_id, key_id)
+                    
+                    if client_encrypted:
+                        # Store the client-encrypted data for later decryption when needed
+                        # Note: The actual API key is still encrypted and will need client-side decryption
+                        api_key = f"encrypted:{client_encrypted}"
+                        logging.info(f"🔐 Retrieved encrypted API key for user: {user_id}")
+                    else:
+                        logging.warning(f"⚠️ Could not retrieve encrypted key for user: {user_id}")
+                        
+                except Exception as e:
+                    logging.error(f"❌ Failed to decrypt API key for user {user_id}: {e}")
+            else:
+                logging.warning(f"⚠️ Encryption enabled but missing encrypted key data for user: {user_id}")
+        else:
+            # Handle legacy unencrypted API key
+            api_key = os.getenv('COMPOSIO_API_KEY', '')
+            if api_key:
+                logging.info(f"🔓 Using unencrypted API key for user: {user_id}")
         
         # Parse enabled tools from comma-separated string
         enabled_tools = []
@@ -494,6 +570,7 @@ class PerUserMCPServer:
         
         logging.info(f"🔧 Composio MCP Bridge initialized for user: {user_id}")
         logging.info(f"🔧 API key configured: {'✅ Yes' if api_key else '❌ No'}")
+        logging.info(f"🔧 Encryption enabled: {'✅ Yes' if encryption_enabled else '❌ No'}")
         logging.info(f"🔧 Enabled tools: {enabled_tools if enabled_tools else 'All tools'}")
         
         return UserContext(
@@ -501,6 +578,15 @@ class PerUserMCPServer:
             api_key=api_key if api_key else None,
             enabled_tools=enabled_tools,
             preferences={}
+        )
+    
+    def _create_user_context_with_decrypted_key(self, user_context: UserContext, decrypted_key: str) -> UserContext:
+        """Create a new user context with decrypted API key for API operations"""
+        return UserContext(
+            user_id=user_context.user_id,
+            api_key=decrypted_key,
+            enabled_tools=user_context.enabled_tools,
+            preferences=user_context.preferences
         )
         
     def _parse_user_context(self, request: Dict[str, Any]) -> UserContext:
@@ -524,15 +610,22 @@ class PerUserMCPServer:
             return await self._list_tools_for_user(user_context)
         elif method == 'tools/call':
             return await self._call_tool_for_user(request.get('params', {}), user_context)
+        elif method == 'tools/call_with_key':
+            # Special method that accepts a decrypted API key from frontend
+            return await self._call_tool_with_decrypted_key(request.get('params', {}), user_context, request.get('decrypted_api_key', ''))
         elif method == 'ping':
             return {
                 "status": "ok", 
                 "composio_available": COMPOSIO_AVAILABLE,
                 "user_id": user_context.user_id,
-                "has_api_key": bool(user_context.api_key)
+                "has_api_key": bool(user_context.api_key),
+                "encryption_enabled": user_context.api_key and user_context.api_key.startswith('encrypted:') if user_context.api_key else False
             }
         elif method == 'user/validate':
             return await self._validate_user_setup(user_context)
+        elif method == 'user/decrypt_test':
+            # Test method to verify decrypted key works
+            return await self._test_decrypted_key(user_context, request.get('decrypted_api_key', ''))
         else:
             return {"error": f"Unknown method: {method}"}
     
@@ -563,6 +656,64 @@ class PerUserMCPServer:
         })
         
         return result
+    
+    async def _call_tool_with_decrypted_key(self, params: Dict[str, Any], user_context: UserContext, decrypted_api_key: str) -> Dict[str, Any]:
+        """Execute tool with provided decrypted API key"""
+        if not decrypted_api_key:
+            return {
+                "error": "Decrypted API key is required",
+                "user_id": user_context.user_id
+            }
+        
+        # Create a new user context with the decrypted key
+        decrypted_context = self._create_user_context_with_decrypted_key(user_context, decrypted_api_key)
+        
+        # Execute the tool with the decrypted context
+        return await self.user_manager.execute_tool_for_user(
+            params.get('name'),
+            params.get('arguments', {}),
+            decrypted_context
+        )
+    
+    async def _test_decrypted_key(self, user_context: UserContext, decrypted_api_key: str) -> Dict[str, Any]:
+        """Test if the provided decrypted API key works"""
+        if not decrypted_api_key:
+            return {
+                "valid": False,
+                "message": "Decrypted API key is required",
+                "user_id": user_context.user_id
+            }
+        
+        try:
+            # Test the key by making a simple API call
+            import aiohttp
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    'https://backend.composio.dev/api/v1/connectedAccounts',
+                    headers={'x-api-key': decrypted_api_key, 'Content-Type': 'application/json'},
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    if response.status == 200:
+                        accounts_data = await response.json()
+                        return {
+                            "valid": True,
+                            "message": "Decrypted API key is valid",
+                            "user_id": user_context.user_id,
+                            "connected_accounts": len(accounts_data.get('items', []))
+                        }
+                    else:
+                        return {
+                            "valid": False,
+                            "message": f"API key validation failed: HTTP {response.status}",
+                            "user_id": user_context.user_id
+                        }
+        except Exception as e:
+            return {
+                "valid": False,
+                "message": f"API key test failed: {str(e)}",
+                "user_id": user_context.user_id
+            }
     
     async def _validate_user_setup(self, user_context: UserContext) -> Dict[str, Any]:
         """Validate user's Composio setup"""
