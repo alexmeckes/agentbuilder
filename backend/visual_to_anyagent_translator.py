@@ -534,6 +534,41 @@ class VisualToAnyAgentTranslator:
                 logging.warning(f"🔧 TRANSLATION: ❌ No matching tool found. Tried: {possible_tool_types}")
                 logging.warning(f"🔧 TRANSLATION: Available tools: {list(self.available_tools.keys())}")
         
+        # ENHANCEMENT: If no tool nodes provided, auto-assign relevant tools based on agent instructions
+        if len(available_tools) == 0:
+            agent_instructions = main_agent_node.data.get("instructions", "").lower()
+            agent_name = main_agent_node.data.get("name", "").lower()
+            
+            # Smart tool assignment based on agent context
+            auto_assigned_tools = []
+            
+            # Always include basic tools
+            if "search_web" in self.available_tools:
+                auto_assigned_tools.append(self.available_tools["search_web"])
+            if "visit_webpage" in self.available_tools:
+                auto_assigned_tools.append(self.available_tools["visit_webpage"])
+            
+            # Add Composio tools based on context
+            if any(keyword in agent_instructions + agent_name for keyword in ["google", "docs", "document", "create"]):
+                if "composio_googledocs_create_doc" in self.available_tools:
+                    auto_assigned_tools.append(self.available_tools["composio_googledocs_create_doc"])
+                    logging.info("🔧 AUTO-ASSIGNED: Added Google Docs tool based on agent context")
+            
+            if any(keyword in agent_instructions + agent_name for keyword in ["github", "repo", "star", "issue"]):
+                if "composio_github_star_repo" in self.available_tools:
+                    auto_assigned_tools.append(self.available_tools["composio_github_star_repo"])
+                if "composio_github_create_issue" in self.available_tools:
+                    auto_assigned_tools.append(self.available_tools["composio_github_create_issue"])
+                    logging.info("🔧 AUTO-ASSIGNED: Added GitHub tools based on agent context")
+            
+            if any(keyword in agent_instructions + agent_name for keyword in ["email", "gmail", "send"]):
+                if "composio_gmail_send_email" in self.available_tools:
+                    auto_assigned_tools.append(self.available_tools["composio_gmail_send_email"])
+                    logging.info("🔧 AUTO-ASSIGNED: Added Gmail tool based on agent context")
+            
+            available_tools = auto_assigned_tools
+            logging.info(f"🔧 AUTO-ASSIGNMENT: Agent has {len(available_tools)} auto-assigned tools")
+
         logging.info(f"🔧 TRANSLATION: Final tool assignment: {len(available_tools)} tools for agent '{main_agent_node.data.get('name', 'agent')}'")
 
         # Create single agent with tools
