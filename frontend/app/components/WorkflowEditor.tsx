@@ -761,22 +761,6 @@ function WorkflowEditorInner({
         attempts++
       }
 
-      // If a Composio tool is dropped on an agent, attach it.
-      if (droppedOnNode && droppedOnNode.data.type === 'agent' && composioToolData?.isComposio) {
-        event.stopPropagation(); // Prevent other handlers from firing
-        const newTool = {
-          id: `${composioToolData.toolType}-${Date.now()}`,
-          name: composioToolData.label,
-          description: composioToolData.description,
-          // icon could be added here
-        };
-
-        const updatedTools = [...(droppedOnNode.data.tools || []), newTool];
-        handleNodeUpdate(droppedOnNode.id, { ...droppedOnNode.data, tools: updatedTools });
-
-        return; // Stop execution to prevent creating a new node
-      }
-
       // Check if we have template data from the new NodePalette
       let nodeData: any
       if (composioToolData) {
@@ -1392,14 +1376,32 @@ function WorkflowEditorInner({
           onNodeDrag={(event, node) => {
             console.log('🔄 ReactFlow: Node dragging:', node.id)
           }}
-          onNodeDragStop={(event, node) => {
-            console.log('🔴 ReactFlow: Node drag stopped:', node.id)
+          onNodeDragStop={(event, draggedNode) => {
+            if (!reactFlowInstance) return;
             
-            // Simple cleanup - let ReactFlow handle its own state
-            setTimeout(() => {
-              document.body.style.cursor = ''
-              console.log('✅ Drag complete - reset body cursor')
-            }, 50)
+            const allNodes = reactFlowInstance.getNodes();
+            const targetNode = allNodes.find(
+              (node) =>
+                draggedNode.position.x >= node.position.x &&
+                draggedNode.position.x <= node.position.x + (node.width || 0) &&
+                draggedNode.position.y >= node.position.y &&
+                draggedNode.position.y <= node.position.y + (node.height || 0) &&
+                node.id !== draggedNode.id // ensure it's not the node itself
+            );
+
+            if (targetNode && targetNode.data.type === 'agent' && draggedNode.data.isComposio) {
+              // Attach tool to agent
+              const newTool = {
+                id: `${draggedNode.data.tool_type}-${Date.now()}`,
+                name: draggedNode.data.label,
+                description: draggedNode.data.description,
+              };
+              const updatedTools = [...(targetNode.data.tools || []), newTool];
+              handleNodeUpdate(targetNode.id, { ...targetNode.data, tools: updatedTools });
+
+              // Remove the original tool node
+              handleNodeDelete(draggedNode.id);
+            }
           }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
