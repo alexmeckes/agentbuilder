@@ -684,6 +684,10 @@ function WorkflowEditorInner({
     }
   }, [])
 
+  // Define which tools are "Action Tools" (attachable) vs. "Process Tools" (standalone)
+  const ACTION_TOOLS = ['composio_googledocs_create_doc', 'composio_slack_send_message', 'composio_github_create_issue'];
+  const PROCESS_TOOLS = ['web_search', 'file_read', 'file_write'];
+
   // HTML5 Drag & Drop: Handle dropping nodes FROM sidebar TO canvas
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
@@ -697,6 +701,11 @@ function WorkflowEditorInner({
       if (typeof type === 'undefined' || !type || !reactFlowBounds || !reactFlowInstance) {
         return
       }
+
+      const targetElement = event.target as HTMLElement;
+      const nodeElement = targetElement.closest('.react-flow__node') as HTMLElement;
+      const droppedOnNodeId = nodeElement?.dataset?.id;
+      const droppedOnNode = droppedOnNodeId ? reactFlowInstance.getNode(droppedOnNodeId) : null;
 
       // Check if it's a Composio tool (JSON format)
       let composioToolData = null
@@ -747,6 +756,24 @@ function WorkflowEditorInner({
           adjustedPosition.y = position.y + (attempts - 6) * 80
         }
         attempts++
+      }
+
+      const toolType = composioToolData ? composioToolData.toolType : type;
+      const isActionTool = ACTION_TOOLS.includes(toolType);
+
+      if (droppedOnNode && droppedOnNode.data.type === 'agent' && isActionTool) {
+        // ATTACH TOOL to agent node
+        const newTool = {
+          id: `${toolType}-${Date.now()}`,
+          name: composioToolData ? composioToolData.label : 'New Tool',
+          description: composioToolData ? composioToolData.description : 'An action tool',
+          // icon could be added here
+        };
+
+        const updatedTools = [...(droppedOnNode.data.tools || []), newTool];
+        handleNodeUpdate(droppedOnNode.id, { ...droppedOnNode.data, tools: updatedTools });
+
+        return; // Stop execution to prevent creating a new node
       }
 
       // Check if we have template data from the new NodePalette

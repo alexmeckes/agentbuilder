@@ -28,6 +28,7 @@ import { NodeEditorModal } from './NodeEditorModal'
 import { EnhancedNodeData, AgentFramework, POPULAR_MODELS, FRAMEWORK_INFO, NodeExecutionStatus, NodeExecutionState } from '../../types/workflow'
 import EnhancedToolSelector from './EnhancedToolSelector'
 import { useExecutionContext } from '../../contexts/ExecutionContext'
+import AttachedToolNode from './AttachedToolNode'
 
 interface AgentNodeProps {
   data: EnhancedNodeData
@@ -680,6 +681,27 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
                     />
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Attached Tools Shelf */}
+            {data.type === 'agent' && data.tools && data.tools.length > 0 && (
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Attached Tools</h4>
+                <div className="space-y-1">
+                  {data.tools.map(tool => (
+                    <AttachedToolNode
+                      key={tool.id}
+                      tool={tool}
+                      onDelete={(toolId) => {
+                        if (onNodeUpdate) {
+                          const updatedTools = data.tools?.filter(t => t.id !== toolId)
+                          onNodeUpdate(id, { ...data, tools: updatedTools })
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 

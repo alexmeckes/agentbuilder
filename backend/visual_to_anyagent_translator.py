@@ -496,8 +496,8 @@ class VisualToAnyAgentTranslator:
             logging.info(f"🔧 TRANSLATION: Tool node {i+1}: id={tool_node.id}, type={tool_type}, name={tool_node.data.get('name', 'unnamed')}")
             logging.info(f"🔧 TRANSLATION: Tool node {i+1} FULL DATA: {tool_node.data}")
         
-        # Collect tools
-        available_tools = []
+        # Process standalone "Process Tools" from the canvas
+        process_tools = []
         for tool_node in tool_nodes:
             tool_type = tool_node.data.get("type", "search_web")
             
@@ -531,11 +531,25 @@ class VisualToAnyAgentTranslator:
             
             if actual_tool_type:
                 tool_function = self.available_tools[actual_tool_type]
-                available_tools.append(tool_function)
-                logging.info(f"🔧 TRANSLATION: ✅ Added tool '{actual_tool_type}': {tool_function.__name__ if hasattr(tool_function, '__name__') else str(tool_function)}")
+                process_tools.append(tool_function)
+                logging.info(f"🔧 TRANSLATION: ✅ Added process tool '{actual_tool_type}': {tool_function.__name__ if hasattr(tool_function, '__name__') else str(tool_function)}")
             else:
-                logging.warning(f"🔧 TRANSLATION: ❌ No matching tool found. Tried: {possible_tool_types}")
+                logging.warning(f"🔧 TRANSLATION: ❌ No matching process tool found. Tried: {possible_tool_types}")
                 logging.warning(f"🔧 TRANSLATION: Available tools: {list(self.available_tools.keys())}")
+
+        # Process "Action Tools" attached directly to the agent
+        attached_tools = []
+        if 'tools' in main_agent_node.data and main_agent_node.data['tools']:
+            for tool_data in main_agent_node.data['tools']:
+                tool_id = tool_data.get('id', '').split('-')[0] # e.g., 'composio_googledocs_create_doc'
+                if tool_id in self.available_tools:
+                    attached_tools.append(self.available_tools[tool_id])
+                    logging.info(f"🔧 TRANSLATION: ✅ Added attached tool '{tool_id}'")
+                else:
+                    logging.warning(f"🔧 TRANSLATION: ❌ Attached tool '{tool_id}' not found in available tools.")
+
+        # Combine both types of tools
+        available_tools = process_tools + attached_tools
         
         # ENHANCEMENT: If no tool nodes provided, auto-assign relevant tools based on agent instructions
         if len(available_tools) == 0:

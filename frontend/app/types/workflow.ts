@@ -43,6 +43,9 @@ export interface EnhancedNodeData {
   name?: string
   description?: string
   
+  // New property for attached tools on agent nodes
+  tools?: AttachedTool[];
+  
   // Legacy fields for backward compatibility
   model_id?: string
   instructions?: string
@@ -114,6 +117,14 @@ export interface EnhancedNodeData {
       instructions?: string
     }
   }
+}
+
+// New type for attached tools
+export interface AttachedTool {
+  id: string;
+  name: string;
+  description: string;
+  icon?: any; // Can be a string (URL) or a React component
 }
 
 // Model information for UI display
