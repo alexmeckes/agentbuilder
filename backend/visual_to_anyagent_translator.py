@@ -557,11 +557,95 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         
         # Helper function to map tool names to actual tool functions
         def get_actual_tools(tool_names):
+            # Basic tools
             tool_map = {
                 "search_web": search_web,
                 "visit_webpage": visit_webpage
             }
-            return [tool_map[name] for name in tool_names if name in tool_map]
+            
+            # Add Composio tools by recreating the tool wrappers in subprocess
+            try:
+                # Import Composio bridge in subprocess
+                sys.path.insert(0, os.path.dirname(__file__))
+                from composio_mcp_bridge import UserComposioManager, UserContext
+                
+                # Create Composio tool wrappers in subprocess
+                def create_composio_wrapper(tool_name):
+                    def wrapper(*args, **kwargs):
+                        try:
+                            import asyncio
+                            import os
+                            
+                            # Get user context from environment
+                            api_key = os.getenv('COMPOSIO_API_KEY', '')
+                            user_id = os.getenv('USER_ID', 'default_user')
+                            
+                            if not api_key:
+                                return f"❌ No Composio API key configured for {tool_name}"
+                            
+                            # Create user context
+                            user_context = UserContext(
+                                user_id=user_id,
+                                api_key=api_key,
+                                enabled_tools=None,
+                                preferences={}
+                            )
+                            
+                            # Extract parameters
+                            if args:
+                                params = {"input": str(args[0])} if len(args) == 1 else {"args": list(args)}
+                            else:
+                                params = kwargs
+                            
+                            # Execute the tool
+                            manager = UserComposioManager()
+                            result = asyncio.run(
+                                manager.execute_tool_for_user(tool_name, params, user_context)
+                            )
+                            
+                            if result.get("success"):
+                                return f"✅ {tool_name} executed successfully: {result.get('result', 'Done')}"
+                            else:
+                                return f"❌ {tool_name} failed: {result.get('error', 'Unknown error')}"
+                                
+                        except Exception as e:
+                            return f"❌ {tool_name} error: {str(e)}"
+                    
+                    wrapper.__name__ = f"composio_{tool_name}"
+                    return wrapper
+                
+                # Add Composio tools to the map
+                composio_tools = {
+                    "composio_googledocs_create_doc": create_composio_wrapper("googledocs_create_doc"),
+                    "composio_github_star_repo": create_composio_wrapper("github_star_repo"),
+                    "composio_github_create_issue": create_composio_wrapper("github_create_issue"),
+                    "composio_slack_send_message": create_composio_wrapper("slack_send_message"),
+                    "composio_gmail_send_email": create_composio_wrapper("gmail_send_email"),
+                    "composio_googlesheets_create_sheet": create_composio_wrapper("googlesheets_create_sheet"),
+                    "composio_googledrive_upload": create_composio_wrapper("googledrive_upload"),
+                    "composio_googlecalendar_create_event": create_composio_wrapper("googlecalendar_create_event"),
+                    "composio_notion_create_page": create_composio_wrapper("notion_create_page"),
+                    "composio_linear_create_issue": create_composio_wrapper("linear_create_issue"),
+                    "composio_trello_create_card": create_composio_wrapper("trello_create_card"),
+                    "composio_airtable_create_record": create_composio_wrapper("airtable_create_record"),
+                    "composio_jira_create_issue": create_composio_wrapper("jira_create_issue")
+                }
+                tool_map.update(composio_tools)
+                logger.info(f"🔧 Subprocess: Added {len(composio_tools)} Composio tools to tool map")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Subprocess: Could not load Composio tools: {e}")
+            
+            # Map tool names to functions
+            mapped_tools = []
+            for name in tool_names:
+                if name in tool_map:
+                    mapped_tools.append(tool_map[name])
+                    logger.info(f"✅ Subprocess: Mapped tool '{name}' successfully")
+                else:
+                    logger.warning(f"❌ Subprocess: Tool '{name}' not found in tool map")
+            
+            return mapped_tools
         
         # Recreate AgentConfig objects from dictionaries using the ACTUAL VISUAL WORKFLOW TOOLS
         main_tools = get_actual_tools(main_agent_config_dict.get("tools", []))
