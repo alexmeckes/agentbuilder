@@ -303,6 +303,27 @@ class UserComposioManager:
         }
         return app_categories.get(app_name.lower(), 'general')
     
+    def _extract_app_name_from_tool(self, tool_name: str) -> str:
+        """Extract app name from tool name"""
+        # Handle specific patterns
+        if tool_name.startswith('GOOGLEDOCS_'):
+            return 'googledocs'
+        elif tool_name.startswith('GITHUB_'):
+            return 'github'
+        elif tool_name.startswith('SLACK_'):
+            return 'slack'
+        elif tool_name.startswith('GMAIL_'):
+            return 'gmail'
+        elif tool_name.startswith('NOTION_'):
+            return 'notion'
+        
+        # Fallback: try to extract from prefix
+        parts = tool_name.lower().split('_')
+        if len(parts) > 0:
+            return parts[0]
+        
+        return 'unknown'
+    
     def get_user_client(self, user_context: UserContext) -> Optional[ComposioToolSetType]:
         """Get or create Composio client for specific user"""
         if not user_context.api_key or not COMPOSIO_AVAILABLE:
@@ -345,6 +366,10 @@ class UserComposioManager:
         if tool_name not in available_tools:
             return {"error": f"Tool '{tool_name}' not found in available tools: {list(available_tools.keys())[:10]}"}
         
+        # Get app name from tool info (for HTTP API)
+        tool_info = available_tools[tool_name]
+        app_name = tool_info.get('app_name', self._extract_app_name_from_tool(tool_name))
+        
         # Get user's Composio client
         client = self.get_user_client(user_context)
         
@@ -356,22 +381,36 @@ class UserComposioManager:
             }
         
         try:
-            # Execute with real Composio API
-            result = await asyncio.get_event_loop().run_in_executor(
-                None, 
-                lambda: client.execute_action(
-                    action=tool_name,
-                    params=params,
-                    entity_id="default"  # Use default entity ID as per API requirements
-                )
-            )
+            # Execute with direct HTTP API (same approach as successful test)
+            import aiohttp
             
-            return {
-                "success": True,
-                "result": result,
-                "user_id": user_context.user_id,
-                "tool": tool_name
-            }
+            async with aiohttp.ClientSession() as session:
+                # Use the same HTTP API approach that worked in testing
+                async with session.post(
+                    f'https://backend.composio.dev/api/v2/actions/{tool_name}/execute',
+                    headers={'x-api-key': user_context.api_key, 'Content-Type': 'application/json'},
+                                         json={
+                         "input": params,
+                         "entityId": "default",
+                         "appName": app_name  # Dynamic app name based on tool
+                     },
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return {
+                            "success": True,
+                            "result": result,
+                            "user_id": user_context.user_id,
+                            "tool": tool_name
+                        }
+                    else:
+                        error_text = await response.text()
+                        return {
+                            "error": f"HTTP {response.status}: {error_text}",
+                            "user_id": user_context.user_id,
+                            "tool": tool_name
+                        }
             
         except Exception as e:
             logging.error(f"❌ Tool execution failed for user {user_context.user_id}: {e}")
