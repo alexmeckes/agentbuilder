@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(req: NextRequest) {
-  if (process.env.NODE_ENV !== 'production') {
+  if (
+    process.env.ENABLE_BASIC_AUTH !== 'true' ||
+    process.env.NODE_ENV !== 'production'
+  ) {
     return NextResponse.next();
   }
 
