@@ -66,17 +66,18 @@ RULES:
 - Node IDs and Edge IDs must be referenced correctly from the provided workflow state.
 - When creating a new node, provide a short, descriptive ID (e.g., "agent-2", "tool-web-search").
 - When creating an edge, you can create a simple ID like "e-1-2".
+- IMPORTANT: Users will refer to nodes by their 'data.label'. You MUST find the correct 'id' for a node by looking it up in the provided 'nodes' array. Do not use the label as the 'nodeId'.
 
 EXAMPLE:
-User command: "Rename agent-1 to Research Agent"
-Workflow state: {{ "nodes": [{{ "id": "agent-1", "data": {{ "label": "Agent 1" }} }}] }}
+User command: "Rename the 'Initial Agent' to 'Research Agent'"
+Workflow state: {{ "nodes": [{{ "id": "agent-1-xyz", "data": {{ "label": "Initial Agent" }} }}] }}
 
 Your output:
 {{
   "actions": [
     {{
       "action": "UPDATE_NODE",
-      "nodeId": "agent-1",
+      "nodeId": "agent-1-xyz",
       "payload": {{
         "label": "Research Agent"
       }}
