@@ -67,6 +67,8 @@ class VisualWorkflowEdge:
     id: str
     source: str
     target: str
+    sourceHandle: str
+    targetHandle: str
 
 
 class VisualToAnyAgentTranslator:
@@ -303,7 +305,9 @@ class VisualToAnyAgentTranslator:
             VisualWorkflowEdge(
                 id=edge["id"],
                 source=edge["source"],
-                target=edge["target"]
+                target=edge["target"],
+                sourceHandle=edge["sourceHandle"],
+                targetHandle=edge["targetHandle"]
             ) for edge in edges
         ]
         
@@ -345,7 +349,8 @@ class VisualToAnyAgentTranslator:
         elif execution_pattern == "collaborative":
             return self._create_collaborative_multi_agent(agent_nodes, tool_nodes, framework)
         else:
-            return self._create_simple_multi_agent(agent_nodes, tool_nodes, framework)
+            # Pass edges to the handler for connection-aware logic
+            return self._create_simple_multi_agent(agent_nodes, tool_nodes, visual_edges, framework)
     
     def _analyze_workflow_pattern(self, nodes: List[VisualWorkflowNode], 
                                  edges: List[VisualWorkflowEdge]) -> str:
@@ -484,122 +489,43 @@ class VisualToAnyAgentTranslator:
     
     def _create_simple_multi_agent(self, agent_nodes: List[VisualWorkflowNode],
                                  tool_nodes: List[VisualWorkflowNode],
+                                 edges: List[VisualWorkflowEdge],
                                  framework: str) -> tuple[AgentConfig, List[AgentConfig]]:
-        """Create simple multi-agent system (fallback)"""
+        """Create simple multi-agent system based on explicit tool connections."""
         
-        main_agent_node = agent_nodes[0]
-        
-        # CRITICAL DEBUG: Log visual workflow analysis
-        logging.info(f"🔧 TRANSLATION: Processing {len(tool_nodes)} tool nodes from visual workflow")
-        for i, tool_node in enumerate(tool_nodes):
-            tool_type = tool_node.data.get("type", "search_web")
-            logging.info(f"🔧 TRANSLATION: Tool node {i+1}: id={tool_node.id}, type={tool_type}, name={tool_node.data.get('name', 'unnamed')}")
-            logging.info(f"🔧 TRANSLATION: Tool node {i+1} FULL DATA: {tool_node.data}")
-        
-        # Process standalone "Process Tools" from the canvas
-        process_tools = []
+        if not agent_nodes:
+            raise ValueError("Workflow must contain at least one agent node")
+
+        # Create a mapping of tool node IDs to their functions
+        tool_functions = {}
         for tool_node in tool_nodes:
-            tool_type = tool_node.data.get("type", "search_web")
-            
-            # ENHANCED DEBUG: Check multiple possible field names for tool type
-            possible_tool_types = [
-                tool_node.data.get("type"),
-                tool_node.data.get("tool_type"), 
-                tool_node.data.get("toolType"),
-                tool_node.data.get("selectedTool"),
-                tool_node.data.get("tool"),
-                tool_node.data.get("name")
-            ]
-            logging.info(f"🔧 TRANSLATION: Tool node possible types: {possible_tool_types}")
-            
-            # Try to find the actual tool type from various fields
-            actual_tool_type = None
-            for possible_type in possible_tool_types:
-                if possible_type:
-                    # CRITICAL FIX: Handle Composio tool naming conversion
-                    # Convert "composio-googledocs_create_doc" to "composio_googledocs_create_doc"
-                    normalized_type = possible_type.replace("-", "_")
-                    
-                    if normalized_type in self.available_tools:
-                        actual_tool_type = normalized_type
-                        logging.info(f"🔧 TRANSLATION: Found matching tool type '{actual_tool_type}' (normalized from '{possible_type}')")
-                        break
-                    elif possible_type in self.available_tools:
-                        actual_tool_type = possible_type
-                        logging.info(f"🔧 TRANSLATION: Found matching tool type '{actual_tool_type}' (exact match)")
-                        break
-            
-            if actual_tool_type:
-                tool_function = self.available_tools[actual_tool_type]
-                process_tools.append(tool_function)
-                logging.info(f"🔧 TRANSLATION: ✅ Added process tool '{actual_tool_type}': {tool_function.__name__ if hasattr(tool_function, '__name__') else str(tool_function)}")
-            else:
-                logging.warning(f"🔧 TRANSLATION: ❌ No matching process tool found. Tried: {possible_tool_types}")
-                logging.warning(f"🔧 TRANSLATION: Available tools: {list(self.available_tools.keys())}")
+            tool_type = tool_node.data.get("tool_type") or tool_node.data.get("type")
+            if tool_type and tool_type in self.available_tools:
+                tool_functions[tool_node.id] = self.available_tools[tool_type]
 
-        # Process "Action Tools" attached directly to the agent
-        attached_tools = []
-        if 'tools' in main_agent_node.data and main_agent_node.data['tools']:
-            for tool_data in main_agent_node.data['tools']:
-                tool_id = tool_data.get('id', '').split('-')[0] # e.g., 'composio_googledocs_create_doc'
-                if tool_id in self.available_tools:
-                    attached_tools.append(self.available_tools[tool_id])
-                    logging.info(f"🔧 TRANSLATION: ✅ Added attached tool '{tool_id}'")
-                else:
-                    logging.warning(f"🔧 TRANSLATION: ❌ Attached tool '{tool_id}' not found in available tools.")
+        # Create a mapping of agent IDs to their assigned tools based on connections
+        agent_tools_map = {agent.id: [] for agent in agent_nodes}
+        for edge in edges:
+            # Check if the edge connects to a tool port
+            if edge.targetHandle == 'tool' and edge.source in tool_functions:
+                # Assign the tool to the connected agent
+                if edge.target in agent_tools_map:
+                    agent_tools_map[edge.target].append(tool_functions[edge.source])
 
-        # Combine both types of tools
-        available_tools = process_tools + attached_tools
-        
-        # ENHANCEMENT: If no tool nodes provided, auto-assign relevant tools based on agent instructions
-        if len(available_tools) == 0:
-            agent_instructions = main_agent_node.data.get("instructions", "").lower()
-            agent_name = main_agent_node.data.get("name", "").lower()
-            
-            # Smart tool assignment based on agent context
-            auto_assigned_tools = []
-            
-            # Always include basic tools
-            if "search_web" in self.available_tools:
-                auto_assigned_tools.append(self.available_tools["search_web"])
-            if "visit_webpage" in self.available_tools:
-                auto_assigned_tools.append(self.available_tools["visit_webpage"])
-            
-            # Add Composio tools based on context
-            if any(keyword in agent_instructions + agent_name for keyword in ["google", "docs", "document", "create"]):
-                if "composio_googledocs_create_doc" in self.available_tools:
-                    auto_assigned_tools.append(self.available_tools["composio_googledocs_create_doc"])
-                    logging.info("🔧 AUTO-ASSIGNED: Added Google Docs tool based on agent context")
-            
-            if any(keyword in agent_instructions + agent_name for keyword in ["github", "repo", "star", "issue"]):
-                if "composio_github_star_repo" in self.available_tools:
-                    auto_assigned_tools.append(self.available_tools["composio_github_star_repo"])
-                if "composio_github_create_issue" in self.available_tools:
-                    auto_assigned_tools.append(self.available_tools["composio_github_create_issue"])
-                    logging.info("🔧 AUTO-ASSIGNED: Added GitHub tools based on agent context")
-            
-            if any(keyword in agent_instructions + agent_name for keyword in ["email", "gmail", "send"]):
-                if "composio_gmail_send_email" in self.available_tools:
-                    auto_assigned_tools.append(self.available_tools["composio_gmail_send_email"])
-                    logging.info("🔧 AUTO-ASSIGNED: Added Gmail tool based on agent context")
-            
-            available_tools = auto_assigned_tools
-            logging.info(f"🔧 AUTO-ASSIGNMENT: Agent has {len(available_tools)} auto-assigned tools")
-
-        logging.info(f"🔧 TRANSLATION: Final tool assignment: {len(available_tools)} tools for agent '{main_agent_node.data.get('name', 'agent')}'")
-
-        # Create single agent with tools
+        # Create the agent configurations
+        main_agent_node = agent_nodes[0]
         main_agent = AgentConfig(
             name=main_agent_node.data.get("name", "agent"),
             model_id=main_agent_node.data.get("model_id", "gpt-4.1-nano"),
-            instructions=main_agent_node.data.get("instructions", 
-                "You are a helpful assistant. Use the available tools to help users."),
-            tools=available_tools
+            instructions=main_agent_node.data.get("instructions", "You are a helpful assistant."),
+            tools=agent_tools_map.get(main_agent_node.id, [])
         )
+
+        # In a simple multi-agent setup, we assume one main agent.
+        # This can be expanded for more complex collaborative patterns.
+        managed_agents = []
         
-        logging.info(f"🔧 TRANSLATION: Created agent '{main_agent.name}' with {len(main_agent.tools) if main_agent.tools else 0} tools")
-        
-        return main_agent, []
+        return main_agent, managed_agents
     
     def _assign_tools_to_agent(self, agent_node: VisualWorkflowNode, 
                               available_tools: List) -> List:
