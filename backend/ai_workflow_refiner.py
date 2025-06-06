@@ -20,6 +20,7 @@ ACTION_SCHEMA = """
     "payload": {
       "id": "<new_node_id>",
       "type": "agent|tool|input|output",
+      "position": { "x": 100, "y": 100 },
       "data": { ... }
     }
   },
@@ -118,6 +119,9 @@ def apply_actions(nodes: List[Dict], edges: List[Dict], actions: List[Dict]) -> 
         action_type = action.get("action")
         if action_type == "ADD_NODE":
             new_node = action["payload"]
+            # Ensure the new node has a position
+            if "position" not in new_node:
+                new_node["position"] = {"x": 100, "y": 100}
             node_map[new_node['id']] = new_node
         elif action_type == "DELETE_NODE":
             node_id = action.get("nodeId")
