@@ -158,3 +158,10 @@ curl -X POST http://localhost:3000/api/execute \
 ---
 
 **Remember**: Both `BACKEND_URL` and `NEXT_PUBLIC_BACKEND_URL` must be set for proper operation! 
+
+## Optional Variables
+
+### `BASIC_AUTH_PASSWORD`
+- **Purpose**: Secures the frontend application with a simple password.
+- **Usage**: When set in a production environment (e.g., Vercel), the site will prompt for a password before allowing access. The username can be anything.
+- **Required for**: Restricting access to the deployed frontend. 
