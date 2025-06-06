@@ -771,6 +771,19 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
           }}
           title="Output connection point"
         />
+        {data.type === 'agent' && (
+          <Handle
+            type="target"
+            position={Position.Bottom}
+            id="tool"
+            className="!w-4 !h-4 !bg-yellow-500 !border-2 !border-white !shadow-lg hover:!bg-yellow-600 !transition-all !duration-200"
+            style={{
+              bottom: -10,
+              zIndex: 10,
+            }}
+            title="Tool connection point"
+          />
+        )}
       </div>
 
       {/* Enhanced Node Editor Modal */}

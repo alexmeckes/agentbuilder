@@ -570,25 +570,32 @@ function WorkflowEditorInner({
 
   const onConnect = useCallback(
     (params: Connection) => {
-      console.log('🔗 Creating new edge:', params)
-      
       if (externalOnEdgesChange) {
-        const newEdges = addEdge(params, edges).map(edge => ({
-          ...edge,
-          selectable: true,
-          focusable: true,
-        }))
-        console.log('🔗 New edges array:', newEdges)
-        externalOnEdgesChange(newEdges)
+        let newEdges = addEdge(params, edges);
+
+        // Find the new edge and modify its style if it connects to a tool port
+        const newEdge = newEdges.find(e => e.source === params.source && e.target === params.target && e.sourceHandle === params.sourceHandle && e.targetHandle === params.targetHandle);
+        
+        if (newEdge && params.targetHandle === 'tool') {
+          newEdge.style = { ...newEdge.style, strokeDasharray: '5 5' };
+          newEdge.animated = false;
+        }
+
+        console.log('🔗 New edges array:', newEdges);
+        externalOnEdgesChange(newEdges);
         if (onWorkflowChange) {
-          onWorkflowChange(baseNodes, newEdges)
+          onWorkflowChange(baseNodes, newEdges);
         }
       } else {
-        setInternalEdges((eds) => addEdge(params, eds).map(edge => ({
-          ...edge,
-          selectable: true,
-          focusable: true,
-        })))
+        setInternalEdges((eds) => {
+          const newEdges = addEdge(params, eds);
+          const newEdge = newEdges.find(e => e.source === params.source && e.target === params.target && e.sourceHandle === params.sourceHandle && e.targetHandle === params.targetHandle);
+          if (newEdge && params.targetHandle === 'tool') {
+            newEdge.style = { ...newEdge.style, strokeDasharray: '5 5' };
+            newEdge.animated = false;
+          }
+          return newEdges;
+        });
       }
     },
     [edges, baseNodes, externalOnEdgesChange, setInternalEdges, onWorkflowChange],
