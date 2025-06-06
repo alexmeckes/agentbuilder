@@ -49,7 +49,8 @@ ACTION_SCHEMA = """
 ]
 """
 
-SYSTEM_PROMPT = f"""
+# Define as a regular multi-line string and use .format() to avoid f-string issues.
+SYSTEM_PROMPT_TEMPLATE = """
 You are an expert AI workflow assistant. Your task is to translate a user's natural language command into a structured list of actions to modify a workflow.
 
 The user will provide a command and the current workflow's state as a JSON object containing 'nodes' and 'edges'.
@@ -57,7 +58,7 @@ The user will provide a command and the current workflow's state as a JSON objec
 You must analyze the command and the workflow state to determine the necessary changes. Then, you must output a new JSON object containing a single key, "actions", which is a list of action objects.
 
 Each action object must conform to the following schema:
-{ACTION_SCHEMA}
+{action_schema}
 
 RULES:
 - You must only output a valid JSON object with the "actions" key.
@@ -82,6 +83,7 @@ Your output:
   ]
 }}
 """
+SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE.format(action_schema=ACTION_SCHEMA)
 
 def generate_workflow_actions(command: str, nodes: List[Dict], edges: List[Dict]) -> List[Dict]:
     """
