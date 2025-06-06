@@ -1378,7 +1378,7 @@ function WorkflowEditorInner({
           }}
           onNodeDragStop={(event, draggedNode) => {
             if (!reactFlowInstance) return;
-            
+
             const allNodes = reactFlowInstance.getNodes();
             const targetNode = allNodes.find(
               (node) =>
@@ -1386,21 +1386,41 @@ function WorkflowEditorInner({
                 draggedNode.position.x <= node.position.x + (node.width || 0) &&
                 draggedNode.position.y >= node.position.y &&
                 draggedNode.position.y <= node.position.y + (node.height || 0) &&
-                node.id !== draggedNode.id // ensure it's not the node itself
+                node.id !== draggedNode.id
             );
 
-            if (targetNode && targetNode.data.type === 'agent' && draggedNode.data.isComposio) {
-              // Attach tool to agent
+            if (targetNode && targetNode.data.type === 'agent' && (draggedNode.data.isComposio || draggedNode.data.type === 'tool')) {
+              // Perform an atomic update to prevent race conditions
+              
+              // 1. Create the new tool object to be attached
               const newTool = {
-                id: `${draggedNode.data.tool_type}-${Date.now()}`,
+                id: `${draggedNode.data.tool_type || draggedNode.data.id}-${Date.now()}`,
                 name: draggedNode.data.label,
                 description: draggedNode.data.description,
               };
-              const updatedTools = [...(targetNode.data.tools || []), newTool];
-              handleNodeUpdate(targetNode.id, { ...targetNode.data, tools: updatedTools });
 
-              // Remove the original tool node
-              handleNodeDelete(draggedNode.id);
+              // 2. Create the new, final nodes array
+              const updatedNodes = allNodes
+                .map(node => {
+                  if (node.id === targetNode.id) {
+                    // Update the target agent node with the new tool
+                    const updatedTools = [...(node.data.tools || []), newTool];
+                    return { ...node, data: { ...node.data, tools: updatedTools } };
+                  }
+                  return node;
+                })
+                .filter(node => node.id !== draggedNode.id); // Remove the original tool node
+
+              // 3. Filter out edges connected to the deleted node
+              const updatedEdges = edges.filter(edge => edge.source !== draggedNode.id && edge.target !== draggedNode.id);
+
+              // 4. Call the state update functions once with the final state
+              if (externalOnNodesChange) {
+                externalOnNodesChange(updatedNodes);
+              }
+              if (externalOnEdgesChange) {
+                externalOnEdgesChange(updatedEdges);
+              }
             }
           }}
           nodeTypes={nodeTypes}
