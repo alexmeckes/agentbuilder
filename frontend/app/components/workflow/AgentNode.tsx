@@ -837,6 +837,7 @@ export default function AgentNode(props: NodeProps<EnhancedNodeData & {
   })
   
   return <AgentNodeComponent 
+    key={`${props.id}-${data.revision || 0}`}
     {...otherProps} 
     data={nodeData as EnhancedNodeData}
     onNodeUpdate={safeOnNodeUpdate}

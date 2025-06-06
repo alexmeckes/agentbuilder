@@ -1405,7 +1405,8 @@ function WorkflowEditorInner({
                   if (node.id === targetNode.id) {
                     // Update the target agent node with the new tool
                     const updatedTools = [...(node.data.tools || []), newTool];
-                    return { ...node, data: { ...node.data, tools: updatedTools } };
+                    const newRevision = (node.data.revision || 0) + 1;
+                    return { ...node, data: { ...node.data, tools: updatedTools, revision: newRevision } };
                   }
                   return node;
                 })

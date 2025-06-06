@@ -45,6 +45,7 @@ export interface EnhancedNodeData {
   
   // New property for attached tools on agent nodes
   tools?: AttachedTool[];
+  revision?: number;
   
   // Legacy fields for backward compatibility
   model_id?: string
