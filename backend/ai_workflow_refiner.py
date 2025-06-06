@@ -67,7 +67,7 @@ RULES:
 
 EXAMPLE:
 User command: "Rename agent-1 to Research Agent"
-Workflow state: {{ "nodes": [{ "id": "agent-1", "data": { "label": "Agent 1" } }] }}
+Workflow state: {{ "nodes": [{{ "id": "agent-1", "data": {{ "label": "Agent 1" }} }}] }}
 
 Your output:
 {{
