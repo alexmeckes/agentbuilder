@@ -22,6 +22,7 @@ import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain, X
 import { WorkflowManager } from '../services/workflowManager'
 import { ExecutionProvider, useExecutionContext } from '../contexts/ExecutionContext'
 import AICommandBar from './workflow/AICommandBar'
+import ConfirmationModal from './workflow/ConfirmationModal'
 
 const nodeTypes = {
   agent: AgentNode,
@@ -102,6 +103,8 @@ function WorkflowEditorInner({
   const [currentWorkflowIdentity, setCurrentWorkflowIdentity] = useState<any>(null)
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
   const [isAiRefining, setIsAiRefining] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [aiPlan, setAiPlan] = useState<any[]>([])
 
   // Sync execution state from context
   useEffect(() => {
@@ -1351,26 +1354,78 @@ function WorkflowEditorInner({
   }
 
   const handleAICommand = async (command: string) => {
-    console.log('🚀 AI Command submitted:', command);
     setIsAiRefining(true);
+    setIsCommandBarOpen(false);
     try {
       const workflowDefinition = WorkflowService.convertToWorkflowDefinition(baseNodes, edges);
-      const refinedWorkflow = await WorkflowService.refineWorkflow(command, workflowDefinition.nodes, workflowDefinition.edges);
-      
-      if (externalOnNodesChange) {
-        externalOnNodesChange(refinedWorkflow.nodes);
-      }
-      if (externalOnEdgesChange) {
-        externalOnEdgesChange(refinedWorkflow.edges);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/ai/refine-workflow`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command, ...workflowDefinition }),
+      });
+      if (!response.ok) throw new Error('AI refinement failed');
+      const { actions } = await response.json();
+
+      if (!actions || actions.length === 0) return;
+
+      const isDestructive = actions.some((a: any) => a.action.includes('DELETE'));
+
+      if (isDestructive) {
+        setAiPlan(actions);
+        setShowConfirmation(true);
+      } else {
+        applyAIPlan(actions);
       }
     } catch (error) {
       console.error("Failed to refine workflow:", error);
-      // You might want to show an error notification to the user here
     } finally {
       setIsAiRefining(false);
-      setIsCommandBarOpen(false);
     }
-  }
+  };
+
+  const applyAIPlan = (plan: any[]) => {
+    let newNodes = [...baseNodes];
+    let newEdges = [...edges];
+
+    plan.forEach(action => {
+      switch (action.action) {
+        case 'ADD_NODE':
+          newNodes = [...newNodes, action.payload];
+          break;
+        case 'DELETE_NODE':
+          newNodes = newNodes.filter(n => n.id !== action.nodeId);
+          newEdges = newEdges.filter(e => e.source !== action.nodeId && e.target !== action.nodeId);
+          break;
+        case 'UPDATE_NODE':
+          newNodes = newNodes.map(n =>
+            n.id === action.nodeId ? { ...n, data: { ...n.data, ...action.payload } } : n
+          );
+          break;
+        case 'CREATE_EDGE':
+          newEdges = addEdge(action.payload, newEdges);
+          break;
+        case 'DELETE_EDGE':
+          newEdges = newEdges.filter(e => e.id !== action.edgeId);
+          break;
+        default:
+          break;
+      }
+    });
+
+    if (externalOnNodesChange) externalOnNodesChange(newNodes);
+    if (externalOnEdgesChange) externalOnEdgesChange(newEdges);
+  };
+
+  const handleConfirm = () => {
+    applyAIPlan(aiPlan);
+    setShowConfirmation(false);
+    setAiPlan([]);
+  };
+
+  const handleCancel = () => {
+    setShowConfirmation(false);
+    setAiPlan([]);
+  };
 
   return (
     <div className="h-full w-full bg-slate-50 flex">
@@ -1476,6 +1531,13 @@ function WorkflowEditorInner({
           <Background color="#e2e8f0" />
           <Controls className="bg-white border border-slate-200 shadow-sm" />
           
+          <ConfirmationModal 
+            isOpen={showConfirmation}
+            plan={aiPlan}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+          />
+
           {/* AI Command Bar */}
           {isCommandBarOpen && (
             <AICommandBar 
