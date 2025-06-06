@@ -10,11 +10,12 @@ export function middleware(req: NextRequest) {
   if (basicAuth) {
     const authValue = basicAuth.split(' ')[1];
     // The atob function is available in Edge runtime
-    const [_, pwd] = atob(authValue).split(':');
+    const [user, pwd] = atob(authValue).split(':');
 
+    const validUser = process.env.BASIC_AUTH_USERNAME;
     const validPassword = process.env.BASIC_AUTH_PASSWORD;
 
-    if (pwd === validPassword) {
+    if (user === validUser && pwd === validPassword) {
       return NextResponse.next();
     }
   }

@@ -161,7 +161,7 @@ curl -X POST http://localhost:3000/api/execute \
 
 ## Optional Variables
 
-### `BASIC_AUTH_PASSWORD`
-- **Purpose**: Secures the frontend application with a simple password.
-- **Usage**: When set in a production environment (e.g., Vercel), the site will prompt for a password before allowing access. The username can be anything.
+### `BASIC_AUTH_USERNAME` & `BASIC_AUTH_PASSWORD`
+- **Purpose**: Secures the frontend application with a simple username and password.
+- **Usage**: When set in a production environment (e.g., Vercel), the site will prompt for a username and password before allowing access.
 - **Required for**: Restricting access to the deployed frontend. 
