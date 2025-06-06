@@ -18,9 +18,10 @@ import DeletableEdge from './workflow/DeletableEdge'
 import Sidebar from './workflow/Sidebar'
 import NodePalette from './workflow/NodePalette'
 import { WorkflowService, type ExecutionResponse } from '../services/workflow'
-import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain, X } from 'lucide-react'
+import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain, X, Sparkles } from 'lucide-react'
 import { WorkflowManager } from '../services/workflowManager'
 import { ExecutionProvider, useExecutionContext } from '../contexts/ExecutionContext'
+import AICommandBar from './workflow/AICommandBar'
 
 const nodeTypes = {
   agent: AgentNode,
@@ -99,6 +100,8 @@ function WorkflowEditorInner({
   const [showFullResults, setShowFullResults] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [currentWorkflowIdentity, setCurrentWorkflowIdentity] = useState<any>(null)
+  const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
+  const [isAiRefining, setIsAiRefining] = useState(false)
 
   // Sync execution state from context
   useEffect(() => {
@@ -1347,6 +1350,28 @@ function WorkflowEditorInner({
     setInternalEdges(workflow.edges)
   }
 
+  const handleAICommand = async (command: string) => {
+    console.log('🚀 AI Command submitted:', command);
+    setIsAiRefining(true);
+    try {
+      const workflowDefinition = WorkflowService.convertToWorkflowDefinition(baseNodes, edges);
+      const refinedWorkflow = await WorkflowService.refineWorkflow(command, workflowDefinition.nodes, workflowDefinition.edges);
+      
+      if (externalOnNodesChange) {
+        externalOnNodesChange(refinedWorkflow.nodes);
+      }
+      if (externalOnEdgesChange) {
+        externalOnEdgesChange(refinedWorkflow.edges);
+      }
+    } catch (error) {
+      console.error("Failed to refine workflow:", error);
+      // You might want to show an error notification to the user here
+    } finally {
+      setIsAiRefining(false);
+      setIsCommandBarOpen(false);
+    }
+  }
+
   return (
     <div className="h-full w-full bg-slate-50 flex">
       {/* Left Sidebar - Manual Mode Node Palette or Legacy Sidebar */}
@@ -1451,6 +1476,25 @@ function WorkflowEditorInner({
           <Background color="#e2e8f0" />
           <Controls className="bg-white border border-slate-200 shadow-sm" />
           
+          {/* AI Command Bar */}
+          {isCommandBarOpen && (
+            <AICommandBar 
+              onCommand={handleAICommand}
+              isProcessing={isAiRefining}
+            />
+          )}
+
+          {/* Floating AI Command Button */}
+          <Panel position="bottom-center" className="mb-4">
+            <button
+              onClick={() => setIsCommandBarOpen(prev => !prev)}
+              className="bg-white/90 backdrop-blur-md p-3 rounded-full shadow-lg border border-slate-200 hover:scale-105 transition-transform"
+              title="Refine with AI"
+            >
+              <Sparkles className="w-6 h-6 text-purple-600" />
+            </button>
+          </Panel>
+
           {/* Mode Toggle - Top Left */}
           <Panel position="top-left" className="bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200 w-72 z-50">
             <div className="flex items-center gap-3 mb-4">

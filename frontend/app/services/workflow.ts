@@ -370,4 +370,28 @@ export class WorkflowService {
       }
     }
   }
+
+  /**
+   * Refine a workflow using an AI command
+   */
+  static async refineWorkflow(
+    command: string, 
+    nodes: WorkflowNode[], 
+    edges: WorkflowEdge[]
+  ): Promise<WorkflowDefinition> {
+    const response = await fetch(`${BACKEND_URL}/ai/refine-workflow`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ command, nodes, edges }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to refine workflow: ${errorText}`);
+    }
+
+    return response.json();
+  }
 } 

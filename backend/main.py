@@ -49,6 +49,9 @@ except ImportError:
     logging.warning("MCP integration not available")
     MCP_AVAILABLE = False
 
+# Import AI workflow refiner
+from ai_workflow_refiner import generate_workflow_actions, apply_actions
+
 
 class WorkflowNode(BaseModel):
     """Represents a node in the visual workflow"""
@@ -4658,6 +4661,23 @@ async def debug_analytics_cost_data():
         debug_info["potential_issues"].append("No cost data in spans - API calls may not be generating costs")
     
     return debug_info
+
+@app.post("/ai/refine-workflow")
+async def refine_workflow(request: dict):
+    command = request.get("command")
+    nodes = request.get("nodes", [])
+    edges = request.get("edges", [])
+    
+    # 1. Generate actions from the AI
+    actions = generate_workflow_actions(command, nodes, edges)
+    
+    # 2. Apply the actions to the workflow
+    if actions:
+        updated_workflow = apply_actions(nodes, edges, actions)
+        return updated_workflow
+    
+    # If no actions, return the original workflow
+    return {"nodes": nodes, "edges": edges}
 
 if __name__ == "__main__":
     # Production MCP setup
