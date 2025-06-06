@@ -1358,13 +1358,7 @@ function WorkflowEditorInner({
     setIsCommandBarOpen(false);
     try {
       const workflowDefinition = WorkflowService.convertToWorkflowDefinition(baseNodes, edges);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/ai/refine-workflow`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ command, ...workflowDefinition }),
-      });
-      if (!response.ok) throw new Error('AI refinement failed');
-      const { actions } = await response.json();
+      const { actions } = await WorkflowService.refineWorkflow(command, workflowDefinition.nodes, workflowDefinition.edges);
 
       if (!actions || actions.length === 0) return;
 

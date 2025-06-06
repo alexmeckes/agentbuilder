@@ -378,7 +378,7 @@ export class WorkflowService {
     command: string, 
     nodes: WorkflowNode[], 
     edges: WorkflowEdge[]
-  ): Promise<WorkflowDefinition> {
+  ): Promise<{ actions: any[] }> {
     const response = await fetch(`${BACKEND_URL}/ai/refine-workflow`, {
       method: 'POST',
       headers: {
