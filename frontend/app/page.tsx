@@ -524,21 +524,20 @@ export default function Home() {
           </div>
         ) : (
           <div className="h-full relative">
-            {/* Always render WorkflowEditor so users have access to sidebar and mode toggle */}
-            <WorkflowEditor 
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={setNodes}
-              onEdgesChange={setEdges}
-              onWorkflowChange={handleWorkflowChange}
-              executionInput={workflowExecutionInput}
-              onExecutionInputChange={setWorkflowExecutionInput}
-              initialManualMode={isManualMode}
-              onManualModeChange={setIsManualMode}
-            />
-            
-            {/* Welcome overlay when no nodes exist and not in manual mode */}
-            {nodes.length === 0 && !isManualMode && (
+            {/* Conditionally render WorkflowEditor OR the welcome overlay */}
+            {nodes.length > 0 || isManualMode ? (
+              <WorkflowEditor 
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={setNodes}
+                onEdgesChange={setEdges}
+                onWorkflowChange={handleWorkflowChange}
+                executionInput={workflowExecutionInput}
+                onExecutionInputChange={setWorkflowExecutionInput}
+                initialManualMode={isManualMode}
+                onManualModeChange={setIsManualMode}
+              />
+            ) : (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm pointer-events-none">
                 <div className="text-center max-w-lg pointer-events-auto">
                   <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
