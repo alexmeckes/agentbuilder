@@ -435,105 +435,38 @@ function WorkflowEditorInner({
     }
   }, [baseNodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
 
-  // Ensure all nodes have the onNodeUpdate and onNodeDelete callbacks
+  // EFFECT REFACTORED TO PREVENT INFINITE LOOP
+  // This effect ensures that all nodes have the necessary update and delete
+  // callbacks, especially after being loaded from a saved state.
   useEffect(() => {
-    const updateNodesWithCallback = (currentNodes: Node[]) => {
-      if (!currentNodes || currentNodes.length === 0) {
-        return currentNodes
-      }
-      
-      return currentNodes.map(node => {
-        const hasCallbacks = node.data.onNodeUpdate && node.data.onNodeDelete
-        if (!hasCallbacks) {
-          console.log(`🔧 Adding callbacks to node: ${node.id}`)
-        }
-        
-        // CRITICAL: Preserve existing data when adding callbacks
-        const updatedNode = {
-          ...node,
-          data: {
-            ...node.data,
-            onNodeUpdate: handleNodeUpdate,
-            onNodeDelete: handleNodeDelete
+    const nodesToUpdate = baseNodes.filter(
+      (node) => !node.data.onNodeUpdate || !node.data.onNodeDelete
+    )
+
+    if (nodesToUpdate.length > 0) {
+      console.log(`🔧 Hydrating ${nodesToUpdate.length} nodes with callbacks...`)
+
+      const updatedNodes = baseNodes.map((node) => {
+        if (!node.data.onNodeUpdate || !node.data.onNodeDelete) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              onNodeUpdate: handleNodeUpdate,
+              onNodeDelete: handleNodeDelete,
+            },
           }
         }
-        
-        // Debug: Log data preservation
-        if (node.data.agentConfig?.instructions) {
-          console.log(`🔍 Preserving instructions for node ${node.id}:`, node.data.agentConfig.instructions)
-          console.log(`🔍 Updated node data:`, updatedNode.data.agentConfig?.instructions)
-        }
-        
-        return updatedNode
+        return node
       })
-    }
 
-    try {
-      // Always update nodes to ensure callbacks are fresh
-      if (externalOnNodesChange && externalNodes && externalNodes.length > 0) {
-        console.log('🔧 Updating external nodes with callbacks:', externalNodes.length)
-        const updatedNodes = updateNodesWithCallback(externalNodes)
-        
-        // Safety check: ensure we don't lose any nodes
-        if (updatedNodes.length !== externalNodes.length) {
-          console.error(`❌ Node count mismatch! Original: ${externalNodes.length}, Updated: ${updatedNodes.length}`)
-          return // Don't update if we lost nodes
-        }
-        
-        // Only call externalOnNodesChange if something actually changed
-        const hasChanges = externalNodes.some((node, index) => 
-          !updatedNodes[index]?.data?.onNodeUpdate || !updatedNodes[index]?.data?.onNodeDelete
-        )
-        
-        if (hasChanges) {
-          console.log(`🔧 Applying callback updates to ${externalNodes.length} nodes`)
-          externalOnNodesChange(updatedNodes)
-        }
-      } else if (internalNodes.length > 0) {
-        console.log('🔧 Updating internal nodes with callbacks:', internalNodes.length)
-        const updatedNodes = updateNodesWithCallback(internalNodes)
-        
-        // Safety check for internal nodes too
-        if (updatedNodes.length === internalNodes.length) {
-          setInternalNodes(updatedNodes)
-        } else {
-          console.error(`❌ Internal node count mismatch! Original: ${internalNodes.length}, Updated: ${updatedNodes.length}`)
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error updating nodes with callbacks:', error)
-      // Don't update anything if there's an error
-    }
-  }, [externalNodes, internalNodes, handleNodeUpdate, handleNodeDelete, externalOnNodesChange, setInternalNodes])
-
-  // Separate effect to handle when nodes array changes (new nodes added)
-  useEffect(() => {
-    if (baseNodes.length > 0) {
-      console.log('📊 Checking nodes for callbacks:', baseNodes.map(n => ({ 
-        id: n.id, 
-        hasUpdate: !!n.data.onNodeUpdate, 
-        hasDelete: !!n.data.onNodeDelete 
-      })))
-      
-      // Ensure callbacks are present on all nodes
-      const needsCallbacks = baseNodes.some(node => 
-        !node.data.onNodeUpdate || !node.data.onNodeDelete
-      )
-      
-      if (needsCallbacks && externalOnNodesChange) {
-        console.log('🔧 Some nodes missing callbacks, updating...')
-        const updatedNodes = baseNodes.map(node => ({
-          ...node,
-          data: {
-            ...node.data,
-            onNodeUpdate: node.data.onNodeUpdate || handleNodeUpdate,
-            onNodeDelete: node.data.onNodeDelete || handleNodeDelete
-          }
-        }))
+      if (externalOnNodesChange) {
         externalOnNodesChange(updatedNodes)
+      } else {
+        setInternalNodes(updatedNodes)
       }
     }
-  }, [baseNodes, handleNodeUpdate, handleNodeDelete, externalOnNodesChange])
+  }, [baseNodes, handleNodeUpdate, handleNodeDelete, externalOnNodesChange, setInternalNodes])
 
   // Handle edge deletion from custom delete button
   const handleEdgeDelete = useCallback((edgeId: string) => {
@@ -1659,8 +1592,6 @@ function WorkflowEditorInner({
               </button>
             </div>
           </Panel>
-          
-
           
           {/* Floating Execution Panel - Top Right */}
           <Panel position="top-right" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-50">
