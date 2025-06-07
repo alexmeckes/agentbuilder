@@ -1354,30 +1354,44 @@ function WorkflowEditorInner({
   }
 
   const handleAICommand = async (command: string) => {
+    console.log('--- [AI Command Start] ---');
+    console.log(`[USER COMMAND]: "${command}"`);
     setIsAiRefining(true);
     setIsCommandBarOpen(false);
     try {
       const workflowDefinition = WorkflowService.convertToWorkflowDefinition(baseNodes, edges);
+      console.log('[DATA SENT TO BACKEND]:', { command, ...workflowDefinition });
+      
       const { actions } = await WorkflowService.refineWorkflow(command, workflowDefinition.nodes, workflowDefinition.edges);
 
-      if (!actions || actions.length === 0) return;
+      console.log('[ACTIONS RECEIVED FROM BACKEND]:', actions);
+
+      if (!actions || actions.length === 0) {
+        console.warn('[INFO]: AI returned no actions. No changes will be made.');
+        return;
+      }
 
       const isDestructive = actions.some((a: any) => a.action.includes('DELETE'));
+      console.log(`[PLAN ANALYSIS]: Destructive actions found? ${isDestructive}`);
 
       if (isDestructive) {
         setAiPlan(actions);
         setShowConfirmation(true);
+        console.log('[STATUS]: Waiting for user confirmation.');
       } else {
         applyAIPlan(actions);
       }
     } catch (error) {
-      console.error("Failed to refine workflow:", error);
+      console.error("[ERROR]: Failed to refine workflow:", error);
     } finally {
       setIsAiRefining(false);
+      console.log('--- [AI Command End] ---');
     }
   };
 
   const applyAIPlan = (plan: any[]) => {
+    console.log('[APPLYING PLAN]:', plan);
+    console.log('[STATE BEFORE]:', { nodes: baseNodes, edges: edges });
     let newNodes = [...baseNodes];
     let newEdges = [...edges];
 
@@ -1402,10 +1416,12 @@ function WorkflowEditorInner({
           newEdges = newEdges.filter(e => e.id !== action.edgeId);
           break;
         default:
+          console.warn(`[WARN]: Unknown action type "${action.action}"`);
           break;
       }
     });
 
+    console.log('[STATE AFTER]:', { nodes: newNodes, edges: newEdges });
     if (externalOnNodesChange) externalOnNodesChange(newNodes);
     if (externalOnEdgesChange) externalOnEdgesChange(newEdges);
   };

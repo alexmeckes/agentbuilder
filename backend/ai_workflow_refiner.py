@@ -92,8 +92,11 @@ def generate_workflow_actions(command: str, nodes: List[Dict], edges: List[Dict]
     """
     Uses an AI model to generate a list of actions to modify a workflow.
     """
+    print("--- [AI Refiner Start] ---")
+    print(f"[REFINER INPUT]: Command: '{command}'")
     workflow_state = json.dumps({"nodes": nodes, "edges": edges}, indent=2)
     user_message = f"Command: {command}\n\nWorkflow State:\n{workflow_state}"
+    print("[REFINER PROMPT]: Full message sent to AI:", user_message)
 
     try:
         response = client.chat.completions.create(
@@ -105,9 +108,15 @@ def generate_workflow_actions(command: str, nodes: List[Dict], edges: List[Dict]
             response_format={"type": "json_object"},
         )
         actions_json = response.choices[0].message.content
-        return json.loads(actions_json).get("actions", [])
+        print("[REFINER RAW RESPONSE]:", actions_json)
+        
+        actions = json.loads(actions_json).get("actions", [])
+        print("[REFINER PARSED ACTIONS]:", actions)
+        print("--- [AI Refiner End] ---")
+        return actions
     except Exception as e:
         print(f"Error calling OpenAI: {e}")
+        print("--- [AI Refiner End with Error] ---")
         return []
 
 def apply_actions(nodes: List[Dict], edges: List[Dict], actions: List[Dict]) -> Dict[str, List]:
