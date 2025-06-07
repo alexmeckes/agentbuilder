@@ -4668,16 +4668,10 @@ async def refine_workflow(request: dict):
     nodes = request.get("nodes", [])
     edges = request.get("edges", [])
     
-    # 1. Generate actions from the AI
+    # Generate actions from the AI and return them directly.
+    # The frontend is responsible for applying the actions.
     actions = generate_workflow_actions(command, nodes, edges)
-    
-    # 2. Apply the actions to the workflow
-    if actions:
-        updated_workflow = apply_actions(nodes, edges, actions)
-        return updated_workflow
-    
-    # If no actions, return the original workflow
-    return {"nodes": nodes, "edges": edges}
+    return {"actions": actions}
 
 if __name__ == "__main__":
     # Production MCP setup
