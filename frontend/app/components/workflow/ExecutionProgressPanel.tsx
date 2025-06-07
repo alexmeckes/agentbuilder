@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Play, Square, Loader2, Clock, CheckCircle, XCircle, AlertCircle, Send } from 'lucide-react'
 import { WorkflowExecutionState, NodeExecutionStatus } from '../../types/workflow'
 import { WorkflowService } from '../../services/workflow'
@@ -57,6 +57,13 @@ export default function ExecutionProgressPanel({
   ).length
   const runningNodes = nodeStates.filter(([_, state]) => state.status === 'running').length
   const failedNodes = nodeStates.filter(([_, state]) => state.status === 'failed').length
+
+  // Reset user input when the agent is no longer waiting for it
+  useEffect(() => {
+    if (executionState?.status !== 'waiting_for_input') {
+      setUserInput('')
+    }
+  }, [executionState?.status])
 
   const handleSubmitInput = async () => {
     if (!userInput.trim() || !executionState?.id) return
