@@ -1362,7 +1362,8 @@ function WorkflowEditorInner({
       const workflowDefinition = WorkflowService.convertToWorkflowDefinition(baseNodes, edges);
       console.log('[DATA SENT TO BACKEND]:', { command, ...workflowDefinition });
       
-      const { actions } = await WorkflowService.refineWorkflow(command, workflowDefinition.nodes, workflowDefinition.edges);
+      const response = await WorkflowService.refineWorkflow(command, workflowDefinition.nodes, workflowDefinition.edges);
+      const { actions } = response;
 
       console.log('[ACTIONS RECEIVED FROM BACKEND]:', actions);
 
