@@ -410,7 +410,7 @@ export function NodeEditorModal({ isOpen, nodeData, onSave, onClose }: NodeEdito
                 </label>
                 <input
                   type="text"
-                  value={formData.label}
+                  value={formData.label || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, label: e.target.value }))}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.label ? 'border-red-300' : 'border-gray-300'

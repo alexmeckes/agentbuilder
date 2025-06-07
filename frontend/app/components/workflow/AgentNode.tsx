@@ -202,7 +202,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
   const [editingLabel, setEditingLabel] = useState(false)
   const [editingModel, setEditingModel] = useState(false)
   const [editingTool, setEditingTool] = useState(false)
-  const [tempLabel, setTempLabel] = useState(data.label)
+  const [tempLabel, setTempLabel] = useState(data.label || '')
   const [tempModel, setTempModel] = useState(data.agentConfig?.model_id || data.model_id || '')
   const [tempTool, setTempTool] = useState(data.tool_type || '')
   const [showModal, setShowModal] = useState(false)
@@ -251,7 +251,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
     e.stopPropagation()
     e.preventDefault()
     setEditingLabel(true)
-    setTempLabel(data.label)
+    setTempLabel(data.label || '')
   }
 
   const handleLabelSave = () => {
@@ -262,7 +262,7 @@ function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: 
   }
 
   const handleLabelCancel = () => {
-    setTempLabel(data.label)
+    setTempLabel(data.label || '')
     setEditingLabel(false)
   }
 
