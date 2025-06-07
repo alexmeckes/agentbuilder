@@ -67,6 +67,7 @@ RULES:
 - When creating a new node, provide a short, descriptive ID (e.g., "agent-2", "tool-web-search").
 - When creating an edge, you can create a simple ID like "e-1-2".
 - IMPORTANT: Users will refer to nodes by their 'data.label'. You MUST find the correct 'id' for a node by looking it up in the provided 'nodes' array. Do not use the label as the 'nodeId'.
+- If the user refers to 'this node' or 'the agent' and there is only one node of that type on the canvas, apply the action to that node.
 
 EXAMPLE:
 User command: "Rename the 'Initial Agent' to 'Research Agent'"
@@ -133,8 +134,17 @@ def apply_actions(nodes: List[Dict], edges: List[Dict], actions: List[Dict]) -> 
                 edge_map = {edge['id']: edge for edge in edges}
         elif action_type == "UPDATE_NODE":
             node_id = action.get("nodeId")
-            if node_id in node_map:
-                node_map[node_id]['data'].update(action["payload"])
+            payload = action.get("payload")
+            
+            # Fallback: if AI used a label instead of an ID, find the correct ID.
+            if node_id not in node_map:
+                for n_id, n_data in node_map.items():
+                    if n_data.get('data', {}).get('label') == node_id:
+                        node_id = n_id
+                        break
+
+            if node_id in node_map and payload:
+                node_map[node_id]['data'].update(payload)
         elif action_type == "CREATE_EDGE":
             new_edge = action["payload"]
             # Ensure edge has a unique ID
