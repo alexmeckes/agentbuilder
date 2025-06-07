@@ -1379,6 +1379,7 @@ function WorkflowEditorInner({
         setShowConfirmation(true);
         console.log('[STATUS]: Waiting for user confirmation.');
       } else {
+        // Immediately apply the plan if it's not destructive
         applyAIPlan(actions);
       }
     } catch (error) {
