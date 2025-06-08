@@ -75,24 +75,67 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData }
                 
                 {!condition.is_default && (
                   <div className="grid grid-cols-3 gap-2">
-                    <input type="text" placeholder="JSONPath (e.g., $.intent)" className="text-sm p-1 border rounded"/>
-                    <select className="text-sm p-1 border rounded">
+                    <input 
+                      type="text" 
+                      placeholder="JSONPath (e.g., $.intent)" 
+                      value={condition.rule?.jsonpath || ''}
+                      onChange={(e) => {
+                        const newConditions = [...conditions];
+                        newConditions[index].rule = { 
+                          jsonpath: e.target.value, 
+                          operator: newConditions[index].rule?.operator || 'equals',
+                          value: newConditions[index].rule?.value || '',
+                        };
+                        setConditions(newConditions);
+                      }}
+                      className="text-sm p-1 border rounded"/>
+                    <select 
+                      value={condition.rule?.operator || 'equals'}
+                      onChange={(e) => {
+                        const newConditions = [...conditions];
+                        newConditions[index].rule = { 
+                          jsonpath: newConditions[index].rule?.jsonpath || '',
+                          operator: e.target.value,
+                          value: newConditions[index].rule?.value || '',
+                        };
+                        setConditions(newConditions);
+                      }}
+                      className="text-sm p-1 border rounded">
                       <option value="equals">equals</option>
                       <option value="contains">contains</option>
+                      {/* Add other operators as needed */}
                     </select>
-                    <input type="text" placeholder="Value (e.g., 'faq')" className="text-sm p-1 border rounded"/>
+                    <input 
+                      type="text" 
+                      placeholder="Value (e.g., 'faq')" 
+                      value={condition.rule?.value || ''}
+                      onChange={(e) => {
+                        const newConditions = [...conditions];
+                        newConditions[index].rule = { 
+                          jsonpath: newConditions[index].rule?.jsonpath || '',
+                          operator: newConditions[index].rule?.operator || 'equals',
+                          value: e.target.value 
+                        };
+                        setConditions(newConditions);
+                      }}
+                      className="text-sm p-1 border rounded"/>
                   </div>
                 )}
               </div>
               {!condition.is_default && (
-                <button className="text-red-500 hover:text-red-700">
+                <button 
+                  onClick={() => {
+                    const newConditions = conditions.filter((_, i) => i !== index);
+                    setConditions(newConditions);
+                  }}
+                  className="text-red-500 hover:text-red-700">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
             </div>
           ))}
           <button 
-            onClick={() => setConditions([...conditions, { id: `cond_${Date.now()}`, name: 'New Path' }])}
+            onClick={() => setConditions([...conditions, { id: `cond_${Date.now()}`, name: 'New Path', rule: { jsonpath: '', operator: 'equals', value:''} }])}
             className="w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-800 mt-2">
             <Plus className="w-4 h-4" />
             Add Path
