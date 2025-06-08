@@ -859,9 +859,9 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
         }
 
 
-async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], input_data: str, framework: str, translator: VisualToAnyAgentTranslator) -> Dict[str, Any]:
+async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], input_data: str, framework: str, translator: VisualToAnyAgentTranslator, execution_id: str, websocket: Any) -> Dict[str, Any]:
     """
-    Executes a workflow step-by-step, handling conditional logic.
+    Executes a workflow step-by-step, handling conditional logic and sending progress.
     """
     node_map = {node['id']: node for node in nodes}
     current_input = input_data
@@ -931,8 +931,16 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
                     if edge:
                         next_node_id = edge['target']
             
+            # NEW: Send path_taken message over WebSocket
+            if next_node_id:
+                await websocket.send_json({
+                    "type": "path_taken",
+                    "execution_id": execution_id,
+                    "edge_id": edge['id']
+                })
+
             current_node_id = next_node_id
-            continue # Skip the standard linear path finding at the end
+            continue
 
         # Find the next node for non-conditional nodes
         next_edge = next((edge for edge in edges if edge['source'] == current_node_id), None)
@@ -944,18 +952,21 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
     return {"final_output": current_input}
 
 
-async def execute_visual_workflow_with_anyagent(nodes: List[Dict], 
-                                               edges: List[Dict],
-                                               input_data: str,
-                                               framework: str = "openai") -> Dict[str, Any]:
+async def execute_visual_workflow_with_anyagent(nodes: List[Dict], edges: List[Dict], input_data: str, framework: str = "openai", execution_id: str = None, websocket: Any = None) -> Dict[str, Any]:
     """
     Execute a visual workflow using any-agent's native multi-agent orchestration
     """
-    
     translator = VisualToAnyAgentTranslator()
     
-    # We will now use the new step-by-step executor
-    return await _execute_graph_step_by_step(nodes, edges, input_data, framework, translator)
+    if execution_id and websocket:
+        return await _execute_graph_step_by_step(nodes, edges, input_data, framework, translator, execution_id, websocket)
+    else:
+        # Fallback to old execution model if no execution context is provided
+        # This part needs to be refactored or removed if we fully commit to the new model
+        main_agent_config, _ = translator.translate_workflow(nodes, edges, framework)
+        agent = AnyAgent.create(agent_framework=AgentFramework.from_string(framework.upper()), agent_config=main_agent_config)
+        result = agent.run(input_data)
+        return {"final_output": result.final_output}
 
 
 def _generate_workflow_suggestions(user_request: str) -> str:

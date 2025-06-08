@@ -6,8 +6,9 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
+  getStraightPath,
 } from 'reactflow'
-import { X } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
 
 interface DeletableEdgeProps extends EdgeProps {
   onEdgeDelete?: (edgeId: string) => void
@@ -43,6 +44,9 @@ export default function DeletableEdge({
     targetPosition,
   })
 
+  // Apply active styles if the edge is part of the executed path
+  const activeStyle = data.isActive ? { stroke: '#2563EB', strokeWidth: 3 } : {}
+
   const onEdgeClick = (event: React.MouseEvent) => {
     event.stopPropagation()
     event.preventDefault()
@@ -62,6 +66,7 @@ export default function DeletableEdge({
         markerEnd={markerEnd} 
         style={{
           ...style,
+          ...activeStyle,
           strokeWidth: selected ? 4 : 2,
           stroke: selected ? '#ef4444' : style?.stroke || '#b1b1b7',
           strokeDasharray: selected ? '5,5' : 'none',

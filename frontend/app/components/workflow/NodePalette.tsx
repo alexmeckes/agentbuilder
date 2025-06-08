@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, DragEvent } from 'react'
-import { Search, ChevronDown, ChevronRight, Plus, Zap } from 'lucide-react'
+import { Search, ChevronDown, ChevronRight, Plus, Zap, Bot, Wrench, FileInput, FileOutput, Brain, Github, MessageSquare, Book, FileCode, Database, Link2, GitBranch } from 'lucide-react'
 import { NODE_CATEGORIES, NodeTemplate, getNodeTemplate, NodeCategory } from '../../types/NodeTypes'
 
 interface NodePaletteProps {
@@ -129,6 +129,96 @@ const composioToolsMapping: Record<string, any> = {
     tool_type: 'composio_jira_create_issue'
   }
 }
+
+// Define categories for better organization
+const categories = {
+  CORE: 'Core Components',
+  TOOLS: 'Standard Tools',
+  COMPOSIO: 'Composio Tools',
+  CONTROL_FLOW: 'Control Flow',
+  BETA: 'Beta Features',
+}
+
+// Define node templates with all necessary information
+const nodeTemplates = [
+  {
+    category: categories.CORE,
+    name: 'AI Agent',
+    description: 'An autonomous agent that can reason and act.',
+    icon: Bot,
+    defaultData: {
+      type: 'agent',
+      name: 'AI_Agent',
+      label: 'AI Agent',
+      description: 'An AI agent that processes data and generates responses.',
+      model_id: 'gpt-4o-mini',
+      instructions: 'You are a helpful AI assistant.',
+    },
+  },
+  {
+    category: categories.CORE,
+    name: 'Input Node',
+    description: 'The starting point for your workflow data.',
+    icon: FileInput,
+    defaultData: {
+      type: 'input',
+      name: 'Input',
+      label: 'Input Node',
+      description: 'Receives and validates input data for the workflow.',
+    },
+  },
+  {
+    category: categories.CORE,
+    name: 'Output Node',
+    description: 'The final destination for your workflow results.',
+    icon: FileOutput,
+    defaultData: {
+      type: 'output',
+      name: 'Output',
+      label: 'Output Node',
+      description: 'Formats and presents the final workflow results.',
+    },
+  },
+  {
+    category: categories.CONTROL_FLOW,
+    name: 'Conditional Router',
+    description: 'Directs the workflow based on conditions.',
+    icon: GitBranch,
+    defaultData: {
+      type: 'conditional',
+      name: 'Router',
+      label: 'Conditional Router',
+      description: 'Routes the workflow to different branches based on rules.',
+      conditions: [
+        { id: 'default', name: 'Default', is_default: true },
+      ],
+    },
+  },
+  {
+    category: categories.TOOLS,
+    name: 'Web Search',
+    description: 'Searches the web for up-to-date information.',
+    icon: Book,
+    defaultData: {
+      type: 'websearch',
+      name: 'Web Search',
+      label: 'Web Search',
+      description: 'Searches the web for up-to-date information.',
+    },
+  },
+  {
+    category: categories.BETA,
+    name: 'Webhook',
+    description: 'Trigger this workflow from an external URL.',
+    icon: Link2,
+    defaultData: {
+      type: 'webhook',
+      name: 'Webhook',
+      label: 'Webhook Trigger',
+      description: 'Starts the workflow when a POST request is received.',
+    },
+  },
+]
 
 export default function NodePalette({ className = '' }: NodePaletteProps) {
   const [searchTerm, setSearchTerm] = useState('')

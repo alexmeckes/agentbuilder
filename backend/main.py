@@ -131,6 +131,57 @@ class WorkflowExecutor:
         # New: Track pending user inputs for interactive workflows
         self.pending_inputs: Dict[str, Dict[str, Any]] = {}  # execution_id -> input_request_data
         self.websocket_connections: Dict[str, WebSocket] = {}  # execution_id -> websocket
+        # New: Store for webhook triggers
+        self.webhook_workflows: Dict[str, Dict[str, Any]] = {}
+
+    async def register_webhook(self, workflow: WorkflowDefinition) -> Dict[str, str]:
+        """Register a workflow to be triggered by a webhook."""
+        import uuid
+        webhook_id = str(uuid.uuid4())
+        
+        # Store the workflow definition tied to this webhook ID
+        self.webhook_workflows[webhook_id] = {
+            "workflow": workflow.dict(),
+            "created_at": time.time()
+        }
+        
+        print(f"✅ Registered webhook {webhook_id} for workflow.")
+        
+        # This should be dynamically generated based on your deployment URL
+        base_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        webhook_url = f"{base_url}/webhooks/trigger/{webhook_id}"
+        
+        return {"webhook_id": webhook_id, "url": webhook_url}
+
+    async def trigger_webhook(self, webhook_id: str, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Trigger a workflow via a webhook and return the result."""
+        if webhook_id not in self.webhook_workflows:
+            raise HTTPException(status_code=404, detail="Webhook not found")
+        
+        webhook_registration = self.webhook_workflows[webhook_id]
+        
+        # Create an execution request from the stored workflow
+        execution_request = ExecutionRequest(
+            workflow=WorkflowDefinition(**webhook_registration["workflow"]),
+            input_data=str(input_data),  # Convert incoming JSON to string for the agent
+        )
+        
+        # Execute the workflow
+        # Note: This executes the full async-progress workflow. For a webhook,
+        # we might want a synchronous version, but we'll use this for now.
+        response = await self.execute_workflow(execution_request)
+        execution_id = response.execution_id
+        
+        # Wait for the execution to complete
+        while self.executions[execution_id]["status"] in ["running", "waiting_for_input"]:
+            await asyncio.sleep(0.5)
+            
+        final_state = self.executions[execution_id]
+        
+        if final_state["status"] == "failed":
+            return {"success": False, "error": final_state.get("error", "Unknown error")}
+            
+        return {"success": True, "result": final_state.get("result")}
 
     async def execute_workflow(self, request: ExecutionRequest) -> ExecutionResponse:
         """Execute a workflow definition using any-agent's native multi-agent capabilities with async progress tracking"""
@@ -307,11 +358,14 @@ class WorkflowExecutor:
             # Execute the actual workflow
             self._update_execution_progress(execution_id, 25, "Running AI agents...")
             
+            websocket = self.websocket_connections.get(execution_id)
             workflow_result = await execute_visual_workflow_with_anyagent(
                 nodes=nodes,
                 edges=edges,
                 input_data=input_data,
-                framework=framework
+                framework=framework,
+                execution_id=execution_id,
+                websocket=websocket
             )
             
             # Update progress through remaining nodes
@@ -4672,6 +4726,16 @@ async def refine_workflow(request: dict):
     # The frontend is responsible for applying the actions.
     actions = generate_workflow_actions(command, nodes, edges)
     return {"actions": actions}
+
+@app.post("/webhooks/register")
+async def register_webhook_endpoint(workflow: WorkflowDefinition):
+    """Register a workflow to create a unique webhook URL."""
+    return await executor.register_webhook(workflow)
+
+@app.post("/webhooks/trigger/{webhook_id}")
+async def trigger_webhook_endpoint(webhook_id: str, request_body: Dict[str, Any]):
+    """Endpoint for external services to trigger a workflow."""
+    return await executor.trigger_webhook(webhook_id, request_body)
 
 if __name__ == "__main__":
     # Production MCP setup

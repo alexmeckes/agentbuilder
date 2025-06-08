@@ -25,6 +25,7 @@ function mapBackendStatusToFrontend(backendStatus: string): NodeExecutionStatus 
 interface ExecutionContextType {
   executionState: WorkflowExecutionState | null
   isExecuting: boolean
+  activeEdgeIds: Set<string>
   startExecution: (executionId: string, nodeIds: string[]) => void
   stopExecution: () => void
   resetExecution: () => void
@@ -60,6 +61,7 @@ export function ExecutionProvider({
 }: ExecutionProviderProps) {
   const [executionState, setExecutionState] = useState<WorkflowExecutionState | null>(null)
   const [isExecuting, setIsExecuting] = useState(false)
+  const [activeEdgeIds, setActiveEdgeIds] = useState<Set<string>>(new Set())
   const websocketRef = useRef<WebSocket | { close: () => void } | null>(null)
 
   // Initialize execution state for a new workflow
@@ -82,6 +84,7 @@ export function ExecutionProvider({
       progress: 0,
       pendingInput: false
     })
+    setActiveEdgeIds(new Set())
   }, [])
 
   // Update node execution status
@@ -165,6 +168,13 @@ export function ExecutionProvider({
             currentActivity: `Waiting for user input: ${data.input_request.question}`
           } : prev)
           return
+        }
+        
+        // NEW: Handle path_taken message
+        if (data.type === 'path_taken') {
+          console.log('🛤️ Path taken message received:', data.edge_id);
+          setActiveEdgeIds(prev => new Set(prev).add(data.edge_id));
+          return;
         }
         
         // Handle input received confirmation
@@ -327,6 +337,7 @@ export function ExecutionProvider({
   const resetExecution = useCallback(() => {
     stopExecution()
     setExecutionState(null)
+    setActiveEdgeIds(new Set())
   }, [stopExecution])
 
   // Cleanup on unmount
@@ -341,6 +352,7 @@ export function ExecutionProvider({
   const value: ExecutionContextType = {
     executionState,
     isExecuting,
+    activeEdgeIds,
     startExecution,
     stopExecution,
     resetExecution,

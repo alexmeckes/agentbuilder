@@ -14,6 +14,7 @@ import ReactFlow, {
 import type { Node, Edge, Connection, ReactFlowInstance } from 'reactflow'
 import 'reactflow/dist/style.css'
 import AgentNode from './workflow/AgentNode'
+import { WebhookNode } from './workflow/WebhookNode'
 import DeletableEdge from './workflow/DeletableEdge'
 import Sidebar from './workflow/Sidebar'
 import NodePalette from './workflow/NodePalette'
@@ -23,12 +24,15 @@ import { WorkflowManager } from '../services/workflowManager'
 import { ExecutionProvider, useExecutionContext } from '../contexts/ExecutionContext'
 import AICommandBar from './workflow/AICommandBar'
 import ConfirmationModal from './workflow/ConfirmationModal'
+import { ConditionalNode } from './workflow/ConditionalNode'
 
 const nodeTypes = {
   agent: AgentNode,
   tool: AgentNode,
   input: AgentNode,
   output: AgentNode,
+  webhook: WebhookNode,
+  conditional: ConditionalNode,
 }
 
 const edgeTypes = {
@@ -71,7 +75,8 @@ function WorkflowEditorInner({
     executionState, 
     isExecuting: contextIsExecuting, 
     startExecution, 
-    stopExecution: contextStopExecution 
+    stopExecution: contextStopExecution,
+    activeEdgeIds,
   } = useExecutionContext()
   // DRAG SYSTEM ARCHITECTURE:
   // 1. HTML5 Drag & Drop: Sidebar → Canvas (onDrop, onDragOver)
@@ -829,7 +834,8 @@ function WorkflowEditorInner({
     focusable: true,
     data: {
       ...edge.data,
-      onEdgeDelete: handleEdgeDelete
+      onEdgeDelete: handleEdgeDelete,
+      isActive: activeEdgeIds.has(edge.id),
     }
   }))
 
