@@ -74,10 +74,10 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData }
                 />
                 
                 {!condition.is_default && (
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-5 gap-2 items-center">
                     <input 
                       type="text" 
-                      placeholder="JSONPath (e.g., $.intent)" 
+                      placeholder="e.g., $.intent" 
                       value={condition.rule?.jsonpath || ''}
                       onChange={(e) => {
                         const newConditions = [...conditions];
@@ -88,7 +88,7 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData }
                         };
                         setConditions(newConditions);
                       }}
-                      className="text-sm p-1 border rounded"/>
+                      className="text-sm p-1 border rounded col-span-2"/>
                     <select 
                       value={condition.rule?.operator || 'equals'}
                       onChange={(e) => {
@@ -107,7 +107,7 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData }
                     </select>
                     <input 
                       type="text" 
-                      placeholder="Value (e.g., 'faq')" 
+                      placeholder="e.g., 'faq'" 
                       value={condition.rule?.value || ''}
                       onChange={(e) => {
                         const newConditions = [...conditions];
@@ -118,7 +118,7 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData }
                         };
                         setConditions(newConditions);
                       }}
-                      className="text-sm p-1 border rounded"/>
+                      className="text-sm p-1 border rounded col-span-2"/>
                   </div>
                 )}
               </div>

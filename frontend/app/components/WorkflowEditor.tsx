@@ -77,6 +77,7 @@ function WorkflowEditorInner({
     startExecution, 
     stopExecution: contextStopExecution,
     activeEdgeIds,
+    resetExecution,
   } = useExecutionContext()
   // DRAG SYSTEM ARCHITECTURE:
   // 1. HTML5 Drag & Drop: Sidebar → Canvas (onDrop, onDragOver)
@@ -788,6 +789,9 @@ function WorkflowEditorInner({
   }))
 
   const executeWorkflow = async () => {
+    // Reset any previous execution state before starting a new one
+    resetExecution();
+
     console.log('🚀🚀🚀 EXECUTE WORKFLOW BUTTON CLICKED! 🚀🚀🚀')
     console.log('Current nodes:', nodes.length)
     console.log('Current input data:', inputData)
@@ -1752,6 +1756,8 @@ function WorkflowEditorInner({
 export default function WorkflowEditor(props: WorkflowEditorProps) {
   const [receivedWorkflowIdentity, setReceivedWorkflowIdentity] = useState<any>(null)
   
+  const { resetExecution } = useExecutionContext(); // Get resetExecution from context
+
   return (
     <ExecutionProvider
       onExecutionComplete={(result) => {
