@@ -133,9 +133,8 @@ const composioToolsMapping: Record<string, any> = {
 // Define categories for better organization
 const categories = {
   CORE: 'Core Components',
+  CONTROL_FLOW: 'Logic & Control',
   TOOLS: 'Standard Tools',
-  COMPOSIO: 'Composio Tools',
-  CONTROL_FLOW: 'Control Flow',
   BETA: 'Beta Features',
 }
 
@@ -189,21 +188,7 @@ const nodeTemplates = [
       name: 'Router',
       label: 'Conditional Router',
       description: 'Routes the workflow to different branches based on rules.',
-      conditions: [
-        { id: 'default', name: 'Default', is_default: true },
-      ],
-    },
-  },
-  {
-    category: categories.TOOLS,
-    name: 'Web Search',
-    description: 'Searches the web for up-to-date information.',
-    icon: Book,
-    defaultData: {
-      type: 'websearch',
-      name: 'Web Search',
-      label: 'Web Search',
-      description: 'Searches the web for up-to-date information.',
+      conditions: [{ id: 'default', name: 'Default', is_default: true }],
     },
   },
   {
@@ -218,11 +203,28 @@ const nodeTemplates = [
       description: 'Starts the workflow when a POST request is received.',
     },
   },
+  {
+    category: categories.TOOLS,
+    name: 'Web Search',
+    description: 'Searches the web for up-to-date information.',
+    icon: Book,
+    defaultData: {
+      type: 'web_search',
+      name: 'Web_Search',
+      label: 'Web Search',
+      description: 'Searches the web for up-to-date information.',
+    },
+  },
 ]
 
 export default function NodePalette({ className = '' }: NodePaletteProps) {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['ai-agents']))
+  const [searchQuery, setSearchQuery] = useState('')
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    [categories.CORE]: true,
+    [categories.CONTROL_FLOW]: true,
+    [categories.TOOLS]: true,
+    [categories.BETA]: true,
+  })
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
   const [dynamicCategories, setDynamicCategories] = useState<NodeCategory[]>(NODE_CATEGORIES)
@@ -311,259 +313,87 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
 
     // Auto-expand first Composio category if it exists
     if (composioCategories.length > 0) {
-      setExpandedCategories(prev => new Set([...prev, composioCategories[0].id]))
+      setExpandedCategories(prev => ({ ...prev, [composioCategories[0].id]: true }))
     }
   }
 
-  // Filter categories based on search term
-  const filteredCategories = dynamicCategories.map(category => ({
-    ...category,
-    nodes: category.nodes.filter(node =>
-      node.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      node.description.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  })).filter(category => category.nodes.length > 0)
-
-  const toggleCategory = (categoryId: string) => {
-    const newExpanded = new Set(expandedCategories)
-    if (newExpanded.has(categoryId)) {
-      newExpanded.delete(categoryId)
-    } else {
-      newExpanded.add(categoryId)
-    }
-    setExpandedCategories(newExpanded)
-  }
-
-  const onDragStart = (event: DragEvent<HTMLDivElement>, template: NodeTemplate) => {
-    // For Composio tools, we need to pass a structured object
-    if (template.defaultData?.isComposio) {
-      const toolData = {
-        isComposio: true,
-        toolType: template.defaultData.tool_type,
-        label: template.name,
-        description: template.description
-      };
-      event.dataTransfer.setData('application/reactflow', JSON.stringify(toolData));
-    } else {
-      // For other nodes, pass the template ID as before
-      event.dataTransfer.setData('application/reactflow', template.id);
-    }
-    
-    event.dataTransfer.effectAllowed = 'move'
+  const onDragStart = (event: DragEvent<HTMLDivElement>, template: any) => {
+    event.dataTransfer.setData('application/reactflow', 'agent') // All are agent type visually
     event.dataTransfer.setData('application/template', JSON.stringify(template))
+    event.dataTransfer.effectAllowed = 'move'
   }
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }))
+  }
+
+  const filteredTemplates = nodeTemplates.filter(template =>
+    template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    template.description.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const groupedTemplates = filteredTemplates.reduce((acc, template) => {
+    if (!acc[template.category]) {
+      acc[template.category] = []
+    }
+    acc[template.category].push(template)
+    return acc
+  }, {} as Record<string, typeof nodeTemplates>)
 
   return (
-    <div className={`w-80 h-full bg-white border-r border-slate-200 flex flex-col ${className}`}>
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
+    <div className={`h-full bg-white border-r border-gray-200 transition-all duration-300 ease-in-out w-72 flex flex-col ${className}`}>
+      <div className="p-4 border-b border-gray-100">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center">
-            <Plus className="w-4 h-4 text-blue-600" />
-          </div>
-          <h2 className="text-lg font-semibold text-slate-900">Node Palette</h2>
+            <Plus className="w-5 h-5 text-gray-700" />
+            <h2 className="text-lg font-semibold text-gray-900">Node Palette</h2>
         </div>
-        
-        {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
             placeholder="Search nodes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
 
-      {/* Categories */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-2">
-          {filteredCategories.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">
-              <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No nodes found</p>
-              <p className="text-xs">Try a different search term</p>
-            </div>
-          ) : (
-            filteredCategories.map((category) => (
-              <div key={category.id} className="mb-2">
-                {/* Category Header */}
-                <button
-                  onClick={() => toggleCategory(category.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-left rounded-lg hover:bg-slate-50 transition-colors ${
-                    category.id.startsWith('composio-') ? 'bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200' : ''
-                  }`}
-                >
-                  {expandedCategories.has(category.id) ? (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                  )}
-                  <span className="text-lg">{category.icon}</span>
-                  <div className="flex-1">
-                    <h3 className={`text-sm font-medium ${
-                      category.id.startsWith('composio-') ? 'text-purple-900' : 'text-slate-900'
-                    }`}>
-                      {category.name}
-                    </h3>
-                    <p className={`text-xs ${
-                      category.id.startsWith('composio-') ? 'text-purple-600' : 'text-slate-600'
-                    }`}>
-                      {category.description}
-                    </p>
-                  </div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    category.id.startsWith('composio-') 
-                      ? 'text-purple-600 bg-purple-100' 
-                      : 'text-slate-400 bg-slate-100'
-                  }`}>
-                    {category.nodes.length}
-                  </span>
-                </button>
-
-                {/* Category Nodes */}
-                {expandedCategories.has(category.id) && (
-                  <div className="ml-6 mt-1 space-y-1">
-                    {category.nodes.map((node) => (
-                      <div
-                        key={node.id}
-                        className="group relative"
-                        onMouseEnter={() => setHoveredNode(node.id)}
-                        onMouseLeave={() => setHoveredNode(null)}
-                      >
-                        <div
-                          className={`p-3 border border-slate-200 rounded-lg cursor-move hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200 bg-white ${
-                            node.defaultData?.isComposio ? 'border-purple-200 bg-gradient-to-r from-purple-50/50 to-blue-50/50' : ''
-                          }`}
-                          draggable
-                          onDragStart={(e) => onDragStart(e, node)}
-                        >
-                          <div className="flex items-start gap-3">
-                            <span className="text-lg flex-shrink-0">{node.icon}</span>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium text-slate-900 truncate">
-                                {node.name}
-                              </h4>
-                              <p className="text-xs text-slate-600 mt-1 line-clamp-2">
-                                {node.description}
-                              </p>
-                              
-                              {/* Node Type Badge */}
-                              <div className="flex items-center gap-2 mt-2">
-                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                  node.type === 'agent' ? 'bg-blue-100 text-blue-700' :
-                                  node.type === 'tool' ? 'bg-green-100 text-green-700' :
-                                  node.type === 'input' ? 'bg-purple-100 text-purple-700' :
-                                  node.type === 'output' ? 'bg-orange-100 text-orange-700' :
-                                  'bg-slate-100 text-slate-700'
-                                }`}>
-                                  {node.type}
-                                </span>
-                                
-                                {/* Composio indicator */}
-                                {node.defaultData?.isComposio && (
-                                  <div className="flex items-center gap-1">
-                                    <Zap className="w-3 h-3 text-purple-500" />
-                                    <span className="text-xs text-purple-600 font-medium">
-                                      Composio
-                                    </span>
-                                  </div>
-                                )}
-                                
-                                {/* Configurable indicator */}
-                                {node.configurable.length > 0 && (
-                                  <span className="text-xs text-slate-500">
-                                    {node.configurable.length} configurable
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+      <div className="flex-1 overflow-y-auto p-4">
+        {Object.entries(groupedTemplates).map(([category, templates]) => (
+          <div key={category} className="mb-4">
+            <button
+              onClick={() => toggleCategory(category)}
+              className="w-full flex items-center justify-between text-left py-2 px-2 rounded-md hover:bg-gray-100"
+            >
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">{category}</h3>
+              {expandedCategories[category] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+            {expandedCategories[category] && (
+              <div className="mt-2 space-y-2">
+                {templates.map(template => {
+                  const Icon = template.icon
+                  return (
+                    <div
+                      key={template.name}
+                      className="p-3 border border-gray-200 rounded-md cursor-move hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                      draggable
+                      onDragStart={(e) => onDragStart(e, template)}
+                    >
+                      <div className="flex items-center gap-3 mb-1">
+                        <Icon className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                        <div>
+                          <div className="font-medium text-gray-900">{template.name}</div>
+                          <div className="text-sm text-gray-500">{template.description}</div>
                         </div>
-
-                        {/* Hover Tooltip */}
-                        {hoveredNode === node.id && (
-                          <div className="absolute left-full top-0 ml-2 z-50 w-64 p-3 bg-white border border-slate-200 rounded-lg shadow-lg">
-                            <h4 className="font-medium text-slate-900 mb-2">{node.name}</h4>
-                            <p className="text-sm text-slate-600 mb-3">{node.description}</p>
-                            
-                            {/* Composio Badge in Tooltip */}
-                            {node.defaultData?.isComposio && (
-                              <div className="flex items-center gap-1 mb-3 px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs">
-                                <Zap className="w-3 h-3" />
-                                <span>Powered by Composio</span>
-                              </div>
-                            )}
-                            
-                            {/* Default Configuration Preview */}
-                            <div className="space-y-2">
-                              <h5 className="text-xs font-medium text-slate-700 uppercase tracking-wide">
-                                Default Configuration:
-                              </h5>
-                              <div className="space-y-1">
-                                {node.type === 'agent' && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-600">Model:</span>
-                                    <span className="text-slate-900 font-mono">
-                                      {node.defaultData.model_id}
-                                    </span>
-                                  </div>
-                                )}
-                                <div className="flex justify-between text-xs">
-                                  <span className="text-slate-600">Name:</span>
-                                  <span className="text-slate-900 font-mono">
-                                    {node.defaultData.name}
-                                  </span>
-                                </div>
-                                {node.defaultData?.tool_type && (
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-slate-600">Tool Type:</span>
-                                    <span className="text-slate-900 font-mono">
-                                      {node.defaultData.tool_type}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                              
-                              {/* Configurable Fields */}
-                              {node.configurable.length > 0 && (
-                                <div className="mt-2 pt-2 border-t border-slate-100">
-                                  <h5 className="text-xs font-medium text-slate-700 mb-1">
-                                    Configurable Fields:
-                                  </h5>
-                                  <div className="flex flex-wrap gap-1">
-                                    {node.configurable.map((field) => (
-                                      <span 
-                                        key={field}
-                                        className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded"
-                                      >
-                                        {field}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  )
+                })}
               </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">
-        <div className="text-xs text-slate-600 text-center">
-          <p>💡 <strong>Tip:</strong> Drag nodes to the canvas to add them</p>
-          <p className="mt-1">Double-click nodes after adding to configure</p>
-        </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )
