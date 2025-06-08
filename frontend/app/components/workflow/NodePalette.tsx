@@ -3,6 +3,7 @@
 import { useState, useEffect, DragEvent } from 'react'
 import { Search, ChevronDown, ChevronRight, Plus, Zap, Bot, Wrench, FileInput, FileOutput, Brain, Github, MessageSquare, Book, FileCode, Database, Link2, GitBranch } from 'lucide-react'
 import { NODE_CATEGORIES, NodeTemplate, getNodeTemplate, NodeCategory } from '../../types/NodeTypes'
+import { useMCPTools, MCPTool } from '../../hooks/useMCPTools'
 
 interface NodePaletteProps {
   className?: string
@@ -228,6 +229,8 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
   const [dynamicCategories, setDynamicCategories] = useState<NodeCategory[]>(NODE_CATEGORIES)
+  const { tools: mcpTools } = useMCPTools()
+  const [composioCategories, setComposioCategories] = useState<any[]>([])
 
   // Load user settings and create dynamic Composio categories
   useEffect(() => {
@@ -255,6 +258,35 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
       window.removeEventListener('userSettingsUpdated', handleSettingsUpdate)
     }
   }, [])
+
+  useEffect(() => {
+    if (mcpTools.length > 0) {
+      const grouped = mcpTools.reduce((acc, tool) => {
+        const categoryName = `Composio ${tool.category}`;
+        if (!acc[categoryName]) {
+          acc[categoryName] = {
+            id: `composio-${tool.category}`,
+            name: categoryName,
+            nodes: []
+          };
+        }
+        acc[categoryName].nodes.push({
+          id: tool.id,
+          name: tool.name,
+          description: tool.description,
+          icon: '⚡️', // Placeholder icon
+          type: 'tool',
+          defaultData: {
+            isComposio: true,
+            tool_type: tool.id,
+            label: tool.name,
+          }
+        });
+        return acc;
+      }, {} as any);
+      setComposioCategories(Object.values(grouped));
+    }
+  }, [mcpTools]);
 
   const loadUserSettings = () => {
     try {
@@ -318,9 +350,21 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
   }
 
   const onDragStart = (event: DragEvent<HTMLDivElement>, template: any) => {
-    event.dataTransfer.setData('application/reactflow', 'agent') // All are agent type visually
-    event.dataTransfer.setData('application/template', JSON.stringify(template))
-    event.dataTransfer.effectAllowed = 'move'
+    // Handle dynamic Composio tools
+    if (template.defaultData?.isComposio) {
+      const toolData = {
+        isComposio: true,
+        toolType: template.defaultData.tool_type,
+        label: template.name,
+        description: template.description,
+      };
+      event.dataTransfer.setData('application/reactflow', JSON.stringify(toolData));
+    } else {
+      // Handle static templates
+      event.dataTransfer.setData('application/reactflow', 'agent'); // All are agent type visually
+      event.dataTransfer.setData('application/template', JSON.stringify(template));
+    }
+    event.dataTransfer.effectAllowed = 'move';
   }
 
   const toggleCategory = (category: string) => {
@@ -390,6 +434,37 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+        ))}
+        {composioCategories.map(category => (
+          <div key={category.id} className="mb-4">
+            <button
+              onClick={() => toggleCategory(category.id)}
+              className="w-full flex items-center justify-between text-left py-2 px-2 rounded-md hover:bg-gray-100"
+            >
+              <h3 className="text-sm font-semibold text-purple-700 uppercase tracking-wider">{category.name}</h3>
+              {expandedCategories[category.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+            {expandedCategories[category.id] && (
+              <div className="mt-2 space-y-2">
+                {category.nodes.map((node: any) => (
+                  <div
+                    key={node.id}
+                    className="p-3 border border-purple-200 rounded-md cursor-move hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                    draggable
+                    onDragStart={(e) => onDragStart(e, node)}
+                  >
+                    <div className="flex items-center gap-3 mb-1">
+                      <Zap className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                      <div>
+                        <div className="font-medium text-gray-900">{node.name}</div>
+                        <div className="text-sm text-gray-500">{node.description}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
