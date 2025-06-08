@@ -347,98 +347,47 @@ function WorkflowEditorInner({
 
   // Handle node data updates from the node components
   const handleNodeUpdate = useCallback((nodeId: string, updatedData: any) => {
-    console.log(`🔧 WorkflowEditor handleNodeUpdate called for node: ${nodeId}`)
-    console.log(`📊 Updated data received:`, updatedData)
-    
-    const updateNodes = (currentNodes: Node[]) => {
-      const nodeExists = currentNodes.find(node => node.id === nodeId)
-      if (!nodeExists) {
-        // Silently ignore updates to deleted nodes to prevent React errors
-        console.log(`ℹ️ Node ${nodeId} no longer exists (likely deleted), skipping update`)
-        return currentNodes // Return unchanged if node doesn't exist
-      }
-      
-      console.log(`📊 Current node data before update:`, nodeExists.data)
-      
-      const updatedNodes = currentNodes.map(node => {
-        if (node.id === nodeId) {
-          // Create a new node object to ensure re-render
-          return { ...node, data: { ...node.data, ...updatedData } };
-        }
-        return node;
-      });
-      
-      // Log the updated node to verify the merge
-      const updatedNode = updatedNodes.find(n => n.id === nodeId)
-      console.log(`📊 Node data after update:`, updatedNode?.data)
-      console.log(`✅ Node ${nodeId} updated successfully`)
-      
-      return updatedNodes
-    }
+    console.log(`🔧 WorkflowEditor handleNodeUpdate for node: ${nodeId} with data:`, updatedData);
 
-    try {
-      if (externalOnNodesChange) {
-        // Try to update external nodes first
-        if (externalNodes && externalNodes.find(node => node.id === nodeId)) {
-          console.log(`✅ Found node ${nodeId} in externalNodes, updating...`)
-          const updatedNodes = updateNodes(externalNodes)
-          if (updatedNodes !== externalNodes) {
-            externalOnNodesChange(updatedNodes)
-            if (onWorkflowChange) {
-              onWorkflowChange(updatedNodes, edges)
-            }
-          }
-        } else if (baseNodes.find(node => node.id === nodeId)) {
-          console.log(`✅ Found node ${nodeId} in baseNodes, updating...`)
-          const updatedNodes = updateNodes(baseNodes)
-          if (updatedNodes !== baseNodes) {
-            externalOnNodesChange(updatedNodes)
-            if (onWorkflowChange) {
-              onWorkflowChange(updatedNodes, edges)
-            }
-          }
-        } else {
-          console.error(`❌ Node ${nodeId} not found in any node array!`)
-          console.log(`📊 externalNodes:`, externalNodes?.map(n => n.id))
-          console.log(`📊 baseNodes:`, baseNodes.map(n => n.id))
-          console.log(`📊 Looking for nodeId: ${nodeId}`)
-          
-          // Last resort: try to force update by using the current React Flow nodes
-          const reactFlowNodes = (window as any).reactFlowInstance?.getNodes?.()
-          if (reactFlowNodes) {
-            console.log(`🚨 Attempting fallback update using ReactFlow nodes`)
-            const foundNode = reactFlowNodes.find((n: any) => n.id === nodeId)
-            if (foundNode) {
-              const updatedReactFlowNodes = reactFlowNodes.map((node: any) => 
-                node.id === nodeId 
-                  ? { ...node, data: { ...node.data, ...updatedData } }
-                  : node
-              )
-              externalOnNodesChange(updatedReactFlowNodes)
-              console.log(`✅ Fallback update successful`)
-              return
-            }
-          }
-          
-          console.error(`❌ All update strategies failed for node ${nodeId}`)
-          return
-        }
-      } else {
-        // Update internal state
-        setInternalNodes(currentNodes => {
-          // Double-check node exists in current state
-          if (!currentNodes.find(node => node.id === nodeId)) {
-            console.log(`ℹ️ Node ${nodeId} not found in internal nodes, skipping update`)
-            return currentNodes
-          }
-          return updateNodes(currentNodes)
-        })
+    const updateFunction = (nodes: Node[]) => {
+      // Find the index of the node to update
+      const nodeIndex = nodes.findIndex(node => node.id === nodeId);
+      
+      if (nodeIndex === -1) {
+        console.error(`❌ Node with ID ${nodeId} not found for update.`);
+        return nodes; // Return original nodes if not found
       }
-    } catch (error) {
-      console.error(`❌ Error updating node ${nodeId}:`, error)
-      // Don't throw or cause further errors - just silently fail
+      
+      // Create a new array with the updated node
+      const newNodes = [...nodes];
+      const oldNode = newNodes[nodeIndex];
+      newNodes[nodeIndex] = {
+        ...oldNode,
+        data: {
+          ...oldNode.data,
+          ...updatedData,
+        },
+      };
+
+      console.log(`✅ Node ${nodeId} updated successfully.`);
+      return newNodes;
+    };
+
+    if (externalOnNodesChange && reactFlowInstance) {
+      // Use the definitive state from the React Flow instance
+      const currentNodes = reactFlowInstance.getNodes();
+      const updatedNodes = updateFunction(currentNodes);
+      externalOnNodesChange(updatedNodes);
+      
+      if (onWorkflowChange) {
+        const currentEdges = reactFlowInstance.getEdges();
+        onWorkflowChange(updatedNodes, currentEdges);
+      }
+    } else {
+      // Fallback to internal state update
+      setInternalNodes(updateFunction);
     }
-  }, [baseNodes, edges, externalOnNodesChange, setInternalNodes, onWorkflowChange])
+  }, [reactFlowInstance, externalOnNodesChange, onWorkflowChange, setInternalNodes]);
 
   // EFFECT REFACTORED TO PREVENT INFINITE LOOP
   // This effect ensures that all nodes have the necessary update and delete
