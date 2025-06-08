@@ -803,10 +803,9 @@ function WorkflowEditorInner({
 
       const newNode: Node = {
         id: `${nodeData.name}-${Date.now()}`, // Use node name + timestamp for unique IDs
-        type: 'agent', // All nodes use the same component now
+        type: nodeData.type || 'agent', // Use the type from the template data
         position: adjustedPosition,
         data: nodeData,
-        // Remove draggable: true to let ReactFlow handle dragging
       }
 
       if (externalOnNodesChange) {
