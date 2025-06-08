@@ -859,6 +859,16 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
         }
 
 
+def _ensure_string_input(input_data: Any) -> str:
+    """Ensure the input for an agent is a string."""
+    if isinstance(input_data, str):
+        return input_data
+    try:
+        return json.dumps(input_data)
+    except (TypeError, ValueError):
+        return str(input_data)
+
+
 async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], input_data: str, framework: str, translator: VisualToAnyAgentTranslator, execution_id: str, websocket: Any) -> Dict[str, Any]:
     """
     Executes a workflow step-by-step, handling conditional logic and sending progress.
@@ -883,13 +893,15 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
         node_type = current_node.get('data', {}).get('type') or current_node.get('type')
         print(f"Executing node: {current_node_id} ({node_type})")
 
-        if node_type == 'agent':
+        if node_type == 'input':
+            # Input nodes just pass the data through
+            pass
+        elif node_type == 'agent':
             agent_config, _ = translator.translate_workflow([current_node], [], framework)
             agent = AnyAgent.create(agent_framework=AgentFramework.from_string(framework.upper()), agent_config=agent_config)
-            # The input needs to be a string for the agent.
-            # We'll assume the `current_input` is the string or can be converted.
-            result = agent.run(str(current_input))
-            # The output of an agent might be a complex object, but we'll get its string representation for now.
+            # Ensure agent input is a string
+            string_input = _ensure_string_input(current_input)
+            result = agent.run(string_input)
             current_input = result.final_output
         elif node_type == 'tool':
             tool_name = current_node.get('data', {}).get('tool_type')
