@@ -859,6 +859,91 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
         }
 
 
+async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], input_data: str, framework: str, translator: VisualToAnyAgentTranslator) -> Dict[str, Any]:
+    """
+    Executes a workflow step-by-step, handling conditional logic.
+    """
+    node_map = {node['id']: node for node in nodes}
+    current_input = input_data
+    
+    # Find the start node (a node with no incoming edges)
+    # This is a simplification; a robust implementation should handle multiple start nodes or triggers.
+    all_node_ids = set(node_map.keys())
+    target_node_ids = set(edge['target'] for edge in edges)
+    start_node_ids = all_node_ids - target_node_ids
+    
+    if not start_node_ids:
+        return {"error": "Could not find a start node for the workflow."}
+    
+    # For now, we'll start with one of the start nodes.
+    current_node_id = start_node_ids.pop()
+
+    while current_node_id:
+        current_node = node_map[current_node_id]
+        node_type = current_node.get('data', {}).get('type') or current_node.get('type')
+        print(f"Executing node: {current_node_id} ({node_type})")
+
+        if node_type == 'agent':
+            agent_config, _ = translator.translate_workflow([current_node], [], framework)
+            agent = AnyAgent.create(agent_framework=AgentFramework.from_string(framework.upper()), agent_config=agent_config)
+            # The input needs to be a string for the agent.
+            # We'll assume the `current_input` is the string or can be converted.
+            result = agent.run(str(current_input))
+            # The output of an agent might be a complex object, but we'll get its string representation for now.
+            current_input = result.final_output
+        elif node_type == 'tool':
+            tool_name = current_node.get('data', {}).get('tool_type')
+            if tool_name in translator.available_tools:
+                tool_func = translator.available_tools[tool_name]
+                # The input to a tool could be a string or JSON. We pass it as is.
+                current_input = tool_func(current_input)
+            else:
+                return {"error": f"Tool '{tool_name}' not found."}
+        elif node_type == 'conditional':
+            next_node_id = None
+            # The input for evaluation needs to be a dictionary.
+            # We will try to parse the current_input if it's a stringified JSON.
+            eval_input = {}
+            if isinstance(current_input, str):
+                try:
+                    eval_input = json.loads(current_input)
+                except json.JSONDecodeError:
+                    # If it's not JSON, we can't evaluate rules.
+                    # We could wrap it in a dictionary to allow basic checks.
+                    eval_input = {"result": current_input}
+            elif isinstance(current_input, dict):
+                eval_input = current_input
+
+            conditions = current_node.get('data', {}).get('conditions', [])
+            for condition in conditions:
+                if 'rule' in condition and _evaluate_condition(condition['rule'], eval_input):
+                    # Find the edge corresponding to this condition's handle
+                    edge = next((e for e in edges if e['source'] == current_node_id and e['sourceHandle'] == condition['id']), None)
+                    if edge:
+                        next_node_id = edge['target']
+                        break
+            
+            # Handle default/fallback case
+            if not next_node_id:
+                default_condition = next((c for c in conditions if c.get('is_default')), None)
+                if default_condition:
+                    edge = next((e for e in edges if e['source'] == current_node_id and e['sourceHandle'] == default_condition['id']), None)
+                    if edge:
+                        next_node_id = edge['target']
+            
+            current_node_id = next_node_id
+            continue # Skip the standard linear path finding at the end
+
+        # Find the next node for non-conditional nodes
+        next_edge = next((edge for edge in edges if edge['source'] == current_node_id), None)
+        if next_edge:
+            current_node_id = next_edge['target']
+        else:
+            current_node_id = None
+            
+    return {"final_output": current_input}
+
+
 async def execute_visual_workflow_with_anyagent(nodes: List[Dict], 
                                                edges: List[Dict],
                                                input_data: str,
@@ -869,250 +954,8 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict],
     
     translator = VisualToAnyAgentTranslator()
     
-    try:
-        # Translate visual workflow to any-agent configuration
-        main_agent_config, managed_agents_config = translator.translate_workflow(
-            nodes, edges, framework
-        )
-        
-        # Enhanced execution system with mode switching
-        # Set USE_MOCK_EXECUTION=false for real any-agent execution (experimental)
-        # Set USE_MOCK_EXECUTION=true for intelligent workflow suggestions (stable)
-        import os
-        execution_mode = os.getenv("USE_MOCK_EXECUTION", "false").lower()
-        
-        # Add explicit logging to track execution mode
-        logging.info(f"🚀 Production: Execution mode = {execution_mode} (USE_MOCK_EXECUTION={os.getenv('USE_MOCK_EXECUTION', 'not_set')})")
-        logging.info(f"🔍 Production: Will use {'MOCK/SUGGESTIONS' if execution_mode == 'true' else 'REAL EXECUTION'} mode")
-        
-        if execution_mode == "true":
-            # WORKFLOW SUGGESTION MODE: Provide intelligent workflow building guidance
-            mock_response = _generate_workflow_suggestions(input_data)
-            mock_response += "\n\n---\n**Note**: This is in **Workflow Suggestion Mode**. I'm providing specific node recommendations to help you build your visual workflow. To execute workflows with real AI agents, use the Visual Workflow Designer or set USE_MOCK_EXECUTION=false."
-            
-            return {
-                "final_output": mock_response,
-                "agent_trace": None,
-                "execution_pattern": "suggestions",
-                "main_agent": "workflow_suggestion_agent",
-                "managed_agents": [],
-                "framework_used": framework,
-                "mode": "suggestions"
-            }
-        
-        # REAL EXECUTION MODE: Execute using any-agent (experimental - may have asyncio issues)
-        logging.info("🚀 Production: Starting REAL EXECUTION MODE with process-based execution")
-        try:
-            # SOLUTION 1: Process-based execution to avoid asyncio conflicts
-            import concurrent.futures
-            import asyncio
-            from functools import partial
-            
-            # Convert AgentConfig objects to dictionaries for multiprocessing
-            # IMPORTANT: Include the tools information so subprocess knows what tools to assign
-            main_agent_dict = {
-                "name": main_agent_config.name,
-                "model_id": main_agent_config.model_id,
-                "instructions": main_agent_config.instructions,
-                "description": main_agent_config.description,
-                "tools": [tool.__name__ for tool in main_agent_config.tools] if main_agent_config.tools else []
-            }
-            
-            managed_agents_dict = []
-            if managed_agents_config:
-                for agent in managed_agents_config:
-                    managed_agents_dict.append({
-                        "name": agent.name,
-                        "model_id": agent.model_id,
-                        "instructions": agent.instructions,
-                        "description": agent.description,
-                        "tools": [tool.__name__ for tool in agent.tools] if agent.tools else []
-                    })
-            
-            # Run any-agent in a separate process to avoid asyncio conflicts
-            logging.info(f"🔧 Production: About to execute subprocess with main_agent={main_agent_dict['name']}")
-            loop = asyncio.get_event_loop()
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                future = executor.submit(
-                    _run_any_agent_in_process,
-                    main_agent_dict,
-                    managed_agents_dict,
-                    input_data,
-                    framework
-                )
-                # Wait for the process to complete with timeout
-                logging.info("⏳ Production: Waiting for subprocess to complete...")
-                process_result = await loop.run_in_executor(None, lambda: future.result(timeout=60))
-                logging.info(f"✅ Production: Subprocess completed with success={process_result.get('success')}")
-            
-            if process_result.get("success"):
-                return {
-                    "final_output": process_result["final_output"],
-                    "agent_trace": process_result["agent_trace"],
-                    "execution_pattern": translator._analyze_workflow_pattern(
-                        [VisualWorkflowNode(n["id"], n["type"], n["data"], n["position"]) for n in nodes],
-                        [VisualWorkflowEdge(e["id"], e["source"], e["target"]) for e in edges]
-                    ),
-                    "main_agent": process_result["main_agent"],
-                    "managed_agents": process_result["managed_agents"],
-                    "framework_used": process_result["framework_used"],
-                    "mode": "real_execution"
-                }
-            else:
-                raise Exception(f"Process execution failed: {process_result.get('error', 'Unknown error')}")
-                
-        except Exception as e:
-            # SOLUTION 2: If process execution fails, try thread-based approach
-            logging.warning(f"⚠️ Production: Process execution failed: {e}, trying thread approach")
-            try:
-                import threading
-                import queue
-                
-                result_queue = queue.Queue()
-                
-                def run_in_thread():
-                    try:
-                        # Create a new event loop for this thread
-                        new_loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(new_loop)
-                        
-                        # CRITICAL DEBUG: Log what tools are being used in thread execution
-                        import logging
-                        logging.basicConfig(level=logging.INFO)
-                        logger = logging.getLogger(__name__)
-                        logger.info(f"🧵 THREAD EXECUTION: Agent '{main_agent_config.name}' has {len(main_agent_config.tools) if main_agent_config.tools else 0} tools")
-                        if main_agent_config.tools:
-                            for i, tool in enumerate(main_agent_config.tools):
-                                logger.info(f"🧵 THREAD EXECUTION: Tool {i+1}: {tool.__name__ if hasattr(tool, '__name__') else str(tool)}")
-                        else:
-                            logger.info("🧵 THREAD EXECUTION: NO TOOLS assigned to agent!")
-                        
-                        # CRITICAL FIX: Set up Composio environment for thread execution
-                        # The thread execution needs access to user's Composio API key and context
-                        import os
-                        
-                        # Try to get user context from main process environment or MCP system
-                        composio_api_key = os.getenv('COMPOSIO_API_KEY', '')
-                        user_id = os.getenv('USER_ID', 'default_user')
-                        
-                        # If not available in environment, try to get from MCP config or direct lookup
-                        if not composio_api_key:
-                            try:
-                                # Try to get from MCP server config
-                                if MCP_INTEGRATION_AVAILABLE:
-                                    mcp_manager = get_mcp_manager()
-                                    if mcp_manager:
-                                        # Check if composio-tools server has config with API key
-                                        server_configs = mcp_manager.get_server_status()
-                                        composio_config = server_configs.get('composio-tools', {})
-                                        env_vars = composio_config.get('environment', {})
-                                        composio_api_key = env_vars.get('COMPOSIO_API_KEY', '')
-                                        if composio_api_key:
-                                            user_id = env_vars.get('USER_ID', 'default_user')
-                                            logger.info(f"🧵 THREAD: Loaded Composio config from MCP server")
-                                        else:
-                                            logger.info(f"🧵 THREAD: No API key in MCP server config")
-                                
-                                # Fallback: try localStorage-style approach (browser settings may be stored server-side)
-                                if not composio_api_key:
-                                    # This would be implemented if there's a server-side user settings storage
-                                    logger.info(f"🧵 THREAD: No user settings storage available, will use mock mode")
-                                    
-                            except Exception as e:
-                                logger.warning(f"🧵 THREAD: Could not load user context: {e}")
-                        
-                        # Set environment for this thread
-                        if composio_api_key:
-                            os.environ['COMPOSIO_API_KEY'] = composio_api_key
-                            os.environ['USER_ID'] = user_id
-                            logger.info(f"🧵 THREAD: Set Composio environment - API key available: {bool(composio_api_key)}")
-                        else:
-                            logger.warning(f"🧵 THREAD: No Composio API key available - tools will use mock mode")
-                        
-                        # Convert framework string to AgentFramework enum
-                        framework_enum = AgentFramework.from_string(framework.upper())
-                        
-                        # Create and run the any-agent using the real API
-                        agent = AnyAgent.create(
-                            agent_framework=framework_enum,
-                            agent_config=main_agent_config,
-                            tracing=TracingConfig(
-                                console=True,     # Enable console tracing for debugging
-                                cost_info=True    # Enable cost and token tracking
-                            )
-                        )
-                        
-                        logger.info(f"🧵 THREAD EXECUTION: Starting agent run with input: '{input_data[:50]}...'")
-                        agent_trace = agent.run(input_data)
-                        logger.info(f"🧵 THREAD EXECUTION: Agent completed, output length: {len(str(agent_trace))}")
-                        
-                        result_queue.put({
-                            "success": True,
-                            "final_output": agent_trace.final_output if hasattr(agent_trace, 'final_output') else str(agent_trace),
-                            "agent_trace": agent_trace,
-                            "main_agent": main_agent_config.name,
-                            "managed_agents": [agent.name for agent in managed_agents_config] if managed_agents_config else []
-                        })
-                        
-                    except Exception as thread_e:
-                        result_queue.put({
-                            "success": False,
-                            "error": str(thread_e)
-                        })
-                    finally:
-                        new_loop.close()
-                
-                # Run in thread and wait for result
-                thread = threading.Thread(target=run_in_thread)
-                thread.start()
-                thread.join(timeout=60)  # 60 second timeout
-                
-                if thread.is_alive():
-                    raise Exception("Thread execution timed out")
-                
-                if not result_queue.empty():
-                    thread_result = result_queue.get()
-                    if thread_result.get("success"):
-                        return {
-                            "final_output": thread_result["final_output"],
-                            "agent_trace": thread_result["agent_trace"],
-                            "execution_pattern": translator._analyze_workflow_pattern(
-                                [VisualWorkflowNode(n["id"], n["type"], n["data"], n["position"]) for n in nodes],
-                                [VisualWorkflowEdge(e["id"], e["source"], e["target"]) for e in edges]
-                            ),
-                            "main_agent": thread_result["main_agent"],
-                            "managed_agents": thread_result["managed_agents"],
-                            "framework_used": framework,
-                            "mode": "real_execution_threaded"
-                        }
-                    else:
-                        raise Exception(f"Thread execution failed: {thread_result.get('error', 'Unknown error')}")
-                else:
-                    raise Exception("No result returned from thread")
-                    
-            except Exception as thread_e:
-                # Final fallback to suggestions mode if both process and thread execution fail
-                logging.error(f"❌ Production: Both process and thread execution failed! Process error: {e}, Thread error: {thread_e}")
-                logging.error("🔄 Production: Falling back to suggestions mode")
-                fallback_response = _generate_workflow_suggestions(input_data)
-                fallback_response += f"\n\n---\n**Note**: Real execution failed due to asyncio conflicts ({str(e)}, {str(thread_e)}). Falling back to Workflow Suggestion Mode. This is a known limitation when running any-agent within FastAPI's event loop."
-                
-                return {
-                    "final_output": fallback_response,
-                    "agent_trace": None,
-                    "execution_pattern": "suggestions_fallback",
-                    "main_agent": "workflow_suggestion_agent", 
-                    "managed_agents": [],
-                    "framework_used": framework,
-                    "mode": "suggestions_fallback",
-                    "error": f"Asyncio conflict: {str(e)}"
-                }
-        
-    except Exception as e:
-        return {
-            "error": str(e),
-            "final_output": f"Error executing workflow: {str(e)}"
-        } 
+    # We will now use the new step-by-step executor
+    return await _execute_graph_step_by_step(nodes, edges, input_data, framework, translator)
 
 
 def _generate_workflow_suggestions(user_request: str) -> str:
