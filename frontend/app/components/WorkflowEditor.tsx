@@ -1756,8 +1756,6 @@ function WorkflowEditorInner({
 export default function WorkflowEditor(props: WorkflowEditorProps) {
   const [receivedWorkflowIdentity, setReceivedWorkflowIdentity] = useState<any>(null)
   
-  const { resetExecution } = useExecutionContext(); // Get resetExecution from context
-
   return (
     <ExecutionProvider
       onExecutionComplete={(result) => {
