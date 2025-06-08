@@ -231,6 +231,7 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
   const [dynamicCategories, setDynamicCategories] = useState<NodeCategory[]>(NODE_CATEGORIES)
   const { tools: mcpTools } = useMCPTools()
   const [composioCategories, setComposioCategories] = useState<any[]>([])
+  const [builtInTools, setBuiltInTools] = useState<any[]>([])
 
   // Load user settings and create dynamic Composio categories
   useEffect(() => {
@@ -261,7 +262,11 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
 
   useEffect(() => {
     if (mcpTools.length > 0) {
-      const grouped = mcpTools.reduce((acc, tool) => {
+      const composioTools = mcpTools.filter(tool => tool.source === 'composio');
+      const builtIn = mcpTools.filter(tool => tool.source === 'built-in');
+      setBuiltInTools(builtIn);
+
+      const grouped = composioTools.reduce((acc, tool) => {
         const categoryName = `Composio ${tool.category}`;
         if (!acc[categoryName]) {
           acc[categoryName] = {
@@ -438,6 +443,38 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
             )}
           </div>
         ))}
+        {/* Render built-in tools in their own category */}
+        {builtInTools.length > 0 && (
+            <div className="mb-4">
+                <button
+                onClick={() => toggleCategory('built-in-tools')}
+                className="w-full flex items-center justify-between text-left py-2 px-2 rounded-md hover:bg-gray-100"
+                >
+                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Standard Tools</h3>
+                {expandedCategories['built-in-tools'] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+                {expandedCategories['built-in-tools'] && (
+                <div className="mt-2 space-y-2">
+                    {builtInTools.map((tool: any) => (
+                    <div
+                        key={tool.id}
+                        className="p-3 border border-gray-200 rounded-md cursor-move hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, { defaultData: { tool_type: tool.id, label: tool.name } })}
+                    >
+                        <div className="flex items-center gap-3 mb-1">
+                        <Wrench className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                        <div>
+                            <div className="font-medium text-gray-900">{tool.name}</div>
+                            <div className="text-sm text-gray-500">{tool.description}</div>
+                        </div>
+                        </div>
+                    </div>
+                    ))}
+                </div>
+                )}
+            </div>
+        )}
         {composioCategories.map(category => (
           <div key={category.id} className="mb-4">
             <button

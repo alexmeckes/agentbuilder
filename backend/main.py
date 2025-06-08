@@ -3954,16 +3954,22 @@ async def list_available_tools():
         # Start with built-in tools
         tools = {
             "search_web": {
+                "id": "search_web",
+                "name": "Web Search",
                 "type": "built-in",
+                "source": "built-in",
                 "description": "Search the web for information",
-                "category": "web",
-                "server_status": "built-in"
+                "category": "Web",
+                "server_status": "active"
             },
             "visit_webpage": {
+                "id": "visit_webpage",
+                "name": "Visit Webpage",
                 "type": "built-in", 
+                "source": "built-in",
                 "description": "Visit and read webpage content",
-                "category": "web",
-                "server_status": "built-in"
+                "category": "Web",
+                "server_status": "active"
             }
         }
         
@@ -3987,6 +3993,7 @@ async def list_available_tools():
                         for tool in server_tools:
                             tool_id = f"{server_id}_{tool.name}"
                             tools[tool_id] = {
+                                "id": tool_id,
                                 "type": "mcp",
                                 "name": tool.name,
                                 "description": tool.description,
@@ -4037,14 +4044,15 @@ async def _add_composio_tools_direct(tools: dict):
         for tool in composio_tools:
             tool_id = f"composio_{tool['name']}"
             tools[tool_id] = {
+                "id": tool_id,
                 "type": "composio",
+                "source": "composio",
                 "name": tool['name'],
                 "description": tool['description'],
                 "category": tool['category'],
                 "server_id": "composio-tools",
                 "server_name": "Composio Universal Tools",
                 "server_status": "connected",
-                "source": "composio-direct",
                 "user_id": user_context.user_id
             }
         

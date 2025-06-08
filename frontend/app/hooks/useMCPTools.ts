@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 export interface MCPTool {
   id: string;
   name: string;
-  type: 'built-in' | 'mcp';
+  type: 'built-in' | 'mcp' | 'composio';
+  source: 'built-in' | 'composio' | 'mcp';
   description: string;
   category: string;
   server_id?: string;
@@ -37,9 +38,10 @@ export function useMCPTools() {
       
       if (toolsData.tools) {
         const formattedTools: MCPTool[] = Object.entries(toolsData.tools).map(([key, info]: [string, any]) => ({
-          id: key,
-          name: key,
+          id: info.id || key,
+          name: info.name || key,
           type: info.type || 'built-in',
+          source: info.source || 'built-in',
           description: info.description || 'No description available',
           category: info.category || 'general',
           server_id: info.server_id,
