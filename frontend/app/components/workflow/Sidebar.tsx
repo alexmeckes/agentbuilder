@@ -2,13 +2,27 @@
 
 import { useState, useEffect } from 'react'
 import type { DragEvent } from 'react'
-import { ChevronLeft, ChevronRight, Bot, Wrench, FileInput, FileOutput, Zap, Settings } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Bot, Wrench, FileInput, FileOutput, Zap, Settings, GitBranch, Link2 } from 'lucide-react'
 
 const nodeTypes = [
-  { type: 'agent', label: 'Agent', description: 'An AI agent node', icon: Bot },
-  { type: 'tool', label: 'Tool', description: 'A tool node', icon: Wrench },
-  { type: 'input', label: 'Input', description: 'An input node', icon: FileInput },
-  { type: 'output', label: 'Output', description: 'An output node', icon: FileOutput },
+  { type: 'agent', label: 'Agent', description: 'An AI agent node', icon: Bot, category: 'AI Agents' },
+  { type: 'tool', label: 'Tool', description: 'A tool node', icon: Wrench, category: 'Tools' },
+  { type: 'input', label: 'Input', description: 'An input node', icon: FileInput, category: 'Input/Output' },
+  { type: 'output', label: 'Output', description: 'An output node', icon: FileOutput, category: 'Input/Output' },
+  {
+    type: 'conditional',
+    label: 'Conditional Router',
+    description: 'Routes the workflow based on rules.',
+    icon: GitBranch,
+    category: 'Logic & Control'
+  },
+  {
+    type: 'webhook',
+    label: 'Webhook',
+    description: 'Trigger this workflow from an external URL.',
+    icon: Link2,
+    category: 'Beta'
+  },
 ]
 
 const composioToolsMapping: Record<string, any> = {
@@ -220,23 +234,35 @@ export default function Sidebar() {
           // Expanded view - show full cards
           <div className="space-y-2">
             {activeTab === 'basic' ? (
-              nodeTypes.map((node) => {
-                const IconComponent = node.icon
-                return (
-                  <div
-                    key={node.type}
-                    className="p-3 border border-gray-200 rounded-md cursor-move hover:border-blue-500 hover:bg-blue-50 transition-colors"
-                    draggable
-                    onDragStart={(e) => onDragStart(e, node.type)}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <IconComponent className="w-4 h-4 text-gray-600" />
-                      <div className="font-medium text-gray-900">{node.label}</div>
-                    </div>
-                    <div className="text-sm text-gray-500">{node.description}</div>
-                  </div>
-                )
-              })
+              // Group nodes by category for the expanded view
+              Object.values(nodeTypes.reduce((acc, node) => {
+                if (!acc[node.category]) {
+                  acc[node.category] = [];
+                }
+                acc[node.category].push(node);
+                return acc;
+              }, {} as Record<string, typeof nodeTypes>)).map((group, index) => (
+                <div key={index}>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-4">{group[0].category}</h3>
+                  {group.map(node => {
+                    const IconComponent = node.icon;
+                    return (
+                      <div
+                        key={node.type}
+                        className="p-3 border border-gray-200 rounded-md cursor-move hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, node.type)}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <IconComponent className="w-4 h-4 text-gray-600" />
+                          <div className="font-medium text-gray-900">{node.label}</div>
+                        </div>
+                        <div className="text-sm text-gray-500">{node.description}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
             ) : (
               <>
                 {composioTools.length > 0 ? (
