@@ -14,6 +14,7 @@ import json
 import traceback
 import os
 import logging
+from jsonpath_ng import jsonpath, parse
 
 # Import MCP manager (with fallback for backwards compatibility)
 try:
@@ -962,6 +963,33 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
             current_node_id = None
             
     return {"final_output": current_input}
+
+
+def _evaluate_condition(rule: Dict[str, str], data: Dict[str, Any]) -> bool:
+    """
+    Evaluates a condition rule against the provided data.
+    """
+    try:
+        jsonpath_expression = parse(rule['jsonpath'])
+        match = jsonpath_expression.find(data)
+        
+        if not match:
+            return False
+
+        extracted_value = match[0].value
+        rule_value = rule['value']
+        operator = rule['operator']
+
+        if operator == 'equals':
+            return str(extracted_value) == rule_value
+        elif operator == 'contains':
+            return rule_value in str(extracted_value)
+        # Add other operators here as needed
+        
+        return False
+    except Exception as e:
+        print(f"Error evaluating condition: {e}")
+        return False
 
 
 async def execute_visual_workflow_with_anyagent(nodes: List[Dict], edges: List[Dict], input_data: str, framework: str = "openai", execution_id: str = None, websocket: Any = None) -> Dict[str, Any]:

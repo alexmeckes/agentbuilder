@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
 import { GitBranch, Settings, PlusCircle } from 'lucide-react'
 import { ConditionalNodeEditorModal } from './ConditionalNodeEditorModal'
@@ -20,6 +20,17 @@ interface ConditionalNodeData {
 
 export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [addingCondition, setAddingCondition] = useState(false);
+
+  const handleOpenModal = (addCondition = false) => {
+    setAddingCondition(addCondition);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setAddingCondition(false);
+  };
 
   const handleAddCondition = () => {
     const newCondition: Condition = {
@@ -39,7 +50,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
             </div>
             <h3 className="font-bold text-lg text-gray-800">{data.label}</h3>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="text-gray-400 hover:text-gray-600">
+        <button onClick={() => handleOpenModal()} className="text-gray-400 hover:text-gray-600">
             <Settings className="w-5 h-5" />
         </button>
       </div>
@@ -57,7 +68,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
             />
           </div>
         ))}
-        <button onClick={handleAddCondition} className="mt-2 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-800">
+        <button onClick={() => handleOpenModal(true)} className="mt-2 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-800">
             <PlusCircle className="w-4 h-4" />
             Add Condition
         </button>
@@ -71,9 +82,10 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
 
       <ConditionalNodeEditorModal 
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         nodeId={id}
         nodeData={data}
+        initialAddCondition={addingCondition}
       />
     </div>
   );

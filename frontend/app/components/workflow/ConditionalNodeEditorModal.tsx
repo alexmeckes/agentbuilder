@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Plus, Trash2, GripVertical } from 'lucide-react';
 
+const CONDITION_OPERATORS = [
+  { value: 'equals', label: 'equals' },
+  { value: 'contains', label: 'contains' },
+];
+
 // Assuming the same Condition and NodeData interfaces
 interface Condition {
   id: string;
@@ -26,28 +31,36 @@ interface ModalProps {
   onClose: () => void;
   nodeId: string;
   nodeData: ConditionalNodeData;
+  initialAddCondition?: boolean;
 }
 
-export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData }: ModalProps) {
+export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData, initialAddCondition }: ModalProps) {
   const [conditions, setConditions] = useState<Condition[]>([]);
 
   useEffect(() => {
     if (isOpen) {
-      // Deep copy to avoid direct mutation
-      setConditions(JSON.parse(JSON.stringify(nodeData.conditions)));
+      const initialConditions = JSON.parse(JSON.stringify(nodeData.conditions));
+      if (initialAddCondition) {
+        initialConditions.push({ id: `cond_${Date.now()}`, name: 'New Path', rule: { jsonpath: '', operator: 'equals', value:''} });
+      }
+      setConditions(initialConditions);
     }
-  }, [isOpen, nodeData.conditions]);
+  }, [isOpen, nodeData.conditions, initialAddCondition]);
 
   const handleSave = () => {
     nodeData.onNodeUpdate(nodeId, { conditions });
     onClose();
+  };
+
+  const handleAddPath = () => {
+    setConditions([...conditions, { id: `cond_${Date.now()}`, name: 'New Path', rule: { jsonpath: '', operator: 'equals', value:''} }]);
   };
   
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full">
+      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full">
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className="text-xl font-semibold">Edit Conditional Router</h2>
           <button onClick={onClose}><X className="w-5 h-5" /></button>
@@ -101,9 +114,9 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData }
                         setConditions(newConditions);
                       }}
                       className="text-sm p-1 border rounded bg-white col-span-1">
-                      <option value="equals">equals</option>
-                      <option value="contains">contains</option>
-                      {/* Add other operators as needed */}
+                      {CONDITION_OPERATORS.map(op => (
+                        <option key={op.value} value={op.value}>{op.label}</option>
+                      ))}
                     </select>
                     <input 
                       type="text" 
@@ -135,7 +148,7 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData }
             </div>
           ))}
           <button 
-            onClick={() => setConditions([...conditions, { id: `cond_${Date.now()}`, name: 'New Path', rule: { jsonpath: '', operator: 'equals', value:''} }])}
+            onClick={handleAddPath}
             className="w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-800 mt-2">
             <Plus className="w-4 h-4" />
             Add Path
