@@ -71,91 +71,93 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData, 
             Define the rules to route your workflow. The first rule that evaluates to true will be chosen.
           </p>
           {conditions.map((condition, index) => (
-            <div key={condition.id} className="p-3 border rounded-md bg-gray-50 flex items-start gap-2">
-              <GripVertical className="w-5 h-5 text-gray-400 mt-1 cursor-grab" />
-              <div className="flex-1">
-                <input
-                  type="text"
-                  value={condition.name}
-                  onChange={(e) => {
-                    const newConditions = [...conditions];
-                    newConditions[index].name = e.target.value;
-                    setConditions(newConditions);
-                  }}
-                  className="font-semibold text-gray-800 w-full mb-2"
-                  disabled={condition.is_default}
-                />
-                
-                {!condition.is_default && (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="text-xs font-medium text-gray-500">JSONPath Expression</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g., $.intent" 
-                        value={condition.rule?.jsonpath || ''}
-                        onChange={(e) => {
-                          const newConditions = [...conditions];
-                          newConditions[index].rule = { 
-                            jsonpath: e.target.value, 
-                            operator: newConditions[index].rule?.operator || 'equals',
-                            value: newConditions[index].rule?.value || '',
-                          };
-                          setConditions(newConditions);
-                        }}
-                        className="text-sm p-2 border rounded w-full"/>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="col-span-1">
-                        <label className="text-xs font-medium text-gray-500">Operator</label>
-                        <select 
-                          value={condition.rule?.operator || 'equals'}
-                          onChange={(e) => {
-                            const newConditions = [...conditions];
-                            newConditions[index].rule = { 
-                              jsonpath: newConditions[index].rule?.jsonpath || '',
-                              operator: e.target.value,
-                              value: newConditions[index].rule?.value || '',
-                            };
-                            setConditions(newConditions);
-                          }}
-                          className="text-sm p-2 border rounded bg-white w-full">
-                          {CONDITION_OPERATORS.map(op => (
-                            <option key={op.value} value={op.value}>{op.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="text-xs font-medium text-gray-500">Value</label>
+            <div key={condition.id} className="p-4 border rounded-md bg-gray-50">
+              <div className="flex items-start gap-3">
+                <GripVertical className="w-5 h-5 text-gray-400 mt-2 cursor-grab flex-shrink-0" />
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={condition.name}
+                    onChange={(e) => {
+                      const newConditions = [...conditions];
+                      newConditions[index].name = e.target.value;
+                      setConditions(newConditions);
+                    }}
+                    className="font-semibold text-gray-800 w-full mb-3"
+                    disabled={condition.is_default}
+                  />
+                  
+                  {!condition.is_default && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 block mb-1">JSONPath Expression</label>
                         <input 
                           type="text" 
-                          placeholder="e.g., 'faq'" 
-                          value={condition.rule?.value || ''}
+                          placeholder="e.g., $.intent" 
+                          value={condition.rule?.jsonpath || ''}
                           onChange={(e) => {
                             const newConditions = [...conditions];
                             newConditions[index].rule = { 
-                              jsonpath: newConditions[index].rule?.jsonpath || '',
+                              jsonpath: e.target.value, 
                               operator: newConditions[index].rule?.operator || 'equals',
-                              value: e.target.value 
+                              value: newConditions[index].rule?.value || '',
                             };
                             setConditions(newConditions);
                           }}
                           className="text-sm p-2 border rounded w-full"/>
                       </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="col-span-1">
+                          <label className="text-xs font-medium text-gray-500 block mb-1">Operator</label>
+                          <select 
+                            value={condition.rule?.operator || 'equals'}
+                            onChange={(e) => {
+                              const newConditions = [...conditions];
+                              newConditions[index].rule = { 
+                                jsonpath: newConditions[index].rule?.jsonpath || '',
+                                operator: e.target.value,
+                                value: newConditions[index].rule?.value || '',
+                              };
+                              setConditions(newConditions);
+                            }}
+                            className="text-sm p-2 border rounded bg-white w-full">
+                            {CONDITION_OPERATORS.map(op => (
+                              <option key={op.value} value={op.value}>{op.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-span-2">
+                          <label className="text-xs font-medium text-gray-500 block mb-1">Value</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g., 'faq'" 
+                            value={condition.rule?.value || ''}
+                            onChange={(e) => {
+                              const newConditions = [...conditions];
+                              newConditions[index].rule = { 
+                                jsonpath: newConditions[index].rule?.jsonpath || '',
+                                operator: newConditions[index].rule?.operator || 'equals',
+                                value: e.target.value 
+                              };
+                              setConditions(newConditions);
+                            }}
+                            className="text-sm p-2 border rounded w-full"/>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                </div>
+                {!condition.is_default && (
+                  <button 
+                    onClick={() => {
+                      const newConditions = conditions.filter((_, i) => i !== index);
+                      setConditions(newConditions);
+                    }}
+                    className="text-red-500 hover:text-red-700 flex-shrink-0 mt-1">
+                    <Trash2 className="w-5 h-5" />
+                  </button>
                 )}
               </div>
-              {!condition.is_default && (
-                <button 
-                  onClick={() => {
-                    const newConditions = conditions.filter((_, i) => i !== index);
-                    setConditions(newConditions);
-                  }}
-                  className="text-red-500 hover:text-red-700">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
             </div>
           ))}
           <button 
