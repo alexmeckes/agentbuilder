@@ -87,51 +87,62 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData, 
                 />
                 
                 {!condition.is_default && (
-                  <div className="grid grid-cols-5 gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="e.g., $.intent" 
-                      value={condition.rule?.jsonpath || ''}
-                      onChange={(e) => {
-                        const newConditions = [...conditions];
-                        newConditions[index].rule = { 
-                          jsonpath: e.target.value, 
-                          operator: newConditions[index].rule?.operator || 'equals',
-                          value: newConditions[index].rule?.value || '',
-                        };
-                        setConditions(newConditions);
-                      }}
-                      className="text-sm p-1 border rounded w-full col-span-2"/>
-                    <select 
-                      value={condition.rule?.operator || 'equals'}
-                      onChange={(e) => {
-                        const newConditions = [...conditions];
-                        newConditions[index].rule = { 
-                          jsonpath: newConditions[index].rule?.jsonpath || '',
-                          operator: e.target.value,
-                          value: newConditions[index].rule?.value || '',
-                        };
-                        setConditions(newConditions);
-                      }}
-                      className="text-sm p-1 border rounded bg-white col-span-1">
-                      {CONDITION_OPERATORS.map(op => (
-                        <option key={op.value} value={op.value}>{op.label}</option>
-                      ))}
-                    </select>
-                    <input 
-                      type="text" 
-                      placeholder="e.g., 'faq'" 
-                      value={condition.rule?.value || ''}
-                      onChange={(e) => {
-                        const newConditions = [...conditions];
-                        newConditions[index].rule = { 
-                          jsonpath: newConditions[index].rule?.jsonpath || '',
-                          operator: newConditions[index].rule?.operator || 'equals',
-                          value: e.target.value 
-                        };
-                        setConditions(newConditions);
-                      }}
-                      className="text-sm p-1 border rounded w-full col-span-2"/>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-xs font-medium text-gray-500">JSONPath Expression</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g., $.intent" 
+                        value={condition.rule?.jsonpath || ''}
+                        onChange={(e) => {
+                          const newConditions = [...conditions];
+                          newConditions[index].rule = { 
+                            jsonpath: e.target.value, 
+                            operator: newConditions[index].rule?.operator || 'equals',
+                            value: newConditions[index].rule?.value || '',
+                          };
+                          setConditions(newConditions);
+                        }}
+                        className="text-sm p-2 border rounded w-full"/>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">Operator</label>
+                        <select 
+                          value={condition.rule?.operator || 'equals'}
+                          onChange={(e) => {
+                            const newConditions = [...conditions];
+                            newConditions[index].rule = { 
+                              jsonpath: newConditions[index].rule?.jsonpath || '',
+                              operator: e.target.value,
+                              value: newConditions[index].rule?.value || '',
+                            };
+                            setConditions(newConditions);
+                          }}
+                          className="text-sm p-2 border rounded bg-white w-full">
+                          {CONDITION_OPERATORS.map(op => (
+                            <option key={op.value} value={op.value}>{op.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-500">Value</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g., 'faq'" 
+                          value={condition.rule?.value || ''}
+                          onChange={(e) => {
+                            const newConditions = [...conditions];
+                            newConditions[index].rule = { 
+                              jsonpath: newConditions[index].rule?.jsonpath || '',
+                              operator: newConditions[index].rule?.operator || 'equals',
+                              value: e.target.value 
+                            };
+                            setConditions(newConditions);
+                          }}
+                          className="text-sm p-2 border rounded w-full"/>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
