@@ -60,7 +60,7 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData, 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full">
+      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full">
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className="text-xl font-semibold">Edit Conditional Router</h2>
           <button onClick={onClose}><X className="w-5 h-5" /></button>
