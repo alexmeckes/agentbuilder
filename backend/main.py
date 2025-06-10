@@ -41,6 +41,12 @@ from any_agent import AgentFramework
 # Import our NEW visual-to-anyagent translator (replacing custom workflow engine)
 from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent, MCP_INTEGRATION_AVAILABLE
 
+# Import Composio availability flag
+try:
+    from composio_mcp_bridge import COMPOSIO_AVAILABLE
+except ImportError:
+    COMPOSIO_AVAILABLE = False
+
 # Import MCP manager (with fallback for backwards compatibility)
 try:
     from mcp_manager import get_mcp_manager, is_mcp_enabled, MCPServerConfig
@@ -4741,7 +4747,7 @@ async def trigger_webhook_endpoint(webhook_id: str, request_body: Dict[str, Any]
 async def get_user_composio_tools(userId: str):
     """Get Composio tools based on user's connected accounts and enabled tools"""
     try:
-        if not COMPOSIO_INTEGRATION_AVAILABLE:
+        if not COMPOSIO_AVAILABLE:
             return {"success": False, "message": "Composio not available"}
         
         # Load user settings to get their connected accounts and enabled tools
@@ -4768,7 +4774,7 @@ async def get_user_composio_tools(userId: str):
         # Test Composio connection and get available tools
         tools = []
         try:
-            from composio_mcp_bridge import UserComposioManager, UserContext
+            from composio_mcp_bridge import UserComposioManager, UserContext, COMPOSIO_AVAILABLE
             
             user_context = UserContext(
                 user_id=userId,
