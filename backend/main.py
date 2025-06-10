@@ -4750,64 +4750,44 @@ async def get_user_composio_tools(userId: str):
         if not COMPOSIO_AVAILABLE:
             return {"success": False, "message": "Composio not available"}
         
-        # Load user settings to get their connected accounts and enabled tools
-        user_settings = _load_user_settings(userId)
-        if not user_settings:
-            return {"success": False, "message": "No user settings found"}
+        # TEMPORARY: Since frontend stores in localStorage and we don't have a backend storage yet,
+        # let's fall back to environment variables and a basic tool set for now
+        # TODO: Implement proper user settings API to sync with frontend localStorage
         
-        composio_key = user_settings.get('composioApiKey') or user_settings.get('encryptedComposioKey')
-        if not composio_key:
-            return {"success": False, "message": "No Composio API key configured"}
+        # For now, try to get basic Composio configuration from environment
+        composio_api_key = os.getenv('COMPOSIO_API_KEY')
+        enabled_tools = os.getenv('ENABLED_TOOLS', '').split(',') if os.getenv('ENABLED_TOOLS') else []
         
-        enabled_tools = user_settings.get('enabledTools', [])
-        if not enabled_tools:
-            return {"success": False, "message": "No tools enabled", "tools": []}
-        
-        # Get actual API key (decrypt if needed)
-        actual_api_key = composio_key
-        if isinstance(composio_key, dict) and 'encryptedData' in composio_key:
-            # Handle encrypted key - would need decryption logic here
-            logging.info("Encrypted Composio key detected, would need decryption")
-            # For now, skip encrypted keys in this endpoint
-            return {"success": False, "message": "Encrypted keys not yet supported in this endpoint"}
-        
-        # Test Composio connection and get available tools
-        tools = []
-        try:
-            from composio_mcp_bridge import UserComposioManager, UserContext, COMPOSIO_AVAILABLE
-            
-            user_context = UserContext(
-                user_id=userId,
-                api_key=actual_api_key,
-                enabled_tools=enabled_tools
-            )
-            
-            manager = UserComposioManager()
-            composio_tools = manager.get_available_tools_for_user(user_context)
-            
-            # Filter to only enabled tools and add metadata
-            for tool in composio_tools:
-                if tool['name'] in enabled_tools:
-                    tools.append({
-                        'name': tool['name'],
-                        'displayName': tool['name'].replace('_', ' ').title(),
-                        'description': tool['description'],
-                        'app': tool.get('app', 'unknown'),
-                        'category': tool['category'],
-                        'enabled': True
-                    })
-            
+        if not composio_api_key:
+            # Return empty but successful response - user needs to configure via the old MCP approach
             return {
-                "success": True,
-                "tools": tools,
-                "message": f"Found {len(tools)} enabled tools for user",
+                "success": False, 
+                "message": "User settings not synced with backend yet. Please use the Account settings and click 'Force Reconnect' to configure tools via MCP.",
+                "tools": [],
                 "userId": userId,
-                "enabledToolsCount": len(enabled_tools)
+                "note": "Frontend localStorage settings not yet synced with backend. Use MCP approach for now."
             }
-            
-        except Exception as composio_error:
-            logging.error(f"Composio API error for user {userId}: {composio_error}")
-            return {"success": False, "message": f"Composio API error: {str(composio_error)}"}
+        
+        # Basic tool set if we have environment configuration
+        basic_tools = [
+            {
+                'name': 'googledocs_create_doc',
+                'displayName': 'Google Docs Create Doc',
+                'description': 'Create a Google Docs document',
+                'app': 'googledocs',
+                'category': 'productivity',
+                'enabled': True
+            }
+        ]
+        
+        return {
+            "success": True,
+            "tools": basic_tools,
+            "message": f"Using basic tool configuration from environment",
+            "userId": userId,
+            "enabledToolsCount": len(basic_tools),
+            "note": "This is a fallback. Full user settings sync coming soon."
+        }
         
     except Exception as e:
         logging.error(f"Error getting user Composio tools: {e}")
