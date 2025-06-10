@@ -17,26 +17,6 @@
       "status": "disconnected",
       "last_error": null,
       "capabilities": []
-    },
-    {
-      "id": "composio-tools",
-      "name": "Composio Universal Tools",
-      "description": "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
-      "command": [
-        "python3",
-        "composio_mcp_bridge.py"
-      ],
-      "args": [],
-      "env": {
-        "COMPOSIO_API_KEY": ""
-      },
-      "working_dir": "/Users/ameckes/Downloads/any-agent-main 2/backend",
-      "host": null,
-      "port": null,
-      "credentials": {},
-      "status": "disconnected",
-      "last_error": null,
-      "capabilities": []
     }
   ]
 }

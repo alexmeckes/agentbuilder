@@ -307,6 +307,53 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
     }
   }
 
+  const forceReconnectMCP = async () => {
+    const effectiveApiKey = decryptedApiKey || settings.composioApiKey
+    
+    if (!effectiveApiKey) {
+      setTestResult({ success: false, message: 'Please enter an API key first' })
+      return
+    }
+
+    setIsLoading(true)
+    setTestResult(null)
+
+    try {
+      const response = await fetch('/api/mcp/force-reconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          apiKey: effectiveApiKey,
+          userId: settings.userId 
+        })
+      })
+
+      const result = await response.json()
+      
+      if (response.ok && result.success) {
+        setTestResult({
+          success: true,
+          message: `✅ MCP server reconnected! Status: ${result.serverStatus}, Tools: ${result.toolCount}`
+        })
+        
+        // Refresh the page to reload tool palette
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
+      } else {
+        setTestResult({
+          success: false,
+          message: result.message || 'Failed to reconnect MCP server'
+        })
+      }
+      
+    } catch (error) {
+      setTestResult({ success: false, message: 'Failed to reconnect MCP server' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const testComposioConnection = async () => {
     const effectiveApiKey = decryptedApiKey || settings.composioApiKey
     
@@ -659,13 +706,23 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
                   {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              <button
-                onClick={testComposioConnection}
-                disabled={isLoading || !settings.composioApiKey}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? 'Testing...' : 'Test'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={testComposioConnection}
+                  disabled={isLoading || !settings.composioApiKey}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isLoading ? 'Testing...' : 'Test'}
+                </button>
+                <button
+                  onClick={forceReconnectMCP}
+                  disabled={isLoading || !settings.composioApiKey}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  title="Force reconnect MCP server to detect tools"
+                >
+                  {isLoading ? 'Reconnecting...' : 'Force Reconnect'}
+                </button>
+              </div>
             </div>
             
             {testResult && (
