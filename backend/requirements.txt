@@ -16,7 +16,7 @@ opentelemetry-api>=1.20.0
 requests
 rich
 fire
-# Install latest any-agent (v0.19.0+) with TracingConfig support
+# Install latest any-agent (v0.19.0+) - TracingConfig removed, tracing now built-in
 git+https://github.com/mozilla-ai/any-agent.git@main
 
 # Add Composio (lightweight)

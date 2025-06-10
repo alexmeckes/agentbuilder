@@ -8,7 +8,7 @@ native multi-agent orchestration format.
 import sys
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
-from any_agent import AgentConfig, AgentFramework, AnyAgent, TracingConfig
+from any_agent import AgentConfig, AgentFramework, AnyAgent
 import multiprocessing
 import json
 import traceback
@@ -569,7 +569,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
             sys.path.insert(0, src_path)
         
         # Now import any_agent
-        from any_agent import AgentConfig, AgentFramework, AnyAgent, TracingConfig
+        from any_agent import AgentConfig, AgentFramework, AnyAgent
         from typing import Any
         
         # Import the real tools for agent configuration
@@ -706,16 +706,12 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         # Convert framework string to AgentFramework enum
         framework_enum = AgentFramework.from_string(framework.upper())
         
-        # Create and run the any-agent using the real API with proper tracing
+        # Create and run the any-agent using the real API
         agent = AnyAgent.create(
             agent_framework=framework_enum,
-            agent_config=main_agent_config,
-            tracing=TracingConfig(
-                console=True,     # Enable console tracing for debugging
-                cost_info=True    # Enable cost and token tracking
-            )
+            agent_config=main_agent_config
         )
-        logger.info("🔍 Using TracingConfig for enhanced debugging and cost tracking")
+        logger.info("🔍 Using any-agent with built-in tracing (TracingConfig removed in latest version)")
         
         # Run the agent and get the trace
         logger.info(f"🚀 Production subprocess: Running agent '{main_agent_config.name}' with input: '{input_data[:100]}...'")
