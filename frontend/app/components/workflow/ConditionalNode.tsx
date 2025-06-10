@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
-import { GitBranch, Settings, PlusCircle, Trash2 } from 'lucide-react'
+import { GitBranch, Settings, PlusCircle, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import { ConditionalNodeEditorModal } from './ConditionalNodeEditorModal'
 
 // Assuming a structure for conditions from the backend
@@ -20,14 +20,19 @@ interface ConditionalNodeData {
 }
 
 export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
-  const handleEditClick = () => {
-    setIsEditing(true);
+  const handleExpandToggle = () => {
+    setIsExpanded(!isExpanded);
   };
 
-  const handleCloseEditor = () => {
-    setIsEditing(false);
+  const handleEditClick = () => {
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
   const handleAddCondition = () => {
@@ -37,6 +42,9 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
     };
     const updatedConditions = [...data.conditions, newCondition];
     data.onNodeUpdate(id, { conditions: updatedConditions });
+    
+    // Expand the node to show the new condition
+    setIsExpanded(true);
   };
 
   const handleDeleteNode = () => {
@@ -48,73 +56,202 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
   };
   
   return (
-    <div className={`bg-white rounded-lg shadow-lg border-2 border-yellow-300 transition-all duration-200 ${
-      isEditing ? 'min-w-[500px]' : 'w-64'
-    }`}>
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-yellow-100 rounded-full">
-            <GitBranch className="w-5 h-5 text-yellow-600" />
+    <>
+      <div className={`
+        relative bg-white rounded-xl shadow-lg border-2 transition-all duration-200 border-yellow-300
+        ${isExpanded ? 'min-w-[500px]' : 'min-w-[300px]'}
+        hover:shadow-xl
+      `}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center shadow-sm flex-shrink-0">
+              <GitBranch className="w-5 h-5 text-white" />
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-semibold text-gray-900 truncate">
+                {data.label}
+              </h3>
+              
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-sm text-gray-500 capitalize">conditional</span>
+                
+                {data.conditions.length > 0 && (
+                  <>
+                    <span className="text-gray-300">•</span>
+                    <span className="text-xs text-yellow-600 font-medium">
+                      {data.conditions.length} path{data.conditions.length > 1 ? 's' : ''}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-          <h3 className="font-bold text-lg text-gray-800">{data.label}</h3>
-        </div>
-        <div className="flex items-center gap-2 nodrag">
-          <button 
-            onClick={handleEditClick} 
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            title="Edit conditions"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-          {data.onNodeDelete && (
+          
+          <div className="flex items-center gap-2 flex-shrink-0 nodrag">
             <button
-              onClick={handleDeleteNode}
-              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Delete node"
+              onClick={handleEditClick}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Edit conditions"
             >
-              <Trash2 className="w-4 h-4" />
+              <Settings className="w-4 h-4" />
             </button>
-          )}
-        </div>
-      </div>
-
-      <div className="p-4 space-y-2">
-        {data.conditions.map((condition, index) => (
-          <div key={condition.id} className="flex items-center justify-between">
-            <span className="text-sm text-gray-700">{condition.name}</span>
-            <Handle
-              type="source"
-              position={Position.Right}
-              id={condition.id}
-              style={{ top: `${(index + 1) * 30 + 60}px` }}
-              className="!w-4 !h-4 !bg-yellow-500"
-            />
+            
+            <button
+              onClick={handleExpandToggle}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title={isExpanded ? "Collapse" : "Expand"}
+            >
+              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
           </div>
+        </div>
+
+        {/* Collapsed Content */}
+        {!isExpanded && (
+          <div className="p-4 space-y-2">
+            {data.conditions.slice(0, 3).map((condition, index) => (
+              <div key={condition.id} className="flex items-center justify-between">
+                <span className="text-sm text-gray-700">{condition.name}</span>
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id={condition.id}
+                  style={{ top: `${(index + 1) * 30 + 60}px` }}
+                  className="!w-4 !h-4 !bg-yellow-500"
+                />
+              </div>
+            ))}
+            
+            {data.conditions.length > 3 && (
+              <div className="text-xs text-gray-500">
+                +{data.conditions.length - 3} more conditions...
+              </div>
+            )}
+            
+            {/* Quick Add Button */}
+            <button 
+              onClick={handleAddCondition} 
+              className="mt-2 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Add Condition
+            </button>
+          </div>
+        )}
+
+        {/* Expanded Content */}
+        {isExpanded && (
+          <div className="p-4 space-y-4 nodrag">
+            {/* Conditions Summary */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <GitBranch className="w-4 h-4" />
+                Routing Conditions
+              </h4>
+              
+              <div className="space-y-2">
+                {/* Default Path */}
+                <div className="p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    <span className="text-sm font-medium text-gray-700">Default Path</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Taken when no conditions match
+                  </p>
+                </div>
+
+                {/* Conditional Paths */}
+                {data.conditions.map((condition, index) => (
+                  <div key={condition.id} className="p-3 bg-white rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-700">{condition.name}</span>
+                    </div>
+                    <Handle
+                      type="source"
+                      position={Position.Right}
+                      id={condition.id}
+                      style={{ top: `${(index + 1) * 40 + 100}px` }}
+                      className="!w-4 !h-4 !bg-yellow-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Node Actions */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Node Actions</h4>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleEditClick}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Edit Settings
+                </button>
+                
+                {data.onNodeDelete ? (
+                  <button
+                    onClick={handleDeleteNode}
+                    className="flex items-center gap-2 px-3 py-2 text-sm bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Node
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 rounded-lg border border-gray-200">
+                    <Trash2 className="w-4 h-4" />
+                    Delete Not Available
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Connection Handles */}
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="!w-4 !h-4 !bg-gray-500 !border-2 !border-white !shadow-lg hover:!bg-gray-600 !transition-all !duration-200"
+          style={{
+            left: -10,
+            zIndex: 10,
+          }}
+          title="Input connection point"
+        />
+
+        {/* Source handles for collapsed view */}
+        {!isExpanded && data.conditions.map((condition, index) => (
+          <Handle
+            key={condition.id}
+            type="source"
+            position={Position.Right}
+            id={condition.id}
+            className="!w-4 !h-4 !bg-yellow-500 !border-2 !border-white !shadow-lg hover:!bg-yellow-600 !transition-all !duration-200"
+            style={{
+              top: `${(index + 1) * 30 + 60}px`,
+              right: -10,
+              zIndex: 10,
+            }}
+            title={`${condition.name} output`}
+          />
         ))}
-        
-        {/* Quick Add Button */}
-        <button 
-          onClick={handleAddCondition} 
-          className="mt-2 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-800"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Add Condition
-        </button>
       </div>
 
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!w-4 !h-4 !bg-gray-500"
-      />
-
-      {/* Inline Editor - Opens when Edit Conditions is clicked */}
+      {/* Full Editor Modal */}
       <ConditionalNodeEditorModal 
-        isOpen={isEditing}
-        onClose={handleCloseEditor}
+        isOpen={showModal}
+        onClose={handleCloseModal}
         nodeId={id}
         nodeData={data}
       />
-    </div>
+    </>
   );
 } 
