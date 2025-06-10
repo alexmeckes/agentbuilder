@@ -664,8 +664,11 @@ function WorkflowEditorInner({
           description: composioToolData.description,
           category: composioToolData.category,
           isComposio: true,
-          onNodeUpdate: handleNodeUpdate,
-          onNodeDelete: handleNodeDelete
+          // Only add callbacks if we're NOT using external management
+          ...(externalOnNodesChange ? {} : {
+            onNodeUpdate: handleNodeUpdate,
+            onNodeDelete: handleNodeDelete
+          })
         }
       } else if (templateData) {
         try {
@@ -675,8 +678,11 @@ function WorkflowEditorInner({
             ...template.defaultData,
             label: template.name,
             name: `${template.defaultData.name}_${nodes.length + 1}`,
-            onNodeUpdate: handleNodeUpdate,
-            onNodeDelete: handleNodeDelete
+            // Only add callbacks if we're NOT using external management
+            ...(externalOnNodesChange ? {} : {
+              onNodeUpdate: handleNodeUpdate,
+              onNodeDelete: handleNodeDelete
+            })
           }
         } catch (error) {
           console.warn('Failed to parse template data, falling back to defaults:', error)
@@ -689,56 +695,54 @@ function WorkflowEditorInner({
 
       // Enhanced node data based on type (fallback function)
       function getNodeDefaults(nodeType: string) {
-        switch (nodeType) {
-          case 'agent':
-            return {
-              label: 'AI Agent',
-              type: nodeType,
-              model_id: 'gpt-4o-mini',
-              instructions: 'You are a helpful AI assistant. Process the input data and provide useful insights.',
-              name: `Agent_${nodes.length + 1}`,
-              description: 'An AI agent that processes data and generates responses',
-              onNodeUpdate: handleNodeUpdate,
-              onNodeDelete: handleNodeDelete
-            }
-          case 'tool':
-            return {
-              label: 'Tool',
-              type: nodeType,
-              tool_type: 'web_search',
-              name: `Tool_${nodes.length + 1}`,
-              description: 'A tool that performs specific operations on data',
-              onNodeUpdate: handleNodeUpdate,
-              onNodeDelete: handleNodeDelete
-            }
-          case 'input':
-            return {
-              label: 'Input',
-              type: nodeType,
-              name: `Input_${nodes.length + 1}`,
-              description: 'Receives and validates input data for the workflow',
-              onNodeUpdate: handleNodeUpdate,
-              onNodeDelete: handleNodeDelete
-            }
-          case 'output':
-            return {
-              label: 'Output',
-              type: nodeType,
-              name: `Output_${nodes.length + 1}`,
-              description: 'Formats and presents the final workflow results',
-              onNodeUpdate: handleNodeUpdate,
-              onNodeDelete: handleNodeDelete
-            }
-          default:
-            return {
-              label: `${nodeType} Node`,
-              type: nodeType,
-              name: `Node_${nodes.length + 1}`,
-              description: 'A workflow node',
-              onNodeUpdate: handleNodeUpdate,
-              onNodeDelete: handleNodeDelete
-            }
+        const baseData = {
+          agent: {
+            label: 'AI Agent',
+            type: nodeType,
+            model_id: 'gpt-4o-mini',
+            instructions: 'You are a helpful AI assistant. Process the input data and provide useful insights.',
+            name: `Agent_${nodes.length + 1}`,
+            description: 'An AI agent that processes data and generates responses'
+          },
+          tool: {
+            label: 'Tool',
+            type: nodeType,
+            tool_type: 'web_search',
+            name: `Tool_${nodes.length + 1}`,
+            description: 'A tool that performs specific operations on data'
+          },
+          input: {
+            label: 'Input',
+            type: nodeType,
+            name: `Input_${nodes.length + 1}`,
+            description: 'Receives and validates input data for the workflow'
+          },
+          output: {
+            label: 'Output',
+            type: nodeType,
+            name: `Output_${nodes.length + 1}`,
+            description: 'Formats and presents the final workflow results'
+          }
         }
+
+        const nodeData = baseData[nodeType as keyof typeof baseData] || {
+          label: `${nodeType} Node`,
+          type: nodeType,
+          name: `Node_${nodes.length + 1}`,
+          description: 'A workflow node'
+        }
+
+        // Only add callbacks if we're NOT using external management
+        // When external management is active, page-level will handle callbacks
+        if (!externalOnNodesChange) {
+          return {
+            ...nodeData,
+            onNodeUpdate: handleNodeUpdate,
+            onNodeDelete: handleNodeDelete
+          }
+        }
+
+        return nodeData
       }
 
       const newNode: Node = {
