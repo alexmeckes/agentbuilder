@@ -32,7 +32,7 @@ interface ConditionalNodeData {
   onNodeDelete?: (nodeId: string) => void;
 }
 
-export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
+function ConditionalNodeComponent({ id, data }: NodeProps<ConditionalNodeData>) {
   // Debug: Log what callbacks this node receives
   console.log(`🔧 ConditionalNode ${id} received callbacks:`, {
     hasOnNodeUpdate: !!data.onNodeUpdate,
@@ -442,4 +442,69 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
       />
     </>
   );
-} 
+}
+
+// Wrapper component to extract callbacks from data (same pattern as AgentNode)
+export function ConditionalNode(props: NodeProps<ConditionalNodeData & {
+  onNodeUpdate?: (nodeId: string, data: Partial<ConditionalNodeData>) => void
+  onNodeDelete?: (nodeId: string) => void
+}>) {
+  // Extract callbacks from data and pass them as separate props
+  const { data, ...otherProps } = props
+  const { onNodeUpdate, onNodeDelete, ...nodeData } = data
+  
+  // Debug logging to see if callbacks are present
+  console.log(`🔍 ConditionalNode wrapper ${props.id} - data.onNodeUpdate:`, !!data.onNodeUpdate, 'data.onNodeDelete:', !!data.onNodeDelete)
+  
+  // Provide fallback callbacks if they're missing (same pattern as AgentNode)
+  const safeOnNodeUpdate = onNodeUpdate || data.onNodeUpdate || ((nodeId: string, updatedData: Partial<ConditionalNodeData>) => {
+    console.warn(`🚨 No onNodeUpdate callback for ConditionalNode ${nodeId}, update ignored:`, updatedData)
+  })
+  
+  const safeOnNodeDelete = onNodeDelete || data.onNodeDelete || ((nodeId: string) => {
+    console.warn(`🚨 No onNodeDelete callback for ConditionalNode ${nodeId}, attempting fallback deletion`)
+    
+    // Try to dispatch a delete event that ReactFlow might catch
+    try {
+      // Try to trigger a keyboard delete event
+      const deleteEvent = new KeyboardEvent('keydown', {
+        key: 'Delete',
+        code: 'Delete',
+        keyCode: 46,
+        bubbles: true,
+        cancelable: true
+      })
+      
+      // First select the node, then trigger delete
+      const nodeElement = document.querySelector(`[data-id="${nodeId}"]`) as HTMLElement
+      if (nodeElement) {
+        // Click to select the node first
+        nodeElement.click()
+        
+        // Then trigger delete after a short delay
+        setTimeout(() => {
+          document.dispatchEvent(deleteEvent)
+        }, 100)
+      }
+    } catch (error) {
+      console.error('Fallback deletion failed:', error)
+      // As a last resort, try to hide the node element
+      const nodeElement = document.querySelector(`[data-id="${nodeId}"]`)
+      if (nodeElement) {
+        nodeElement.remove()
+      }
+    }
+  })
+  
+  // Create nodeData with callbacks included
+  const nodeDataWithCallbacks: ConditionalNodeData = {
+    ...nodeData as ConditionalNodeData,
+    onNodeUpdate: safeOnNodeUpdate,
+    onNodeDelete: safeOnNodeDelete,
+  }
+  
+  return <ConditionalNodeComponent 
+    {...otherProps} 
+    data={nodeDataWithCallbacks}
+  />
+}
