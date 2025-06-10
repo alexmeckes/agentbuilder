@@ -20,6 +20,8 @@ export interface WorkflowEdge {
   id: string
   source: string
   target: string
+  sourceHandle?: string  // Optional handle for connection point
+  targetHandle?: string  // Optional handle for connection point
 }
 
 export interface WorkflowDefinition {
@@ -198,6 +200,8 @@ export class WorkflowService {
       id: edge.id,
       source: edge.source,
       target: edge.target,
+      sourceHandle: edge.sourceHandle || 'default',
+      targetHandle: edge.targetHandle || 'default',
     }))
 
     console.log('✅ Final workflow definition:', {

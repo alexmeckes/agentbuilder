@@ -68,8 +68,8 @@ class VisualWorkflowEdge:
     id: str
     source: str
     target: str
-    sourceHandle: str
-    targetHandle: str
+    sourceHandle: str = "default"  # Default handle value
+    targetHandle: str = "default"  # Default handle value
 
 
 class VisualToAnyAgentTranslator:
@@ -307,8 +307,8 @@ class VisualToAnyAgentTranslator:
                 id=edge["id"],
                 source=edge["source"],
                 target=edge["target"],
-                sourceHandle=edge["sourceHandle"],
-                targetHandle=edge["targetHandle"]
+                sourceHandle=edge.get("sourceHandle", "default"),  # Safe access with default
+                targetHandle=edge.get("targetHandle", "default")   # Safe access with default
             ) for edge in edges
         ]
         

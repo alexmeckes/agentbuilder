@@ -220,7 +220,9 @@ class WorkflowExecutor:
                 {
                     "id": edge.id,
                     "source": edge.source,
-                    "target": edge.target
+                    "target": edge.target,
+                    "sourceHandle": getattr(edge, 'sourceHandle', 'default'),
+                    "targetHandle": getattr(edge, 'targetHandle', 'default')
                 }
                 for edge in request.workflow.edges
             ]
