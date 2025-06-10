@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import WorkflowEditor from './components/WorkflowEditor'
 import ChatInterface from './components/ChatInterface'
 import { TraceViewer } from './components/TraceViewer'
@@ -78,6 +78,29 @@ export default function Home() {
     
     console.log('🔄 Page-level: Nodes updated with callbacks:', nodesWithCallbacks.length)
     setNodes(nodesWithCallbacks)
+  }, [handleNodeUpdate, handleNodeDelete])
+
+  // Hydration effect: Ensure all existing nodes always have callbacks
+  // This runs when the component mounts or when callback functions change
+  useEffect(() => {
+    setNodes(currentNodes => {
+      // Check if any node needs callback hydration
+      const needsHydration = currentNodes.some(node => !node.data.onNodeDelete || !node.data.onNodeUpdate)
+      
+      if (needsHydration) {
+        console.log('🔧 Hydrating nodes with callbacks...')
+        return currentNodes.map(node => ({
+          ...node,
+          data: {
+            ...node.data,
+            onNodeUpdate: handleNodeUpdate,
+            onNodeDelete: handleNodeDelete,
+          }
+        }))
+      }
+      
+      return currentNodes // No changes needed
+    })
   }, [handleNodeUpdate, handleNodeDelete])
 
   const handleSuggestionToWorkflow = useCallback((suggestion: string) => {
