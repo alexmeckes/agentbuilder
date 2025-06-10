@@ -2,14 +2,27 @@
 
 import { useState } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
-import { GitBranch, Settings, PlusCircle, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { GitBranch, Settings, PlusCircle, Trash2, ChevronDown, ChevronRight, Edit3, Save, X } from 'lucide-react'
 import { ConditionalNodeEditorModal } from './ConditionalNodeEditorModal'
+
+const CONDITION_OPERATORS = [
+  { value: 'equals', label: 'equals' },
+  { value: 'contains', label: 'contains' },
+  { value: 'not_equals', label: 'not equals' },
+  { value: 'greater_than', label: 'greater than' },
+  { value: 'less_than', label: 'less than' },
+];
 
 // Assuming a structure for conditions from the backend
 interface Condition {
   id: string;
   name: string;
   is_default?: boolean;
+  rule?: {
+    jsonpath: string;
+    operator: string;
+    value: string;
+  };
 }
 
 interface ConditionalNodeData {
@@ -22,6 +35,7 @@ interface ConditionalNodeData {
 export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [editingCondition, setEditingCondition] = useState<string | null>(null);
 
   const handleExpandToggle = () => {
     setIsExpanded(!isExpanded);
@@ -39,12 +53,42 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
     const newCondition: Condition = {
       id: `cond_${Date.now()}`,
       name: 'New Condition',
+      rule: {
+        jsonpath: '$.field',
+        operator: 'equals',
+        value: ''
+      }
     };
     const updatedConditions = [...data.conditions, newCondition];
     data.onNodeUpdate(id, { conditions: updatedConditions });
     
     // Expand the node to show the new condition
     setIsExpanded(true);
+  };
+
+  const handleDeleteCondition = (conditionId: string) => {
+    const updatedConditions = data.conditions.filter(c => c.id !== conditionId);
+    data.onNodeUpdate(id, { conditions: updatedConditions });
+  };
+
+  const handleUpdateCondition = (conditionId: string, updates: Partial<Condition>) => {
+    const updatedConditions = data.conditions.map(condition =>
+      condition.id === conditionId ? { ...condition, ...updates } : condition
+    );
+    data.onNodeUpdate(id, { conditions: updatedConditions });
+  };
+
+  const handleUpdateConditionRule = (conditionId: string, field: keyof NonNullable<Condition['rule']>, value: string) => {
+    const condition = data.conditions.find(c => c.id === conditionId);
+    if (condition) {
+      const updatedRule = {
+        jsonpath: condition.rule?.jsonpath || '',
+        operator: condition.rule?.operator || 'equals',
+        value: condition.rule?.value || '',
+        [field]: value
+      };
+      handleUpdateCondition(conditionId, { rule: updatedRule });
+    }
   };
 
   const handleDeleteNode = (e?: React.MouseEvent) => {
@@ -63,7 +107,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
     <>
       <div className={`
         relative bg-white rounded-xl shadow-lg border-2 transition-all duration-200 border-yellow-300
-        ${isExpanded ? 'min-w-[500px]' : 'min-w-[300px]'}
+        ${isExpanded ? 'min-w-[600px]' : 'min-w-[300px]'}
         hover:shadow-xl
       `}>
         {/* Header */}
@@ -152,7 +196,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
           <div className="p-4 space-y-4 nodrag">
             {/* Conditions Summary */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
                   <GitBranch className="w-4 h-4" />
                   Routing Conditions
@@ -169,7 +213,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
                 </button>
               </div>
               
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {/* Default Path */}
                 <div className="p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                   <div className="flex items-center gap-2">
@@ -183,20 +227,120 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
 
                 {/* Conditional Paths */}
                 {data.conditions.map((condition, index) => (
-                  <div key={condition.id} className="p-3 bg-white rounded-lg border border-gray-200">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                      <span className="text-sm font-medium text-gray-700">{condition.name}</span>
+                  <div key={condition.id} className="p-4 bg-white rounded-lg border border-gray-200 space-y-3">
+                    {/* Condition Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-1">
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                        {editingCondition === condition.id ? (
+                          <input
+                            type="text"
+                            value={condition.name}
+                            onChange={(e) => handleUpdateCondition(condition.id, { name: e.target.value })}
+                            onBlur={() => setEditingCondition(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') setEditingCondition(null);
+                              if (e.key === 'Escape') setEditingCondition(null);
+                            }}
+                            className="text-sm font-medium bg-blue-50 border border-blue-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                          />
+                        ) : (
+                          <span 
+                            className="text-sm font-medium text-gray-700 cursor-pointer hover:text-blue-600"
+                            onClick={() => setEditingCondition(condition.id)}
+                            title="Click to edit name"
+                          >
+                            {condition.name}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setEditingCondition(condition.id)}
+                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                          title="Edit condition name"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCondition(condition.id)}
+                          className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Delete condition"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Condition Details */}
+                    <div className="grid grid-cols-1 gap-2 text-xs">
+                      {/* JSON Path */}
+                      <div>
+                        <label className="block text-gray-500 mb-1">JSON Path:</label>
+                        <input
+                          type="text"
+                          value={condition.rule?.jsonpath || ''}
+                          onChange={(e) => handleUpdateConditionRule(condition.id, 'jsonpath', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-200 rounded text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="$.field"
+                        />
+                      </div>
+
+                      {/* Operator and Value */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-gray-500 mb-1">Operator:</label>
+                          <select
+                            value={condition.rule?.operator || 'equals'}
+                            onChange={(e) => handleUpdateConditionRule(condition.id, 'operator', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-200 rounded text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            {CONDITION_OPERATORS.map((op) => (
+                              <option key={op.value} value={op.value}>
+                                {op.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-gray-500 mb-1">Value:</label>
+                          <input
+                            type="text"
+                            value={condition.rule?.value || ''}
+                            onChange={(e) => handleUpdateConditionRule(condition.id, 'value', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-200 rounded text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Expected value"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Connection Handle */}
                     <Handle
                       type="source"
                       position={Position.Right}
                       id={condition.id}
-                      style={{ top: `${(index + 1) * 40 + 120}px` }}
+                      style={{ top: `${(index + 1) * 120 + 180}px` }}
                       className="!w-4 !h-4 !bg-yellow-500"
                     />
                   </div>
                 ))}
+
+                {/* Empty State */}
+                {data.conditions.length === 0 && (
+                  <div className="text-center py-6 text-gray-500">
+                    <p className="text-sm mb-2">No conditions defined yet</p>
+                    <button
+                      onClick={handleAddCondition}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Add your first condition
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -209,7 +353,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
                   className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
                 >
                   <Settings className="w-4 h-4" />
-                  Edit Settings
+                  Full Editor
                 </button>
                 
                 {data.onNodeDelete ? (
