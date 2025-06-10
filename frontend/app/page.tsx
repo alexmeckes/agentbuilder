@@ -23,10 +23,62 @@ export default function Home() {
   const [isManualMode, setIsManualMode] = useState(false)
   const [userSettings, setUserSettings] = useState<any>(null)
 
+  // Page-level node deletion handler
+  const handleNodeDelete = useCallback((nodeId: string) => {
+    console.log('🗑️ Page-level: Deleting node:', nodeId)
+    setNodes(currentNodes => {
+      const nodeExists = currentNodes.find(node => node.id === nodeId)
+      if (!nodeExists) {
+        console.log(`ℹ️ Node ${nodeId} not found, already deleted`)
+        return currentNodes
+      }
+      console.log(`✅ Page-level: Removing node ${nodeId}`)
+      return currentNodes.filter(node => node.id !== nodeId)
+    })
+    
+    setEdges(currentEdges => {
+      const edgesToRemove = currentEdges.filter(edge => 
+        edge.source === nodeId || edge.target === nodeId
+      )
+      console.log(`🔗 Page-level: Removing ${edgesToRemove.length} connected edges`)
+      return currentEdges.filter(edge => 
+        edge.source !== nodeId && edge.target !== nodeId
+      )
+    })
+  }, [])
+
+  // Page-level node update handler
+  const handleNodeUpdate = useCallback((nodeId: string, updatedData: any) => {
+    console.log('🔧 Page-level: Updating node:', nodeId, 'with data:', updatedData)
+    setNodes(currentNodes => 
+      currentNodes.map(node => 
+        node.id === nodeId 
+          ? { ...node, data: { ...node.data, ...updatedData } }
+          : node
+      )
+    )
+  }, [])
+
   const handleWorkflowChange = useCallback((newNodes: Node[], newEdges: Edge[]) => {
     setNodes(newNodes)
     setEdges(newEdges)
   }, [])
+
+  // Enhanced nodes change handler that ensures callbacks are always present
+  const handleNodesChange = useCallback((newNodes: Node[]) => {
+    // Ensure every node has the proper callbacks
+    const nodesWithCallbacks = newNodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        onNodeUpdate: handleNodeUpdate,
+        onNodeDelete: handleNodeDelete,
+      }
+    }))
+    
+    console.log('🔄 Page-level: Nodes updated with callbacks:', nodesWithCallbacks.length)
+    setNodes(nodesWithCallbacks)
+  }, [handleNodeUpdate, handleNodeDelete])
 
   const handleSuggestionToWorkflow = useCallback((suggestion: string) => {
     setWorkflowExecutionInput(suggestion)
@@ -128,24 +180,9 @@ export default function Home() {
                 ? 'image_generation'
                 : 'web_search' // default to web_search for tool nodes
             }),
-            // Add the missing callbacks for node deletion and updates
-            onNodeUpdate: (nodeId: string, updatedData: any) => {
-              setNodes(currentNodes => 
-                currentNodes.map(node => 
-                  node.id === nodeId 
-                    ? { ...node, data: { ...node.data, ...updatedData } }
-                    : node
-                )
-              )
-            },
-            onNodeDelete: (nodeId: string) => {
-              setNodes(currentNodes => currentNodes.filter(node => node.id !== nodeId))
-              setEdges(currentEdges => 
-                currentEdges.filter(edge => 
-                  edge.source !== nodeId && edge.target !== nodeId
-                )
-              )
-            }
+            // Use page-level callbacks consistently
+            onNodeUpdate: handleNodeUpdate,
+            onNodeDelete: handleNodeDelete
           }
         }
         newNodes.push(newNode)
@@ -198,176 +235,14 @@ export default function Home() {
 
     // Switch to design tab so user can review the created workflow
     setActiveTab('design')
-    
-    // Update execution input with smart context if provided
+
+    // Set context in workflow input if provided
     if (smartContext) {
       setWorkflowExecutionInput(smartContext)
     }
-    
-    // Show success notification
-    alert(`✅ Workflow created successfully! Switch to the Design tab to review and execute it.`)
-  }, [nodes, edges])
+  }, [nodes, edges, handleNodeUpdate, handleNodeDelete])
 
-  const handleExecuteActions = useCallback((actions: any[]) => {
-    console.log('Executing actions:', actions)
-    
-    const newNodes: Node[] = []
-    const newEdges: Edge[] = []
-    
-    // Keep track of node mappings for connections
-    const nodeIdMap = new Map<string, string>() // original name -> actual ID
 
-    // Advanced spacing algorithm (same as drag-and-drop)
-    const nodeWidth = 500 // Much larger width to account for any expanded state
-    const nodeHeight = 400 // Much larger height for any expanded content  
-    const padding = 200 // Very large padding between nodes
-
-    const findAvailablePosition = (existingNodes: Node[], startX: number = 100, startY: number = 100) => {
-      const position = { x: startX, y: startY }
-      let attempts = 0
-      const maxAttempts = 30
-
-      while (attempts < maxAttempts) {
-        const hasOverlap = existingNodes.some(node => {
-          const dx = Math.abs(node.position.x - position.x)
-          const dy = Math.abs(node.position.y - position.y)
-          return dx < nodeWidth + padding && dy < nodeHeight + padding
-        })
-
-        if (!hasOverlap) break
-
-        // Try different positions with very generous spacing
-        if (attempts < 10) {
-          // Try to the right with much more spacing
-          position.x += nodeWidth + padding
-        } else if (attempts < 20) {
-          // Try below with much more spacing
-          position.x = startX
-          position.y += nodeHeight + padding
-        } else {
-          // Try diagonal positioning with very generous spacing
-          position.x = startX + (attempts - 20) * (nodeWidth + padding)
-          position.y = startY + (attempts - 20) * (nodeHeight + padding)
-        }
-        attempts++
-      }
-
-      return position
-    }
-
-    // Process CREATE_NODE actions first
-    actions.forEach((action, index) => {
-      if (action.type === 'CREATE_NODE') {
-        const nodeId = `${action.nodeType}-${Date.now()}-${index}`
-        
-        // Find available position using advanced spacing
-        const allExistingNodes = [...nodes, ...newNodes]
-        const position = findAvailablePosition(allExistingNodes, 100, 100)
-        
-        const newNode: Node = {
-          id: nodeId,
-          type: 'agent',
-          position: position,
-          data: {
-            label: action.name || `${action.nodeType} Node`,
-            type: action.nodeType,
-            name: action.name,
-            instructions: action.instructions,
-            description: `AI-generated ${action.nodeType} node`,
-            // Only assign model_id to agent nodes
-            ...(action.nodeType === 'agent' && {
-              model_id: action.model || 'gpt-4.1'
-            }),
-            // Auto-detect tool_type for tool nodes
-            ...(action.nodeType === 'tool' && {
-              tool_type: action.name?.toLowerCase().includes('search') || action.name?.toLowerCase().includes('web') 
-                ? 'web_search'
-                : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('read')
-                ? 'file_read'
-                : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('write')
-                ? 'file_write'
-                : action.name?.toLowerCase().includes('api')
-                ? 'api_call'
-                : action.name?.toLowerCase().includes('database')
-                ? 'database_query'
-                : action.name?.toLowerCase().includes('image')
-                ? 'image_generation'
-                : 'web_search' // default to web_search for tool nodes
-            })
-          }
-        }
-        newNodes.push(newNode)
-        
-        // Map the original name to the actual node ID for connections
-        if (action.name) {
-          nodeIdMap.set(action.name, nodeId)
-        }
-        // Also map the nodeType for fallback
-        nodeIdMap.set(`${action.nodeType}-${index}`, nodeId)
-      }
-    })
-
-    // Process CONNECT_NODES actions after all nodes are created
-    actions.forEach((action) => {
-      if (action.type === 'CONNECT_NODES' && action.sourceId && action.targetId) {
-        // Try to resolve the actual node IDs
-        let sourceNodeId = action.sourceId
-        let targetNodeId = action.targetId
-        
-        // Check if these are node names that need to be mapped to actual IDs
-        if (nodeIdMap.has(action.sourceId)) {
-          sourceNodeId = nodeIdMap.get(action.sourceId)!
-        } else {
-          // Check existing nodes for a match
-          const existingSourceNode = [...nodes, ...newNodes].find(n => 
-            n.data.name === action.sourceId || n.id === action.sourceId
-          )
-          if (existingSourceNode) {
-            sourceNodeId = existingSourceNode.id
-          }
-        }
-        
-        if (nodeIdMap.has(action.targetId)) {
-          targetNodeId = nodeIdMap.get(action.targetId)!
-        } else {
-          // Check existing nodes for a match
-          const existingTargetNode = [...nodes, ...newNodes].find(n => 
-            n.data.name === action.targetId || n.id === action.targetId
-          )
-          if (existingTargetNode) {
-            targetNodeId = existingTargetNode.id
-          }
-        }
-        
-        const edgeId = `edge-${sourceNodeId}-${targetNodeId}`
-        const newEdge: Edge = {
-          id: edgeId,
-          source: sourceNodeId,
-          target: targetNodeId,
-          type: 'default'
-        }
-        newEdges.push(newEdge)
-        
-        console.log('Created edge:', newEdge)
-      }
-    })
-
-    if (newNodes.length > 0) {
-      setNodes(prevNodes => [...prevNodes, ...newNodes])
-      setActiveTab('design') // Switch to design view to show created nodes
-    }
-    
-    if (newEdges.length > 0) {
-      setEdges(prevEdges => [...prevEdges, ...newEdges])
-    }
-
-    // Show success notification
-    if (newNodes.length > 0 || newEdges.length > 0) {
-      console.log('Created nodes:', newNodes)
-      console.log('Created edges:', newEdges)
-      alert(`✅ Created ${newNodes.length} nodes and ${newEdges.length} connections!`)
-    }
-  }, [nodes])
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col">
@@ -491,7 +366,6 @@ export default function Home() {
             )}
             <ChatInterface 
               workflowContext={{ nodes, edges }} 
-              onExecuteActions={handleExecuteActions}
               onSuggestionToWorkflow={handleSuggestionToWorkflow}
               onUseWorkflow={handleUseWorkflow}
             />
@@ -529,7 +403,7 @@ export default function Home() {
               <WorkflowEditor 
                 nodes={nodes}
                 edges={edges}
-                onNodesChange={setNodes}
+                onNodesChange={handleNodesChange}
                 onEdgesChange={setEdges}
                 onWorkflowChange={handleWorkflowChange}
                 executionInput={workflowExecutionInput}
