@@ -294,56 +294,42 @@ function WorkflowEditorInner({
   )
 
   // Handle individual node deletion (from delete button)
+  // NOTE: This should only be used for internal state management
+  // When external callbacks are provided, deletion is handled at the page level
   const handleNodeDelete = useCallback(
     (nodeId: string) => {
-      console.log('🗑️ Deleting single node:', nodeId)
+      // If using external state management, this function should not be called
+      // The page-level handlers should be used instead
+      if (externalOnNodesChange) {
+        console.log('⚠️ WorkflowEditor handleNodeDelete called but external management is active. This should not happen.')
+        console.log('🔄 Deferring to external deletion handler...')
+        return
+      }
+
+      console.log('🗑️ Deleting single node (internal management):', nodeId)
       
       try {
-        if (externalOnNodesChange && externalOnEdgesChange) {
-          // Verify node exists before attempting deletion
-          const nodeToDelete = baseNodes.find(node => node.id === nodeId)
-          if (!nodeToDelete) {
-            console.log(`ℹ️ Node ${nodeId} not found, already deleted`)
-            return
+        // Update internal state with safety checks
+        setInternalNodes(currentNodes => {
+          const nodeExists = currentNodes.find(node => node.id === nodeId)
+          if (!nodeExists) {
+            console.log(`ℹ️ Node ${nodeId} not found in internal state, already deleted`)
+            return currentNodes
           }
-          
-          // Filter out deleted node and its connected edges
-          const updatedNodes = baseNodes.filter(node => node.id !== nodeId)
-          const updatedEdges = edges.filter(edge => 
+          return currentNodes.filter(node => node.id !== nodeId)
+        })
+        
+        setInternalEdges(currentEdges => 
+          currentEdges.filter(edge => 
             edge.source !== nodeId && edge.target !== nodeId
           )
-          
-          console.log(`🗑️ Removing node ${nodeId} and ${edges.length - updatedEdges.length} connected edges`)
-          
-          externalOnNodesChange(updatedNodes)
-          externalOnEdgesChange(updatedEdges)
-          
-          if (onWorkflowChange) {
-            onWorkflowChange(updatedNodes, updatedEdges)
-          }
-        } else {
-          // Update internal state with safety checks
-          setInternalNodes(currentNodes => {
-            const nodeExists = currentNodes.find(node => node.id === nodeId)
-            if (!nodeExists) {
-              console.log(`ℹ️ Node ${nodeId} not found in internal state, already deleted`)
-              return currentNodes
-            }
-            return currentNodes.filter(node => node.id !== nodeId)
-          })
-          
-          setInternalEdges(currentEdges => 
-            currentEdges.filter(edge => 
-              edge.source !== nodeId && edge.target !== nodeId
-            )
-          )
-        }
+        )
       } catch (error) {
         console.error(`❌ Error deleting node ${nodeId}:`, error)
         // Don't throw - just log the error and continue
       }
     },
-    [baseNodes, edges, externalOnNodesChange, externalOnEdgesChange, setInternalNodes, setInternalEdges, onWorkflowChange]
+    [externalOnNodesChange, setInternalNodes, setInternalEdges]
   )
 
   // Handle node data updates from the node components
@@ -393,13 +379,21 @@ function WorkflowEditorInner({
   // EFFECT REFACTORED TO PREVENT INFINITE LOOP
   // This effect ensures that all nodes have the necessary update and delete
   // callbacks, especially after being loaded from a saved state.
+  // BUT: Don't overwrite existing callbacks when using external state management
   useEffect(() => {
+    // If we're using external state management (page-level), 
+    // don't overwrite the callbacks - let the parent handle it
+    if (externalOnNodesChange) {
+      console.log('🔧 Skipping WorkflowEditor hydration - using external callback management')
+      return
+    }
+
     const nodesToUpdate = baseNodes.filter(
       (node) => !node.data.onNodeUpdate || !node.data.onNodeDelete
     )
 
     if (nodesToUpdate.length > 0) {
-      console.log(`🔧 Hydrating ${nodesToUpdate.length} nodes with callbacks...`)
+      console.log(`🔧 Hydrating ${nodesToUpdate.length} nodes with internal callbacks...`)
 
       const updatedNodes = baseNodes.map((node) => {
         if (!node.data.onNodeUpdate || !node.data.onNodeDelete) {
@@ -415,11 +409,7 @@ function WorkflowEditorInner({
         return node
       })
 
-      if (externalOnNodesChange) {
-        externalOnNodesChange(updatedNodes)
-      } else {
-        setInternalNodes(updatedNodes)
-      }
+      setInternalNodes(updatedNodes)
     }
   }, [baseNodes, handleNodeUpdate, handleNodeDelete, externalOnNodesChange, setInternalNodes])
 
