@@ -33,6 +33,14 @@ interface ConditionalNodeData {
 }
 
 export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
+  // Debug: Log what callbacks this node receives
+  console.log(`🔧 ConditionalNode ${id} received callbacks:`, {
+    hasOnNodeUpdate: !!data.onNodeUpdate,
+    hasOnNodeDelete: !!data.onNodeDelete,
+    nodeType: 'conditional',
+    nodeLabel: data.label
+  })
+  
   const [isExpanded, setIsExpanded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingCondition, setEditingCondition] = useState<string | null>(null);

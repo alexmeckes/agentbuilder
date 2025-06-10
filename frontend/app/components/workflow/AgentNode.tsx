@@ -194,6 +194,14 @@ const getExecutionStatusText = (status?: NodeExecutionStatus) => {
 }
 
 function AgentNodeComponent({ data, selected, id, onNodeUpdate, onNodeDelete }: AgentNodeProps) {
+  // Debug: Log what callbacks this node receives
+  console.log(`🔧 AgentNode ${id} received callbacks:`, {
+    hasOnNodeUpdate: !!onNodeUpdate,
+    hasOnNodeDelete: !!onNodeDelete,
+    nodeType: data.type,
+    nodeLabel: data.label
+  })
+  
   // Get execution state from context
   const { getNodeExecutionState } = useExecutionContext()
   const executionState = getNodeExecutionState(id)
