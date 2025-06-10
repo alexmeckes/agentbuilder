@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔄 Forcing MCP Composio server reconnection for user: ${userId}`)
+    console.log(`🔗 Backend URL: ${BACKEND_URL}`)
     
     // Step 1: Remove the existing server
     try {
@@ -37,8 +38,8 @@ export async function POST(request: NextRequest) {
       id: "composio-tools",
       name: "Composio Universal Tools",
       description: "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
-      command: "python",
-      args: ["-m", "composio_mcp_bridge"],
+      command: ["python", "-m", "composio_mcp_bridge"],
+      args: [],
       env: {
         COMPOSIO_API_KEY: apiKey,
         USER_ID: userId,
@@ -46,6 +47,8 @@ export async function POST(request: NextRequest) {
         ENCRYPTION_ENABLED: "false"
       }
     }
+    
+    console.log(`🔧 Creating server with config:`, JSON.stringify(serverConfig, null, 2))
     
     const createController = new AbortController()
     setTimeout(() => createController.abort(), 10000)
@@ -59,6 +62,8 @@ export async function POST(request: NextRequest) {
       signal: createController.signal
     })
     
+    console.log(`📡 Create response status: ${createResponse.status}`)
+    
     if (createResponse.ok) {
       const result = await createResponse.json()
       console.log(`✅ New MCP server created: ${result.message}`)
@@ -71,6 +76,8 @@ export async function POST(request: NextRequest) {
       const statusData = await statusResponse.json()
       const composioServer = statusData.servers?.['composio-tools']
       
+      console.log(`📊 Server status after creation:`, composioServer)
+      
       return NextResponse.json({ 
         success: true, 
         message: 'Composio MCP server reconnected successfully',
@@ -79,12 +86,24 @@ export async function POST(request: NextRequest) {
         userId: userId
       })
     } else {
-      const errorData = await createResponse.json().catch(() => ({ detail: 'Unknown error' }))
-      console.error(`❌ Failed to create MCP server: ${createResponse.status} - ${errorData.detail}`)
+      const errorText = await createResponse.text()
+      console.error(`❌ Failed to create MCP server: ${createResponse.status}`)
+      console.error(`❌ Error response body: ${errorText}`)
+      
+      let errorData
+      try {
+        errorData = JSON.parse(errorText)
+      } catch {
+        errorData = { detail: errorText || 'Unknown error' }
+      }
       
       return NextResponse.json({ 
         success: false, 
-        message: errorData.detail || 'Failed to create MCP server'
+        message: errorData.detail || 'Failed to create MCP server',
+        debugInfo: {
+          status: createResponse.status,
+          response: errorText
+        }
       }, { status: createResponse.status })
     }
     
@@ -92,7 +111,8 @@ export async function POST(request: NextRequest) {
     console.error('Error forcing MCP Composio server reconnection:', error)
     return NextResponse.json({ 
       success: false, 
-      message: 'Failed to force reconnection' 
+      message: 'Failed to force reconnection',
+      error: error instanceof Error ? error.message : String(error)
     }, { status: 500 })
   }
 } 
