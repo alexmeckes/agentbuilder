@@ -32,15 +32,15 @@ interface ConditionalNodeData {
   onNodeDelete?: (nodeId: string) => void;
 }
 
-function ConditionalNodeComponent({ id, data }: NodeProps<ConditionalNodeData>) {
-  // Debug: Log what callbacks this node receives
-  console.log(`🔧 ConditionalNode ${id} received callbacks:`, {
-    hasOnNodeUpdate: !!data.onNodeUpdate,
-    hasOnNodeDelete: !!data.onNodeDelete,
-    nodeType: 'conditional',
-    nodeLabel: data.label
-  })
-  
+interface ConditionalNodeProps {
+  data: ConditionalNodeData
+  selected?: boolean
+  id: string
+  onNodeUpdate?: (nodeId: string, data: Partial<ConditionalNodeData>) => void
+  onNodeDelete?: (nodeId: string) => void
+}
+
+function ConditionalNodeComponent({ id, data, onNodeUpdate, onNodeDelete }: ConditionalNodeProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingCondition, setEditingCondition] = useState<string | null>(null);
@@ -68,7 +68,10 @@ function ConditionalNodeComponent({ id, data }: NodeProps<ConditionalNodeData>) 
       }
     };
     const updatedConditions = [...data.conditions, newCondition];
-    data.onNodeUpdate(id, { conditions: updatedConditions });
+    
+    if (onNodeUpdate) {
+      onNodeUpdate(id, { conditions: updatedConditions });
+    }
     
     // Expand the node to show the new condition
     setIsExpanded(true);
@@ -76,14 +79,18 @@ function ConditionalNodeComponent({ id, data }: NodeProps<ConditionalNodeData>) 
 
   const handleDeleteCondition = (conditionId: string) => {
     const updatedConditions = data.conditions.filter(c => c.id !== conditionId);
-    data.onNodeUpdate(id, { conditions: updatedConditions });
+    if (onNodeUpdate) {
+      onNodeUpdate(id, { conditions: updatedConditions });
+    }
   };
 
   const handleUpdateCondition = (conditionId: string, updates: Partial<Condition>) => {
     const updatedConditions = data.conditions.map(condition =>
       condition.id === conditionId ? { ...condition, ...updates } : condition
     );
-    data.onNodeUpdate(id, { conditions: updatedConditions });
+    if (onNodeUpdate) {
+      onNodeUpdate(id, { conditions: updatedConditions });
+    }
   };
 
   const handleUpdateConditionRule = (conditionId: string, field: keyof NonNullable<Condition['rule']>, value: string) => {
@@ -104,9 +111,9 @@ function ConditionalNodeComponent({ id, data }: NodeProps<ConditionalNodeData>) 
       e.stopPropagation();
       e.preventDefault();
     }
-    if (data.onNodeDelete) {
+    if (onNodeDelete) {
       if (window.confirm(`Delete "${data.label}" conditional router?`)) {
-        data.onNodeDelete!(id);
+        onNodeDelete(id);
       }
     }
   };
@@ -361,18 +368,12 @@ function ConditionalNodeComponent({ id, data }: NodeProps<ConditionalNodeData>) 
                   className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors"
                 >
                   <Settings className="w-4 h-4" />
-                  Full Editor
+                  Edit Settings
                 </button>
                 
-                {data.onNodeDelete ? (
+                {onNodeDelete ? (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      e.preventDefault()
-                      if (window.confirm(`Delete "${data.label}" conditional router?`)) {
-                        data.onNodeDelete!(id)
-                      }
-                    }}
+                    onClick={handleDeleteNode}
                     className="flex items-center gap-2 px-3 py-2 text-sm bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -453,58 +454,17 @@ export function ConditionalNode(props: NodeProps<ConditionalNodeData & {
   const { data, ...otherProps } = props
   const { onNodeUpdate, onNodeDelete, ...nodeData } = data
   
-  // Debug logging to see if callbacks are present
-  console.log(`🔍 ConditionalNode wrapper ${props.id} - data.onNodeUpdate:`, !!data.onNodeUpdate, 'data.onNodeDelete:', !!data.onNodeDelete)
-  
-  // Provide fallback callbacks if they're missing (same pattern as AgentNode)
+  // Provide safe callbacks
   const safeOnNodeUpdate = onNodeUpdate || data.onNodeUpdate || ((nodeId: string, updatedData: Partial<ConditionalNodeData>) => {
-    console.warn(`🚨 No onNodeUpdate callback for ConditionalNode ${nodeId}, update ignored:`, updatedData)
+    console.warn(`No onNodeUpdate callback for ConditionalNode ${nodeId}`)
   })
   
-  const safeOnNodeDelete = onNodeDelete || data.onNodeDelete || ((nodeId: string) => {
-    console.warn(`🚨 No onNodeDelete callback for ConditionalNode ${nodeId}, attempting fallback deletion`)
-    
-    // Try to dispatch a delete event that ReactFlow might catch
-    try {
-      // Try to trigger a keyboard delete event
-      const deleteEvent = new KeyboardEvent('keydown', {
-        key: 'Delete',
-        code: 'Delete',
-        keyCode: 46,
-        bubbles: true,
-        cancelable: true
-      })
-      
-      // First select the node, then trigger delete
-      const nodeElement = document.querySelector(`[data-id="${nodeId}"]`) as HTMLElement
-      if (nodeElement) {
-        // Click to select the node first
-        nodeElement.click()
-        
-        // Then trigger delete after a short delay
-        setTimeout(() => {
-          document.dispatchEvent(deleteEvent)
-        }, 100)
-      }
-    } catch (error) {
-      console.error('Fallback deletion failed:', error)
-      // As a last resort, try to hide the node element
-      const nodeElement = document.querySelector(`[data-id="${nodeId}"]`)
-      if (nodeElement) {
-        nodeElement.remove()
-      }
-    }
-  })
-  
-  // Create nodeData with callbacks included
-  const nodeDataWithCallbacks: ConditionalNodeData = {
-    ...nodeData as ConditionalNodeData,
-    onNodeUpdate: safeOnNodeUpdate,
-    onNodeDelete: safeOnNodeDelete,
-  }
+  const safeOnNodeDelete = onNodeDelete || data.onNodeDelete
   
   return <ConditionalNodeComponent 
     {...otherProps} 
-    data={nodeDataWithCallbacks}
+    data={nodeData as ConditionalNodeData}
+    onNodeUpdate={safeOnNodeUpdate}
+    onNodeDelete={safeOnNodeDelete}
   />
 }
