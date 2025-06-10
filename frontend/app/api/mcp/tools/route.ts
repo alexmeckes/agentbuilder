@@ -19,6 +19,8 @@ export async function GET() {
 
     const serversData = await serversResponse.json();
     
+    console.log('🔍 MCP Tools API: Server data:', JSON.stringify(serversData, null, 2));
+    
     // Extract tools from server capabilities
     const tools: Record<string, any> = {};
     
@@ -42,50 +44,33 @@ export async function GET() {
     // Extract MCP tools from connected servers
     if (serversData.servers) {
       Object.entries(serversData.servers).forEach(([serverId, serverInfo]: [string, any]) => {
+        console.log(`🔍 Processing server ${serverId}:`, {
+          status: serverInfo.status,
+          capabilities: serverInfo.capabilities,
+          tool_count: serverInfo.tool_count
+        });
+        
         // Include both connected and configured servers (configured servers have their tools available)
         if ((serverInfo.status === 'connected' || serverInfo.status === 'configured') && serverInfo.capabilities) {
           serverInfo.capabilities.forEach((toolName: string) => {
             const toolId = `${serverId}_${toolName}`;
             tools[toolId] = {
-              type: 'mcp',
-              name: toolName,
+              type: serverId === 'composio-tools' ? 'composio' : 'mcp',
+              source: serverId === 'composio-tools' ? 'composio' : 'mcp',
+              name: toolName.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
               description: `${toolName} - ${serverInfo.name} tool`,
-              category: _categorizeGitHubTool(toolName),
+              category: _categorizeComposioTool(toolName),
               server_id: serverId,
               server_name: serverInfo.name,
               server_status: serverInfo.status
             };
           });
         }
-        
-        // Special handling for Composio server - add default tools even if no capabilities discovered yet
-        if (serverId === 'composio-tools' && (serverInfo.status === 'connected' || serverInfo.status === 'configured')) {
-          const composioDefaultTools = [
-            { name: 'github_star_repo', category: 'development', description: 'Star a GitHub repository' },
-            { name: 'github_create_issue', category: 'development', description: 'Create a GitHub issue' },
-            { name: 'gmail_send_email', category: 'communication', description: 'Send email via Gmail' },
-            { name: 'googledocs_create_doc', category: 'productivity', description: 'Create a Google Docs document' },
-            { name: 'slack_send_message', category: 'communication', description: 'Send message to Slack' },
-            { name: 'notion_create_page', category: 'productivity', description: 'Create a Notion page' },
-            { name: 'linear_create_issue', category: 'productivity', description: 'Create a Linear issue' }
-          ];
-          
-          composioDefaultTools.forEach((tool) => {
-            const toolId = `composio_${tool.name}`;
-            // Only add if not already present from capabilities
-            if (!tools[toolId]) {
-              tools[toolId] = {
-                type: 'composio',
-                source: 'composio',
-                name: tool.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                description: tool.description,
-                category: tool.category,
-                server_id: serverId,
-                server_name: serverInfo.name,
-                server_status: serverInfo.status
-              };
-            }
-          });
+        // For Composio server without capabilities, test if tools are actually available
+        else if (serverId === 'composio-tools' && (serverInfo.status === 'connected' || serverInfo.status === 'configured')) {
+          console.log(`🔍 Composio server found but no capabilities. Would attempt direct tool discovery in separate call.`);
+          // Note: Direct API call would need to be made separately due to async constraints
+          // For now, we'll only show tools that are actually discovered via MCP capabilities
         }
       });
     }
@@ -137,5 +122,27 @@ function _categorizeGitHubTool(toolName: string): string {
     return 'security';
   } else {
     return 'development';
+  }
+}
+
+// Helper function to categorize Composio tools
+function _categorizeComposioTool(toolName: string): string {
+  const toolNameLower = toolName.toLowerCase();
+  
+  // GitHub tools
+  if (toolNameLower.includes('github') || toolNameLower.includes('repo') || toolNameLower.includes('issue') || toolNameLower.includes('fork')) {
+    return 'development';
+  }
+  // Communication tools
+  else if (toolNameLower.includes('gmail') || toolNameLower.includes('email') || toolNameLower.includes('slack') || toolNameLower.includes('message')) {
+    return 'communication';
+  }
+  // Productivity tools
+  else if (toolNameLower.includes('notion') || toolNameLower.includes('linear') || toolNameLower.includes('google') || toolNameLower.includes('docs') || toolNameLower.includes('sheets') || toolNameLower.includes('calendar') || toolNameLower.includes('drive')) {
+    return 'productivity';
+  }
+  // Default to general
+  else {
+    return 'general';
   }
 } 
