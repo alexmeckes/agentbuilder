@@ -218,7 +218,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
                       e.stopPropagation()
                       e.preventDefault()
                       if (window.confirm(`Delete "${data.label}" conditional router?`)) {
-                        data.onNodeDelete(id)
+                        data.onNodeDelete!(id)
                       }
                     }}
                     className="flex items-center gap-2 px-3 py-2 text-sm bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
