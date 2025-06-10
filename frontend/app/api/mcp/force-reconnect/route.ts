@@ -49,20 +49,47 @@ export async function POST(request: NextRequest) {
     }
     
     console.log(`🔧 Creating server with config:`, JSON.stringify(serverConfig, null, 2))
+    console.log(`🌐 POST URL will be: ${BACKEND_URL}/mcp/servers`)
+    console.log(`🕒 About to start POST request...`)
     
     const createController = new AbortController()
-    setTimeout(() => createController.abort(), 30000) // Increased to 30 seconds for Render
+    setTimeout(() => {
+      console.log(`⏰ AbortController timeout hit after 30 seconds`)
+      createController.abort()
+    }, 30000) // Increased to 30 seconds for Render
     
-    const createResponse = await fetch(`${BACKEND_URL}/mcp/servers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(serverConfig),
-      signal: createController.signal
-    })
+    console.log(`🚀 Making POST request to ${BACKEND_URL}/mcp/servers`)
     
-    console.log(`📡 Create response status: ${createResponse.status}`)
+    let createResponse: Response
+    try {
+      createResponse = await fetch(`${BACKEND_URL}/mcp/servers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(serverConfig),
+        signal: createController.signal
+      })
+      console.log(`📡 POST request completed with status: ${createResponse.status}`)
+    } catch (fetchError: any) {
+      console.error(`❌ POST request failed:`, fetchError)
+      console.error(`❌ Error name: ${fetchError.name}`)
+      console.error(`❌ Error message: ${fetchError.message}`)
+      
+      if (fetchError.name === 'AbortError') {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'POST request timed out after 30 seconds',
+          error: 'Timeout during server creation'
+        }, { status: 408 })
+      }
+      
+      return NextResponse.json({ 
+        success: false, 
+        message: 'POST request failed',
+        error: fetchError.message
+      }, { status: 500 })
+    }
     
     if (createResponse.ok) {
       const result = await createResponse.json()
