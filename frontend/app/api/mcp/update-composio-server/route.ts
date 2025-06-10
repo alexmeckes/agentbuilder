@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     
     // Update the Composio MCP server configuration with timeout
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout (increased since backend is now non-blocking)
     
     try {
       const updateResponse = await fetch(`${BACKEND_URL}/mcp/servers/composio-tools`, {

@@ -340,6 +340,64 @@ class MCPServerManager:
         
         return result
 
+    async def update_server_config(self, server_id: str, server_config: dict) -> bool:
+        """Update an existing MCP server configuration without forcing immediate connection"""
+        try:
+            # Check if server exists
+            if server_id not in self.servers:
+                raise ValueError(f"Server {server_id} not found")
+            
+            # Get existing server config
+            existing_config = self.servers[server_id]
+            
+            # Update the configuration with new values
+            updated_env = existing_config.env.copy() if existing_config.env else {}
+            if 'env' in server_config:
+                updated_env.update(server_config['env'])
+            
+            # Create updated server config
+            updated_config = MCPServerConfig(
+                id=server_id,
+                name=server_config.get('name', existing_config.name),
+                description=server_config.get('description', existing_config.description),
+                command=server_config.get('command', existing_config.command),
+                args=server_config.get('args', existing_config.args or []),
+                env=updated_env,
+                working_dir=server_config.get('working_dir', existing_config.working_dir),
+                host=server_config.get('host', existing_config.host),
+                port=server_config.get('port', existing_config.port),
+                credentials=server_config.get('credentials', existing_config.credentials or {})
+            )
+            
+            # Update configuration without forcing connection
+            updated_config.status = "configured"  # Mark as configured but not connected
+            self.servers[server_id] = updated_config
+            self._save_server_configs()
+            
+            logging.info(f"✅ Updated MCP server '{server_id}' configuration (connection will be established when needed)")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Failed to update MCP server {server_id}: {e}")
+            return False
+
+    async def create_or_update_server_config(self, server_config: MCPServerConfig) -> bool:
+        """Create or update a server configuration without forcing immediate connection"""
+        try:
+            # Mark as configured but not connected to avoid subprocess hanging
+            server_config.status = "configured"
+            
+            # Store the configuration
+            self.servers[server_config.id] = server_config
+            self._save_server_configs()
+            
+            logging.info(f"✅ Created/updated MCP server '{server_config.id}' configuration (connection will be established when needed)")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Failed to create/update MCP server {server_config.id}: {e}")
+            return False
+
 # Global MCP manager instance
 _mcp_manager: Optional[MCPServerManager] = None
 

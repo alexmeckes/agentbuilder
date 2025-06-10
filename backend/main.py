@@ -3879,7 +3879,7 @@ async def remove_mcp_server(server_id: str):
 
 @app.put("/mcp/servers/{server_id}")
 async def update_mcp_server(server_id: str, server_config: dict):
-    """Update an existing MCP server configuration"""
+    """Update an existing MCP server configuration or create it if it doesn't exist"""
     if not is_mcp_enabled() or not MCP_AVAILABLE:
         raise HTTPException(status_code=400, detail="MCP not enabled")
     
@@ -3887,46 +3887,36 @@ async def update_mcp_server(server_id: str, server_config: dict):
         mcp_manager = get_mcp_manager()
         
         # Check if server exists
-        if server_id not in mcp_manager.servers:
-            raise HTTPException(status_code=404, detail=f"Server {server_id} not found")
-        
-        # Get existing server config
-        existing_config = mcp_manager.servers[server_id]
-        
-        # Update the configuration with new values
-        updated_env = existing_config.env.copy() if existing_config.env else {}
-        if 'env' in server_config:
-            updated_env.update(server_config['env'])
-        
-        # Create updated server config
-        updated_config = MCPServerConfig(
-            id=server_id,
-            name=server_config.get('name', existing_config.name),
-            description=server_config.get('description', existing_config.description),
-            command=server_config.get('command', existing_config.command),
-            args=server_config.get('args', existing_config.args or []),
-            env=updated_env,
-            working_dir=server_config.get('working_dir', existing_config.working_dir),
-            host=server_config.get('host', existing_config.host),
-            port=server_config.get('port', existing_config.port),
-            credentials=server_config.get('credentials', existing_config.credentials or {})
-        )
-        
-        # Remove old server and add updated one
-        mcp_manager.remove_server(server_id)
-        success = await mcp_manager.add_server(updated_config)
+        if server_id in mcp_manager.servers:
+            # Update existing server
+            success = await mcp_manager.update_server_config(server_id, server_config)
+        else:
+            # Create new server configuration
+            config = MCPServerConfig(
+                id=server_id,
+                name=server_config.get('name', f'MCP Server {server_id}'),
+                description=server_config.get('description', f'MCP server for {server_id}'),
+                command=server_config.get('command', ['python']),
+                args=server_config.get('args', []),
+                env=server_config.get('env', {}),
+                working_dir=server_config.get('working_dir'),
+                host=server_config.get('host'),
+                port=server_config.get('port'),
+                credentials=server_config.get('credentials', {})
+            )
+            success = await mcp_manager.create_or_update_server_config(config)
         
         if success:
-            logging.info(f"✅ Updated MCP server '{server_id}' configuration")
+            updated_config = mcp_manager.servers.get(server_id)
+            logging.info(f"✅ Updated/created MCP server '{server_id}' configuration")
             return {
-                "message": "Server updated successfully", 
+                "message": "Server configuration updated successfully", 
                 "server_id": server_id,
-                "status": updated_config.status
+                "status": updated_config.status if updated_config else "configured"
             }
         else:
-            error_msg = updated_config.last_error or "Failed to connect to updated server"
-            logging.error(f"❌ Failed to update MCP server '{server_id}': {error_msg}")
-            raise HTTPException(status_code=400, detail=error_msg)
+            logging.error(f"❌ Failed to update/create MCP server '{server_id}'")
+            raise HTTPException(status_code=400, detail="Failed to update server configuration")
             
     except HTTPException:
         raise
