@@ -454,12 +454,26 @@ export function ConditionalNode(props: NodeProps<ConditionalNodeData & {
   const { data, ...otherProps } = props
   const { onNodeUpdate, onNodeDelete, ...nodeData } = data
   
-  // Provide safe callbacks
+  // Debug logging to see if callbacks are present
+  console.log(`🔍 ConditionalNode ${props.id} - onNodeUpdate:`, !!onNodeUpdate, 'onNodeDelete:', !!onNodeDelete)
+  console.log(`🔍 ConditionalNode ${props.id} - data.onNodeUpdate:`, !!data.onNodeUpdate, 'data.onNodeDelete:', !!data.onNodeDelete)
+  
+  // Provide safe callbacks with proper fallbacks
   const safeOnNodeUpdate = onNodeUpdate || data.onNodeUpdate || ((nodeId: string, updatedData: Partial<ConditionalNodeData>) => {
     console.warn(`No onNodeUpdate callback for ConditionalNode ${nodeId}`)
   })
   
-  const safeOnNodeDelete = onNodeDelete || data.onNodeDelete
+  const safeOnNodeDelete = onNodeDelete || data.onNodeDelete || ((nodeId: string) => {
+    console.warn(`No onNodeDelete callback for ConditionalNode ${nodeId}`)
+    // Try to find the node element and remove it as fallback
+    setTimeout(() => {
+      const nodeElement = document.querySelector(`[data-id="${nodeId}"]`)
+      if (nodeElement) {
+        console.log(`🗑️ Fallback: Removing ConditionalNode ${nodeId} from DOM`)
+        nodeElement.remove()
+      }
+    }, 100)
+  })
   
   return <ConditionalNodeComponent 
     {...otherProps} 
