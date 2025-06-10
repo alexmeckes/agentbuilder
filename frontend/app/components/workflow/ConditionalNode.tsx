@@ -47,10 +47,14 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
     setIsExpanded(true);
   };
 
-  const handleDeleteNode = () => {
+  const handleDeleteNode = (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     if (data.onNodeDelete) {
       if (window.confirm(`Delete "${data.label}" conditional router?`)) {
-        data.onNodeDelete(id);
+        data.onNodeDelete!(id);
       }
     }
   };
@@ -135,7 +139,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
             {/* Quick Add Button */}
             <button 
               onClick={handleAddCondition} 
-              className="mt-2 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+              className="mt-2 w-full flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-800 nodrag"
             >
               <PlusCircle className="w-4 h-4" />
               Add Condition
@@ -148,10 +152,22 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
           <div className="p-4 space-y-4 nodrag">
             {/* Conditions Summary */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                <GitBranch className="w-4 h-4" />
-                Routing Conditions
-              </h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <GitBranch className="w-4 h-4" />
+                  Routing Conditions
+                </h4>
+                
+                {/* Add Condition Button in Expanded State */}
+                <button 
+                  onClick={handleAddCondition}
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                  title="Add new condition"
+                >
+                  <PlusCircle className="w-3 h-3" />
+                  Add
+                </button>
+              </div>
               
               <div className="space-y-2">
                 {/* Default Path */}
@@ -176,7 +192,7 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
                       type="source"
                       position={Position.Right}
                       id={condition.id}
-                      style={{ top: `${(index + 1) * 40 + 100}px` }}
+                      style={{ top: `${(index + 1) * 40 + 120}px` }}
                       className="!w-4 !h-4 !bg-yellow-500"
                     />
                   </div>
@@ -198,7 +214,13 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
                 
                 {data.onNodeDelete ? (
                   <button
-                    onClick={handleDeleteNode}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      if (window.confirm(`Delete "${data.label}" conditional router?`)) {
+                        data.onNodeDelete(id)
+                      }
+                    }}
                     className="flex items-center gap-2 px-3 py-2 text-sm bg-red-50 text-red-700 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -243,6 +265,20 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
             title={`${condition.name} output`}
           />
         ))}
+
+        {/* Default path handle - always visible */}
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="default"
+          className="!w-4 !h-4 !bg-gray-400 !border-2 !border-white !shadow-lg hover:!bg-gray-500 !transition-all !duration-200"
+          style={{
+            bottom: 10,
+            right: -10,
+            zIndex: 10,
+          }}
+          title="Default path output"
+        />
       </div>
 
       {/* Full Editor Modal */}
