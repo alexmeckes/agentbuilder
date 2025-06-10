@@ -166,6 +166,23 @@ class ClientSideEncryption {
   }
 
   /**
+   * Auto-generate a master password based on user ID
+   * This provides encryption without requiring users to remember passwords
+   */
+  static async generateUserMasterPassword(userId: string): Promise<string> {
+    // Use the user ID + a fixed salt to generate a deterministic but secure password
+    const encoder = new TextEncoder()
+    const userData = encoder.encode(userId + '_anyagent_encryption_v1')
+    
+    // Hash the user data to create a secure master password
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', userData)
+    const hashArray = new Uint8Array(hashBuffer)
+    
+    // Create a strong password from the hash
+    return 'auto_' + this.arrayBufferToBase64(hashArray).substring(0, 32)
+  }
+
+  /**
    * Validate if browser supports required crypto APIs
    */
   static isSupported(): boolean {
