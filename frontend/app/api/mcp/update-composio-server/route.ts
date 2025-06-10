@@ -32,33 +32,57 @@ export async function POST(request: NextRequest) {
       ENCRYPTION_ENABLED: 'false'
     }
     
-    // Update the Composio MCP server configuration
-    const updateResponse = await fetch(`${BACKEND_URL}/mcp/servers/composio-tools`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ env })
-    })
+    // Update the Composio MCP server configuration with timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
     
-    if (updateResponse.ok) {
-      const result = await updateResponse.json()
-      console.log(`✅ MCP Composio server updated: ${result.message}`)
-      
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Composio MCP server updated successfully',
-        serverStatus: result.status,
-        userId: userId
+    try {
+      const updateResponse = await fetch(`${BACKEND_URL}/mcp/servers/composio-tools`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ env }),
+        signal: controller.signal
       })
-    } else {
-      const errorData = await updateResponse.json().catch(() => ({ detail: 'Unknown error' }))
-      console.error(`❌ Failed to update MCP server: ${updateResponse.status} - ${errorData.detail}`)
       
+      clearTimeout(timeoutId)
+    
+      if (updateResponse.ok) {
+        const result = await updateResponse.json()
+        console.log(`✅ MCP Composio server updated: ${result.message}`)
+        
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Composio MCP server updated successfully',
+          serverStatus: result.status,
+          userId: userId
+        })
+      } else {
+        const errorData = await updateResponse.json().catch(() => ({ detail: 'Unknown error' }))
+        console.error(`❌ Failed to update MCP server: ${updateResponse.status} - ${errorData.detail}`)
+        
+        return NextResponse.json({ 
+          success: false, 
+          message: errorData.detail || 'Failed to update MCP server'
+        }, { status: updateResponse.status })
+      }
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId)
+      
+      if (fetchError.name === 'AbortError') {
+        console.error('❌ MCP server update timed out')
+        return NextResponse.json({ 
+          success: false, 
+          message: 'MCP server update timed out - please try again'
+        }, { status: 408 })
+      }
+      
+      console.error('❌ MCP server update failed:', fetchError)
       return NextResponse.json({ 
         success: false, 
-        message: errorData.detail || 'Failed to update MCP server'
-      }, { status: updateResponse.status })
+        message: 'Failed to connect to MCP server'
+      }, { status: 500 })
     }
     
   } catch (error) {

@@ -62,6 +62,7 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [availableTools, setAvailableTools] = useState(AVAILABLE_TOOLS)
   const [isDiscoveringTools, setIsDiscoveringTools] = useState(false)
+  const [mcpUpdateStatus, setMcpUpdateStatus] = useState<string | null>(null)
   
   // Encryption-related state
   const [masterPassword, setMasterPassword] = useState('')
@@ -236,6 +237,7 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
       if (effectiveApiKey || settings.encryptedComposioKey) {
         try {
           console.log('🔧 Updating MCP Composio server configuration...')
+          setMcpUpdateStatus('Updating server configuration...')
           
           // Prepare payload - send encrypted data if available
           const payload = settings.encryptedComposioKey ? {
@@ -252,7 +254,12 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
             encrypted: false
           }
           
-          const mcpUpdateResponse = await fetch('/api/mcp/update-composio-server', {
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('MCP update timeout')), 10000) // 10 second timeout
+          )
+          
+          const fetchPromise = fetch('/api/mcp/update-composio-server', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -260,16 +267,27 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
             body: JSON.stringify(payload)
           })
           
+          const mcpUpdateResponse = await Promise.race([fetchPromise, timeoutPromise]) as Response
+          
           if (mcpUpdateResponse.ok) {
             const updateResult = await mcpUpdateResponse.json()
             console.log('✅ MCP Composio server updated:', updateResult)
+            setMcpUpdateStatus('Server updated successfully')
           } else {
             console.warn('⚠️ Failed to update MCP Composio server:', mcpUpdateResponse.status)
+            setMcpUpdateStatus('Server update failed - tools may need manual refresh')
             // Don't fail the save operation, just log the warning
           }
-        } catch (mcpError) {
-          console.warn('⚠️ MCP update failed:', mcpError)
+        } catch (mcpError: any) {
+          console.warn('⚠️ MCP update failed (timeout or error):', mcpError)
           // Don't fail the save operation, just log the warning
+          // Add user notification about MCP update issue
+          if (mcpError?.message === 'MCP update timeout') {
+            setMcpUpdateStatus('Server update timed out - settings saved, tools may need manual refresh')
+            console.log('💡 MCP server update timed out - your settings are saved but tools may need manual refresh')
+          } else {
+            setMcpUpdateStatus('Server update failed - settings saved')
+          }
         }
       }
       
@@ -277,6 +295,9 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
       
       // Trigger event to refresh tool palette
       window.dispatchEvent(new CustomEvent('userSettingsUpdated'))
+      
+      // Reset MCP status after a brief delay
+      setTimeout(() => setMcpUpdateStatus(null), 2000)
       
       onClose()
     } catch (error) {
@@ -767,6 +788,16 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
             </div>
           </div>
         </div>
+
+        {/* MCP Update Status */}
+        {mcpUpdateStatus && (
+          <div className="px-6 py-3 border-t border-gray-200 bg-blue-50">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
+              <span className="text-sm text-blue-700">{mcpUpdateStatus}</span>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
