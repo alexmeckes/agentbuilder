@@ -95,17 +95,8 @@ export default function Home() {
       hasUpdate: !!n.data.onNodeUpdate 
     })))
     
-    // Update React state
+    // Update React state (ReactFlow will automatically sync with this)
     setNodes(nodesWithCallbacks)
-    
-    // Also update ReactFlow instance directly to ensure synchronization
-    const reactFlowInstance = (window as any).reactFlowInstance
-    if (reactFlowInstance) {
-      console.log('🔄 Also updating ReactFlow instance directly...')
-      setTimeout(() => {
-        reactFlowInstance.setNodes(nodesWithCallbacks)
-      }, 0)
-    }
   }, [handleNodeUpdate, handleNodeDelete])
 
   // Hydration effect: Ensure all existing nodes always have callbacks
