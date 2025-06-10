@@ -10,13 +10,14 @@ duckduckgo_search
 litellm
 markdownify
 mcp>=0.1.0
-opentelemetry-exporter-otlp
-opentelemetry-sdk
+opentelemetry-exporter-otlp>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-api>=1.20.0
 requests
 rich
 fire
-# Install any-agent but we'll use our lightweight evaluation instead of their heavy one
-git+https://github.com/mozilla-ai/any-agent.git
+# Install any-agent with specific version that includes TracingConfig
+git+https://github.com/mozilla-ai/any-agent.git@main
 
 # Add Composio (lightweight)
 composio-core>=0.7.0
@@ -29,7 +30,7 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 click>=8.0.0
 pyyaml>=6.0.1
-jsonpath-ng
+jsonpath-ng>=1.6.0
 psutil
 watchfiles
 sse-starlette 
