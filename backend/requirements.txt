@@ -6,9 +6,10 @@ python-multipart>=0.0.6
 openai>=1.0.0
 openai-agents>=0.0.16
 python-dotenv>=1.0.0
-duckduckgo_search
+duckduckgo_search>=6.2.0
 litellm
 markdownify
+fake-useragent
 mcp>=0.1.0
 opentelemetry-exporter-otlp>=1.20.0
 opentelemetry-sdk>=1.20.0

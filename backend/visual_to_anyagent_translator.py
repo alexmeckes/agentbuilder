@@ -31,27 +31,33 @@ except ImportError:
     def is_mcp_enabled():
         return False
 
-# Import REAL any-agent tools
+# Import enhanced search tools with better error handling
 try:
-    from any_agent.tools import search_web as real_search_web, visit_webpage as real_visit_webpage
-    # Use real tools when available
-    search_web = real_search_web
-    visit_webpage = real_visit_webpage
-    print("✅ Using REAL any-agent web search tools")
-    logging.info("✅ Production: REAL web search tools loaded successfully")
+    from enhanced_search_tools import search_web, visit_webpage
+    print("✅ Using ENHANCED web search tools with DuckDuckGo error handling")
+    logging.info("✅ Production: Enhanced web search tools loaded successfully")
 except ImportError:
-    # Fallback to mock functions for backwards compatibility
-    def search_web(query: str):
-        result = f"Mock search results for: {query}"
-        logging.warning(f"⚠️  MOCK SEARCH executed for query: {query}")
-        return result
+    # Fallback to real any-agent tools
+    try:
+        from any_agent.tools import search_web as real_search_web, visit_webpage as real_visit_webpage
+        # Use real tools when available
+        search_web = real_search_web
+        visit_webpage = real_visit_webpage
+        print("✅ Using REAL any-agent web search tools")
+        logging.info("✅ Production: REAL web search tools loaded successfully")
+    except ImportError:
+        # Final fallback to mock functions for backwards compatibility
+        def search_web(query: str):
+            result = f"Mock search results for: {query}"
+            logging.warning(f"⚠️  MOCK SEARCH executed for query: {query}")
+            return result
 
-    def visit_webpage(url: str):
-        result = f"Mock webpage content for: {url}"
-        logging.warning(f"⚠️  MOCK WEBPAGE visit for URL: {url}")
-        return result
-    print("⚠️  Using MOCK web search tools (any-agent not available)")
-    logging.warning("⚠️  Production: MOCK web search tools in use (real tools not available)")
+        def visit_webpage(url: str):
+            result = f"Mock webpage content for: {url}"
+            logging.warning(f"⚠️  MOCK WEBPAGE visit for URL: {url}")
+            return result
+        print("⚠️  Using MOCK web search tools (any-agent not available)")
+        logging.warning("⚠️  Production: MOCK web search tools in use (real tools not available)")
 
 @dataclass
 class VisualWorkflowNode:
