@@ -315,22 +315,29 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
   const loadUserSettings = () => {
     try {
       const savedSettings = localStorage.getItem('userSettings')
+      console.log('🔧 NodePalette: Raw localStorage userSettings:', savedSettings)
+      
       if (savedSettings) {
         const settings = JSON.parse(savedSettings)
         setUserSettings(settings)
         
-        console.log('🔧 NodePalette: Loading user settings:', settings)
+        console.log('🔧 NodePalette: Parsed user settings:', settings)
+        console.log('🔧 NodePalette: User ID:', settings.userId)
+        console.log('🔧 NodePalette: Composio API Key present:', !!settings.composioApiKey)
+        console.log('🔧 NodePalette: Encrypted key present:', !!settings.encryptedComposioKey)
         console.log('🔧 NodePalette: Enabled tools:', settings.enabledTools)
         
         // Create dynamic Composio categories based on enabled tools
         if (settings.enabledTools && settings.enabledTools.length > 0) {
+          console.log('🔧 NodePalette: Creating dynamic categories for enabled tools')
           createDynamicComposioCategories(settings.enabledTools)
         } else {
           console.log('🔧 NodePalette: No enabled tools found, showing default categories only')
           setDynamicCategories(NODE_CATEGORIES) // Reset to default if no tools enabled
         }
       } else {
-        console.log('🔧 NodePalette: No user settings found in localStorage')
+        console.log('🔧 NodePalette: No user settings found in localStorage - user needs to set up Account settings first')
+        setUserSettings(null)
         setDynamicCategories(NODE_CATEGORIES) // Reset to default
       }
     } catch (error) {
