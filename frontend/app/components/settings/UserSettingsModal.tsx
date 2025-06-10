@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useComposioErrorHandler } from '../../lib/composio-error-handler'
+import ComposioErrorDisplay from '../composio/ComposioErrorDisplay'
 import { createPortal } from 'react-dom'
 import { X, Save, Key, Shield, Settings as SettingsIcon, ExternalLink, Eye, EyeOff, Lock } from 'lucide-react'
 import { ClientSideEncryption } from '@/lib/encryption'
@@ -43,6 +45,8 @@ const FRAMEWORKS = [
 ]
 
 export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSettingsModalProps) {
+  const { handleError, executeWithErrorHandling } = useComposioErrorHandler()
+  
   const [settings, setSettings] = useState<UserSettings>({
     userId: '',
     composioApiKey: '',

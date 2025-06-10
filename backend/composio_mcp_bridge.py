@@ -362,7 +362,7 @@ class UserComposioManager:
         
         return self.user_clients[client_key]
     
-    async def execute_tool_for_user(self, tool_name: str, params: Dict[str, Any], user_context: UserContext) -> Dict[str, Any]:
+    async def execute_tool_for_user(self, tool_name: str, params: Dict[str, Any], user_context: UserContext, retry_count: int = 0) -> Dict[str, Any]:
         """Execute tool with user-specific API key and permissions"""
         
         # Check if user has this tool enabled
@@ -417,11 +417,11 @@ class UserComposioManager:
                 async with session.post(
                     f'https://backend.composio.dev/api/v2/actions/{tool_name}/execute',
                     headers={'x-api-key': actual_api_key, 'Content-Type': 'application/json'},
-                                         json={
-                         "input": params,
-                         "entityId": "default",
-                         "appName": app_name  # Dynamic app name based on tool
-                     },
+                    json={
+                        "input": params,
+                        "entityId": "default",
+                        "appName": app_name  # Dynamic app name based on tool
+                    },
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status == 200:
@@ -430,14 +430,29 @@ class UserComposioManager:
                             "success": True,
                             "result": result,
                             "user_id": user_context.user_id,
-                            "tool": tool_name
+                            "tool": tool_name,
+                            "retry_count": retry_count
                         }
+                    elif response.status == 429 and retry_count < 3:
+                        # Rate limited - retry with exponential backoff
+                        wait_time = (2 ** retry_count) * 1.0  # 1s, 2s, 4s
+                        logging.warning(f"Rate limited for tool {tool_name}, retrying in {wait_time}s (attempt {retry_count + 1}/3)")
+                        await asyncio.sleep(wait_time)
+                        return await self.execute_tool_for_user(tool_name, params, user_context, retry_count + 1)
+                    elif response.status in [500, 502, 503] and retry_count < 2:
+                        # Server error - retry
+                        wait_time = (2 ** retry_count) * 0.5  # 0.5s, 1s
+                        logging.warning(f"Server error {response.status} for tool {tool_name}, retrying in {wait_time}s (attempt {retry_count + 1}/2)")
+                        await asyncio.sleep(wait_time)
+                        return await self.execute_tool_for_user(tool_name, params, user_context, retry_count + 1)
                     else:
                         error_text = await response.text()
                         return {
                             "error": f"HTTP {response.status}: {error_text}",
                             "user_id": user_context.user_id,
-                            "tool": tool_name
+                            "tool": tool_name,
+                            "retry_count": retry_count,
+                            "status_code": response.status
                         }
             
         except Exception as e:
