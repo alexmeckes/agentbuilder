@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
-import { GitBranch, Settings, PlusCircle, ChevronDown, ChevronRight } from 'lucide-react'
+import { GitBranch, Settings, PlusCircle, Trash2 } from 'lucide-react'
 import { ConditionalNodeEditorModal } from './ConditionalNodeEditorModal'
 
 // Assuming a structure for conditions from the backend
@@ -16,11 +16,11 @@ interface ConditionalNodeData {
   label: string;
   conditions: Condition[];
   onNodeUpdate: (nodeId: string, data: Partial<ConditionalNodeData>) => void;
+  onNodeDelete?: (nodeId: string) => void;
 }
 
 export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
   const [isEditing, setIsEditing] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleEditClick = () => {
     setIsEditing(true);
@@ -28,10 +28,6 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
 
   const handleCloseEditor = () => {
     setIsEditing(false);
-  };
-
-  const handleExpansionToggle = () => {
-    setIsExpanded(!isExpanded);
   };
 
   const handleAddCondition = () => {
@@ -42,10 +38,18 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
     const updatedConditions = [...data.conditions, newCondition];
     data.onNodeUpdate(id, { conditions: updatedConditions });
   };
+
+  const handleDeleteNode = () => {
+    if (data.onNodeDelete) {
+      if (window.confirm(`Delete "${data.label}" conditional router?`)) {
+        data.onNodeDelete(id);
+      }
+    }
+  };
   
   return (
     <div className={`bg-white rounded-lg shadow-lg border-2 border-yellow-300 transition-all duration-200 ${
-      isExpanded ? 'min-w-[400px]' : 'w-64'
+      isEditing ? 'min-w-[500px]' : 'w-64'
     }`}>
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -54,21 +58,23 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
           </div>
           <h3 className="font-bold text-lg text-gray-800">{data.label}</h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 nodrag">
           <button 
             onClick={handleEditClick} 
-            className="text-gray-400 hover:text-gray-600 p-1 rounded transition-colors"
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             title="Edit conditions"
           >
             <Settings className="w-5 h-5" />
           </button>
-          <button
-            onClick={handleExpansionToggle}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded transition-colors"
-            title={isExpanded ? "Collapse" : "Expand"}
-          >
-            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
+          {data.onNodeDelete && (
+            <button
+              onClick={handleDeleteNode}
+              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete node"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -96,36 +102,13 @@ export function ConditionalNode({ id, data }: NodeProps<ConditionalNodeData>) {
         </button>
       </div>
 
-      {/* Expanded Content */}
-      {isExpanded && (
-        <div className="border-t border-gray-200 bg-gray-50 p-3">
-          <div className="text-xs text-gray-600 space-y-1">
-            <p><strong>Conditions:</strong> {data.conditions.length}</p>
-            <p><strong>Default path:</strong> Always available</p>
-            {data.conditions.length > 0 && (
-              <div>
-                <p><strong>Active paths:</strong></p>
-                <ul className="ml-2 space-y-1">
-                  {data.conditions.map((condition) => (
-                    <li key={condition.id} className="flex items-center gap-1">
-                      <div className="w-1 h-1 bg-yellow-500 rounded-full"></div>
-                      {condition.name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       <Handle
         type="target"
         position={Position.Left}
         className="!w-4 !h-4 !bg-gray-500"
       />
 
-      {/* Inline Editor */}
+      {/* Inline Editor - Opens when Edit Conditions is clicked */}
       <ConditionalNodeEditorModal 
         isOpen={isEditing}
         onClose={handleCloseEditor}
