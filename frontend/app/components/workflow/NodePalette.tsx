@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, DragEvent } from 'react'
-import { Search, ChevronDown, ChevronRight, Plus, Zap, Bot, Wrench, FileInput, FileOutput, Brain, Github, MessageSquare, Book, FileCode, Database, Link2, GitBranch } from 'lucide-react'
+import { Search, ChevronDown, ChevronRight, Plus, Zap, Bot, Wrench, FileInput, FileOutput, Brain, Github, MessageSquare, Book, FileCode, Database, Link2, GitBranch, RefreshCw } from 'lucide-react'
 import { NODE_CATEGORIES, NodeTemplate, getNodeTemplate, NodeCategory } from '../../types/NodeTypes'
 import { useMCPTools, MCPTool } from '../../hooks/useMCPTools'
 
@@ -229,9 +229,19 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
   const [dynamicCategories, setDynamicCategories] = useState<NodeCategory[]>(NODE_CATEGORIES)
-  const { tools: mcpTools } = useMCPTools()
+  const { tools: mcpTools, refresh: refreshTools } = useMCPTools()
   const [composioCategories, setComposioCategories] = useState<any[]>([])
   const [builtInTools, setBuiltInTools] = useState<any[]>([])
+
+  // Debug logging for MCP tools
+  useEffect(() => {
+    console.log('🎨 NodePalette: MCP Tools updated:', {
+      totalTools: mcpTools.length,
+      toolTypes: mcpTools.map(t => ({ id: t.id, type: t.type, source: t.source, status: t.server_status })),
+      composioTools: mcpTools.filter(t => t.type === 'composio' || t.source === 'composio').length,
+      builtInTools: mcpTools.filter(t => t.type === 'built-in' || t.source === 'built-in').length
+    });
+  }, [mcpTools]);
 
   // Load user settings and create dynamic Composio categories
   useEffect(() => {
@@ -262,12 +272,12 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
 
   useEffect(() => {
     if (mcpTools.length > 0) {
-      const composioTools = mcpTools.filter(tool => tool.source === 'composio');
-      const builtIn = mcpTools.filter(tool => tool.source === 'built-in');
+      const composioTools = mcpTools.filter(tool => tool.type === 'composio' || tool.source === 'composio');
+      const builtIn = mcpTools.filter(tool => tool.type === 'built-in' || tool.source === 'built-in');
       setBuiltInTools(builtIn);
 
       const grouped = composioTools.reduce((acc, tool) => {
-        const categoryName = `Composio ${tool.category}`;
+        const categoryName = `Composio ${tool.category.charAt(0).toUpperCase() + tool.category.slice(1)}`;
         if (!acc[categoryName]) {
           acc[categoryName] = {
             id: `composio-${tool.category}`,
@@ -285,11 +295,20 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
             isComposio: true,
             tool_type: tool.id,
             label: tool.name,
+            category: tool.category
           }
         });
         return acc;
       }, {} as any);
+      
       setComposioCategories(Object.values(grouped));
+      
+      // Auto-expand the first Composio category if tools are found
+      if (Object.keys(grouped).length > 0) {
+        const firstCategory = Object.values(grouped)[0] as any;
+        setExpandedCategories(prev => ({ ...prev, [firstCategory.id]: true }));
+        console.log(`🎨 NodePalette: Found ${composioTools.length} Composio tools, auto-expanding ${firstCategory.name}`);
+      }
     }
   }, [mcpTools]);
 
@@ -395,6 +414,13 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
         <div className="flex items-center gap-2 mb-3">
             <Plus className="w-5 h-5 text-gray-700" />
             <h2 className="text-lg font-semibold text-gray-900">Node Palette</h2>
+            <button
+              onClick={refreshTools}
+              className="ml-auto p-1 hover:bg-gray-100 rounded transition-colors"
+              title="Refresh tools"
+            >
+              <RefreshCw className="w-4 h-4 text-gray-600" />
+            </button>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />

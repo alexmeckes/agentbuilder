@@ -42,7 +42,8 @@ export async function GET() {
     // Extract MCP tools from connected servers
     if (serversData.servers) {
       Object.entries(serversData.servers).forEach(([serverId, serverInfo]: [string, any]) => {
-        if (serverInfo.status === 'connected' && serverInfo.capabilities) {
+        // Include both connected and configured servers (configured servers have their tools available)
+        if ((serverInfo.status === 'connected' || serverInfo.status === 'configured') && serverInfo.capabilities) {
           serverInfo.capabilities.forEach((toolName: string) => {
             const toolId = `${serverId}_${toolName}`;
             tools[toolId] = {
@@ -54,6 +55,36 @@ export async function GET() {
               server_name: serverInfo.name,
               server_status: serverInfo.status
             };
+          });
+        }
+        
+        // Special handling for Composio server - add default tools even if no capabilities discovered yet
+        if (serverId === 'composio-tools' && (serverInfo.status === 'connected' || serverInfo.status === 'configured')) {
+          const composioDefaultTools = [
+            { name: 'github_star_repo', category: 'development', description: 'Star a GitHub repository' },
+            { name: 'github_create_issue', category: 'development', description: 'Create a GitHub issue' },
+            { name: 'gmail_send_email', category: 'communication', description: 'Send email via Gmail' },
+            { name: 'googledocs_create_doc', category: 'productivity', description: 'Create a Google Docs document' },
+            { name: 'slack_send_message', category: 'communication', description: 'Send message to Slack' },
+            { name: 'notion_create_page', category: 'productivity', description: 'Create a Notion page' },
+            { name: 'linear_create_issue', category: 'productivity', description: 'Create a Linear issue' }
+          ];
+          
+          composioDefaultTools.forEach((tool) => {
+            const toolId = `composio_${tool.name}`;
+            // Only add if not already present from capabilities
+            if (!tools[toolId]) {
+              tools[toolId] = {
+                type: 'composio',
+                source: 'composio',
+                name: tool.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                description: tool.description,
+                category: tool.category,
+                server_id: serverId,
+                server_name: serverInfo.name,
+                server_status: serverInfo.status
+              };
+            }
           });
         }
       });

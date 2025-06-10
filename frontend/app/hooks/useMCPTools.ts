@@ -87,8 +87,13 @@ export function useMCPTools() {
   const getActiveTools = () => {
     return tools.filter(tool => 
       tool.type === 'built-in' || 
-      (tool.type === 'mcp' && tool.server_status === 'connected')
+      (tool.type === 'mcp' && tool.server_status === 'connected') ||
+      (tool.type === 'composio' && (tool.server_status === 'connected' || tool.server_status === 'configured'))
     );
+  };
+
+  const getComposioTools = () => {
+    return tools.filter(tool => tool.type === 'composio');
   };
 
   return {
@@ -99,6 +104,7 @@ export function useMCPTools() {
     getToolsByCategory,
     getBuiltInTools,
     getMCPTools,
+    getComposioTools,
     getActiveTools,
     refresh: loadTools
   };
