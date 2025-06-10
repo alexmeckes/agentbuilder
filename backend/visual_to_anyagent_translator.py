@@ -8,13 +8,27 @@ native multi-agent orchestration format.
 import sys
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
-from any_agent import AgentConfig, AgentFramework, AnyAgent, TracingConfig
+from any_agent import AgentConfig, AgentFramework, AnyAgent
 import multiprocessing
 import json
 import traceback
 import os
 import logging
 from jsonpath_ng import jsonpath, parse
+
+# Import TracingConfig from where it's actually defined
+try:
+    from any_agent.config import TracingConfig
+except ImportError:
+    # Fallback for older versions
+    try:
+        from any_agent import TracingConfig
+    except ImportError:
+        # If TracingConfig is not available, create a simple replacement
+        class TracingConfig:
+            def __init__(self, console=True, cost_info=True):
+                self.console = console
+                self.cost_info = cost_info
 
 # Import MCP manager (with fallback for backwards compatibility)
 try:
@@ -569,8 +583,22 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
             sys.path.insert(0, src_path)
         
         # Now import any_agent
-        from any_agent import AgentConfig, AgentFramework, AnyAgent, TracingConfig
+        from any_agent import AgentConfig, AgentFramework, AnyAgent
         from typing import Any
+        
+        # Import TracingConfig from where it's actually defined
+        try:
+            from any_agent.config import TracingConfig
+        except ImportError:
+            # Fallback for older versions
+            try:
+                from any_agent import TracingConfig
+            except ImportError:
+                # If TracingConfig is not available, create a simple replacement
+                class TracingConfig:
+                    def __init__(self, console=True, cost_info=True):
+                        self.console = console
+                        self.cost_info = cost_info
         
         # Import the real tools for agent configuration
         from any_agent.tools import search_web, visit_webpage
@@ -707,14 +735,24 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         framework_enum = AgentFramework.from_string(framework.upper())
         
         # Create and run the any-agent using the real API with proper tracing
-        agent = AnyAgent.create(
-            agent_framework=framework_enum,
-            agent_config=main_agent_config,
-            tracing=TracingConfig(
-                console=True,     # Enable console tracing for debugging
-                cost_info=True    # Enable cost and token tracking
+        try:
+            agent = AnyAgent.create(
+                agent_framework=framework_enum,
+                agent_config=main_agent_config,
+                tracing=TracingConfig(
+                    console=True,     # Enable console tracing for debugging
+                    cost_info=True    # Enable cost and token tracking
+                )
             )
-        )
+            logger.info("🔍 Using TracingConfig for enhanced debugging and cost tracking")
+        except (TypeError, AttributeError) as e:
+            # Fallback if TracingConfig is not supported in this version
+            logger.warning(f"⚠️  TracingConfig not supported in this version of any-agent: {e}")
+            agent = AnyAgent.create(
+                agent_framework=framework_enum,
+                agent_config=main_agent_config
+            )
+            logger.info("🔄 Running without tracing configuration")
         
         # Run the agent and get the trace
         logger.info(f"🚀 Production subprocess: Running agent '{main_agent_config.name}' with input: '{input_data[:100]}...'")
