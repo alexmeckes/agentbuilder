@@ -26,25 +26,29 @@ export default function Home() {
   // Page-level node deletion handler
   const handleNodeDelete = useCallback((nodeId: string) => {
     console.log('🗑️ Page-level: Deleting node:', nodeId)
-    setNodes(currentNodes => {
-      const nodeExists = currentNodes.find(node => node.id === nodeId)
-      if (!nodeExists) {
-        console.log(`ℹ️ Node ${nodeId} not found, already deleted`)
-        return currentNodes
-      }
-      console.log(`✅ Page-level: Removing node ${nodeId}`)
-      return currentNodes.filter(node => node.id !== nodeId)
-    })
     
-    setEdges(currentEdges => {
-      const edgesToRemove = currentEdges.filter(edge => 
-        edge.source === nodeId || edge.target === nodeId
-      )
-      console.log(`🔗 Page-level: Removing ${edgesToRemove.length} connected edges`)
-      return currentEdges.filter(edge => 
-        edge.source !== nodeId && edge.target !== nodeId
-      )
-    })
+    // Use setTimeout to ensure we're outside of any React event handling
+    setTimeout(() => {
+      setNodes(currentNodes => {
+        const nodeExists = currentNodes.find(node => node.id === nodeId)
+        if (!nodeExists) {
+          console.log(`ℹ️ Node ${nodeId} not found, already deleted`)
+          return currentNodes
+        }
+        console.log(`✅ Page-level: Removing node ${nodeId}`)
+        return currentNodes.filter(node => node.id !== nodeId)
+      })
+      
+      setEdges(currentEdges => {
+        const edgesToRemove = currentEdges.filter(edge => 
+          edge.source === nodeId || edge.target === nodeId
+        )
+        console.log(`🔗 Page-level: Removing ${edgesToRemove.length} connected edges`)
+        return currentEdges.filter(edge => 
+          edge.source !== nodeId && edge.target !== nodeId
+        )
+      })
+    }, 0)
   }, [])
 
   // Page-level node update handler
@@ -66,6 +70,14 @@ export default function Home() {
 
   // Enhanced nodes change handler that ensures callbacks are always present
   const handleNodesChange = useCallback((newNodes: Node[]) => {
+    console.log('🔄 Page-level handleNodesChange called with:', newNodes.length, 'nodes')
+    
+    // Check which nodes are missing callbacks
+    const nodesWithoutCallbacks = newNodes.filter(node => !node.data.onNodeDelete || !node.data.onNodeUpdate)
+    if (nodesWithoutCallbacks.length > 0) {
+      console.log('🔧 Adding callbacks to', nodesWithoutCallbacks.length, 'nodes:', nodesWithoutCallbacks.map(n => ({ id: n.id, type: n.type })))
+    }
+    
     // Ensure every node has the proper callbacks
     const nodesWithCallbacks = newNodes.map(node => ({
       ...node,
@@ -76,7 +88,13 @@ export default function Home() {
       }
     }))
     
-    console.log('🔄 Page-level: Nodes updated with callbacks:', nodesWithCallbacks.length)
+    console.log('✅ Page-level: Setting nodes with callbacks:', nodesWithCallbacks.map(n => ({ 
+      id: n.id, 
+      type: n.type, 
+      hasDelete: !!n.data.onNodeDelete, 
+      hasUpdate: !!n.data.onNodeUpdate 
+    })))
+    
     setNodes(nodesWithCallbacks)
   }, [handleNodeUpdate, handleNodeDelete])
 
@@ -84,12 +102,25 @@ export default function Home() {
   // This runs when the component mounts or when callback functions change
   useEffect(() => {
     setNodes(currentNodes => {
+      if (currentNodes.length === 0) return currentNodes
+      
       // Check if any node needs callback hydration
-      const needsHydration = currentNodes.some(node => !node.data.onNodeDelete || !node.data.onNodeUpdate)
+      const nodesWithoutDelete = currentNodes.filter(node => !node.data.onNodeDelete)
+      const nodesWithoutUpdate = currentNodes.filter(node => !node.data.onNodeUpdate)
+      
+      console.log(`🔍 Checking ${currentNodes.length} nodes for callbacks:`)
+      console.log(`   - Nodes without onNodeDelete: ${nodesWithoutDelete.length}`)
+      console.log(`   - Nodes without onNodeUpdate: ${nodesWithoutUpdate.length}`)
+      
+      if (nodesWithoutDelete.length > 0) {
+        console.log('🔧 Nodes missing onNodeDelete:', nodesWithoutDelete.map(n => ({ id: n.id, type: n.type })))
+      }
+      
+      const needsHydration = nodesWithoutDelete.length > 0 || nodesWithoutUpdate.length > 0
       
       if (needsHydration) {
         console.log('🔧 Hydrating nodes with callbacks...')
-        return currentNodes.map(node => ({
+        const hydratedNodes = currentNodes.map(node => ({
           ...node,
           data: {
             ...node.data,
@@ -97,6 +128,15 @@ export default function Home() {
             onNodeDelete: handleNodeDelete,
           }
         }))
+        
+        console.log('✅ Hydrated nodes:', hydratedNodes.map(n => ({ 
+          id: n.id, 
+          type: n.type, 
+          hasDelete: !!n.data.onNodeDelete, 
+          hasUpdate: !!n.data.onNodeUpdate 
+        })))
+        
+        return hydratedNodes
       }
       
       return currentNodes // No changes needed
