@@ -458,17 +458,34 @@ export function ConditionalNode(props: NodeProps<ConditionalNodeData & {
   console.log(`🔍 ConditionalNode ${props.id} - onNodeUpdate:`, !!onNodeUpdate, 'onNodeDelete:', !!onNodeDelete)
   console.log(`🔍 ConditionalNode ${props.id} - data.onNodeUpdate:`, !!data.onNodeUpdate, 'data.onNodeDelete:', !!data.onNodeDelete)
   
+  // Enhanced debug logging - let's see what's actually in the data
+  if (!onNodeUpdate && !data.onNodeUpdate) {
+    console.warn(`⚠️ ConditionalNode ${props.id} - No onNodeUpdate found in props or data`)
+  }
+  if (!onNodeDelete && !data.onNodeDelete) {
+    console.warn(`⚠️ ConditionalNode ${props.id} - No onNodeDelete found in props or data`)
+  }
+  
   // Provide safe callbacks with proper fallbacks
   const safeOnNodeUpdate = onNodeUpdate || data.onNodeUpdate || ((nodeId: string, updatedData: Partial<ConditionalNodeData>) => {
     console.warn(`No onNodeUpdate callback for ConditionalNode ${nodeId}`)
   })
   
   const safeOnNodeDelete = onNodeDelete || data.onNodeDelete || ((nodeId: string) => {
-    console.warn(`No onNodeDelete callback for ConditionalNode ${nodeId}`)
-    // Try to find the node element and remove it as fallback
+    console.warn(`🚨 No onNodeDelete callback for ConditionalNode ${nodeId}, using enhanced fallback deletion`)
+    
+    // Enhanced fallback that updates both DOM and React state
     setTimeout(() => {
+      // First try to update page-level state by dispatching a custom event
+      const deleteEvent = new CustomEvent('nodeDeleteFallback', { 
+        detail: { nodeId },
+        bubbles: true 
+      })
+      document.dispatchEvent(deleteEvent)
+      
+      // Also remove DOM element as final fallback
       const nodeElement = document.querySelector(`[data-id="${nodeId}"]`)
-      if (nodeElement) {
+      if (nodeElement && nodeElement instanceof HTMLElement) {
         console.log(`🗑️ Fallback: Removing ConditionalNode ${nodeId} from DOM`)
         nodeElement.remove()
       }

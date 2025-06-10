@@ -144,6 +144,24 @@ export default function Home() {
     })
   }, [handleNodeUpdate, handleNodeDelete])
 
+  // Listen for fallback node deletions and update React state
+  useEffect(() => {
+    const handleFallbackDeletion = (event: CustomEvent) => {
+      const { nodeId } = event.detail
+      console.log(`🔔 Page-level: Received fallback deletion event for node ${nodeId}`)
+      
+      // Call the proper deletion handler to update React state
+      handleNodeDelete(nodeId)
+    }
+
+    // Add event listener for fallback deletions
+    document.addEventListener('nodeDeleteFallback', handleFallbackDeletion as EventListener)
+    
+    return () => {
+      document.removeEventListener('nodeDeleteFallback', handleFallbackDeletion as EventListener)
+    }
+  }, [handleNodeDelete])
+
   const handleSuggestionToWorkflow = useCallback((suggestion: string) => {
     setWorkflowExecutionInput(suggestion)
     // Switch to design tab to show the updated input

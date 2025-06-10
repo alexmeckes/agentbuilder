@@ -817,16 +817,32 @@ export default function AgentNode(props: NodeProps<EnhancedNodeData & {
   console.log(`🔍 AgentNode ${props.id} - onNodeUpdate:`, !!onNodeUpdate, 'onNodeDelete:', !!onNodeDelete)
   console.log(`🔍 AgentNode ${props.id} - data.onNodeUpdate:`, !!data.onNodeUpdate, 'data.onNodeDelete:', !!data.onNodeDelete)
   
+  // Enhanced debug logging - let's see what's actually in the data
+  if (!onNodeUpdate && !data.onNodeUpdate) {
+    console.warn(`⚠️ AgentNode ${props.id} - No onNodeUpdate found in props or data`)
+  }
+  if (!onNodeDelete && !data.onNodeDelete) {
+    console.warn(`⚠️ AgentNode ${props.id} - No onNodeDelete found in props or data`)
+  }
+  
   // Provide fallback callbacks if they're missing
   const safeOnNodeUpdate = onNodeUpdate || data.onNodeUpdate || ((nodeId: string, updatedData: EnhancedNodeData) => {
     console.warn(`🚨 No onNodeUpdate callback for node ${nodeId}, update ignored:`, updatedData)
   })
   
   const safeOnNodeDelete = onNodeDelete || data.onNodeDelete || ((nodeId: string) => {
-    console.warn(`🚨 No onNodeDelete callback for node ${nodeId}, using simple fallback deletion`)
+    console.warn(`🚨 No onNodeDelete callback for node ${nodeId}, using enhanced fallback deletion`)
     
-    // Simple fallback - just try to remove the node element
+    // Enhanced fallback that updates both DOM and React state
     setTimeout(() => {
+      // First try to update page-level state by dispatching a custom event
+      const deleteEvent = new CustomEvent('nodeDeleteFallback', { 
+        detail: { nodeId },
+        bubbles: true 
+      })
+      document.dispatchEvent(deleteEvent)
+      
+      // Also remove DOM element as final fallback
       const nodeElement = document.querySelector(`[data-id="${nodeId}"]`)
       if (nodeElement && nodeElement instanceof HTMLElement) {
         console.log(`🗑️ Fallback: Removing AgentNode ${nodeId} from DOM`)
