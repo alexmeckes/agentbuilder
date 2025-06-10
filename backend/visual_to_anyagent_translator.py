@@ -971,6 +971,7 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
 def _evaluate_condition(rule: Dict[str, str], data: Dict[str, Any]) -> bool:
     """
     Evaluates a condition rule against the provided data.
+    Supports operators: equals, contains, not_equals, greater_than, less_than
     """
     try:
         jsonpath_expression = parse(rule['jsonpath'])
@@ -987,7 +988,22 @@ def _evaluate_condition(rule: Dict[str, str], data: Dict[str, Any]) -> bool:
             return str(extracted_value) == rule_value
         elif operator == 'contains':
             return rule_value in str(extracted_value)
-        # Add other operators here as needed
+        elif operator == 'not_equals':
+            return str(extracted_value) != rule_value
+        elif operator == 'greater_than':
+            try:
+                # Try to compare as numbers
+                return float(extracted_value) > float(rule_value)
+            except (ValueError, TypeError):
+                # Fall back to string comparison
+                return str(extracted_value) > rule_value
+        elif operator == 'less_than':
+            try:
+                # Try to compare as numbers
+                return float(extracted_value) < float(rule_value)
+            except (ValueError, TypeError):
+                # Fall back to string comparison
+                return str(extracted_value) < rule_value
         
         return False
     except Exception as e:
