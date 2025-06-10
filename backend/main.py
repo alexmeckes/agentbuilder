@@ -4737,6 +4737,97 @@ async def trigger_webhook_endpoint(webhook_id: str, request_body: Dict[str, Any]
     """Endpoint for external services to trigger a workflow."""
     return await executor.trigger_webhook(webhook_id, request_body)
 
+@app.get("/api/composio/user-tools")
+async def get_user_composio_tools(userId: str):
+    """Get Composio tools based on user's connected accounts and enabled tools"""
+    try:
+        if not COMPOSIO_INTEGRATION_AVAILABLE:
+            return {"success": False, "message": "Composio not available"}
+        
+        # Load user settings to get their connected accounts and enabled tools
+        user_settings = _load_user_settings(userId)
+        if not user_settings:
+            return {"success": False, "message": "No user settings found"}
+        
+        composio_key = user_settings.get('composioApiKey') or user_settings.get('encryptedComposioKey')
+        if not composio_key:
+            return {"success": False, "message": "No Composio API key configured"}
+        
+        enabled_tools = user_settings.get('enabledTools', [])
+        if not enabled_tools:
+            return {"success": False, "message": "No tools enabled", "tools": []}
+        
+        # Get actual API key (decrypt if needed)
+        actual_api_key = composio_key
+        if isinstance(composio_key, dict) and 'encryptedData' in composio_key:
+            # Handle encrypted key - would need decryption logic here
+            logging.info("Encrypted Composio key detected, would need decryption")
+            # For now, skip encrypted keys in this endpoint
+            return {"success": False, "message": "Encrypted keys not yet supported in this endpoint"}
+        
+        # Test Composio connection and get available tools
+        tools = []
+        try:
+            from composio_mcp_bridge import UserComposioManager, UserContext
+            
+            user_context = UserContext(
+                user_id=userId,
+                api_key=actual_api_key,
+                enabled_tools=enabled_tools
+            )
+            
+            manager = UserComposioManager()
+            composio_tools = manager.get_available_tools_for_user(user_context)
+            
+            # Filter to only enabled tools and add metadata
+            for tool in composio_tools:
+                if tool['name'] in enabled_tools:
+                    tools.append({
+                        'name': tool['name'],
+                        'displayName': tool['name'].replace('_', ' ').title(),
+                        'description': tool['description'],
+                        'app': tool.get('app', 'unknown'),
+                        'category': tool['category'],
+                        'enabled': True
+                    })
+            
+            return {
+                "success": True,
+                "tools": tools,
+                "message": f"Found {len(tools)} enabled tools for user",
+                "userId": userId,
+                "enabledToolsCount": len(enabled_tools)
+            }
+            
+        except Exception as composio_error:
+            logging.error(f"Composio API error for user {userId}: {composio_error}")
+            return {"success": False, "message": f"Composio API error: {str(composio_error)}"}
+        
+    except Exception as e:
+        logging.error(f"Error getting user Composio tools: {e}")
+        return {"success": False, "message": "Internal server error"}
+
+def _load_user_settings(userId: str) -> dict:
+    """Load user settings from file or database"""
+    try:
+        # Try to load from file (adjust path as needed)
+        settings_file = f"user_settings_{userId}.json"
+        if os.path.exists(settings_file):
+            with open(settings_file, 'r') as f:
+                return json.load(f)
+        
+        # Try environment variables as fallback for current user
+        if userId == os.getenv('USER_ID', ''):
+            return {
+                'composioApiKey': os.getenv('COMPOSIO_API_KEY'),
+                'enabledTools': os.getenv('ENABLED_TOOLS', '').split(',') if os.getenv('ENABLED_TOOLS') else []
+            }
+        
+        return None
+    except Exception as e:
+        logging.error(f"Error loading user settings for {userId}: {e}")
+        return None
+
 if __name__ == "__main__":
     # Production MCP setup
     try:

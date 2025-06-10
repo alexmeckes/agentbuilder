@@ -229,7 +229,7 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
   const [dynamicCategories, setDynamicCategories] = useState<NodeCategory[]>(NODE_CATEGORIES)
-  const { tools: mcpTools, refresh: refreshTools } = useMCPTools()
+  const { tools: mcpTools, refresh: refreshTools } = useMCPTools(userSettings?.userId)
   const [composioCategories, setComposioCategories] = useState<any[]>([])
   const [builtInTools, setBuiltInTools] = useState<any[]>([])
 
