@@ -833,21 +833,17 @@ export default function AgentNode(props: NodeProps<EnhancedNodeData & {
   const safeOnNodeDelete = onNodeDelete || data.onNodeDelete || ((nodeId: string) => {
     console.warn(`🚨 No onNodeDelete callback for node ${nodeId}, using enhanced fallback deletion`)
     
-    // Enhanced fallback that updates both DOM and React state
+    // Enhanced fallback that only updates React state - let React handle DOM
     setTimeout(() => {
-      // First try to update page-level state by dispatching a custom event
+      // Dispatch custom event to update page-level state
       const deleteEvent = new CustomEvent('nodeDeleteFallback', { 
         detail: { nodeId },
         bubbles: true 
       })
       document.dispatchEvent(deleteEvent)
       
-      // Also remove DOM element as final fallback
-      const nodeElement = document.querySelector(`[data-id="${nodeId}"]`)
-      if (nodeElement && nodeElement instanceof HTMLElement) {
-        console.log(`🗑️ Fallback: Removing AgentNode ${nodeId} from DOM`)
-        nodeElement.remove()
-      }
+      // Don't manually remove DOM - let React handle it after state update
+      console.log(`🔄 Fallback: Dispatched deletion event for AgentNode ${nodeId}, letting React handle DOM`)
     }, 100)
   })
   
