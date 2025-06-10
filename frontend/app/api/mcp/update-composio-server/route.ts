@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔧 Updating MCP Composio server for user: ${userId} (encrypted: ${encrypted})`)
+    console.log(`🔗 Backend URL: ${BACKEND_URL}`)
     
     // Prepare environment variables based on encryption status
     const env = encrypted ? {
@@ -32,6 +33,18 @@ export async function POST(request: NextRequest) {
       ENCRYPTION_ENABLED: 'false'
     }
     
+    // Prepare the complete server configuration for update
+    const serverConfig = {
+      id: "composio-tools",
+      name: "Composio Universal Tools",
+      description: "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
+      command: ["python", "-m", "composio_mcp_bridge"], // Fixed: command as array
+      args: [], // Fixed: empty args array
+      env: env
+    }
+    
+    console.log(`🔧 Updating server with config:`, JSON.stringify(serverConfig, null, 2))
+    
     // Update the Composio MCP server configuration with timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
@@ -42,11 +55,13 @@ export async function POST(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ env }),
+        body: JSON.stringify(serverConfig), // Send complete server config, not just env
         signal: controller.signal
       })
       
       clearTimeout(timeoutId)
+      
+      console.log(`📡 Update response status: ${updateResponse.status}`)
     
       if (updateResponse.ok) {
         const result = await updateResponse.json()
@@ -59,12 +74,24 @@ export async function POST(request: NextRequest) {
           userId: userId
         })
       } else {
-        const errorData = await updateResponse.json().catch(() => ({ detail: 'Unknown error' }))
-        console.error(`❌ Failed to update MCP server: ${updateResponse.status} - ${errorData.detail}`)
+        const errorText = await updateResponse.text()
+        console.error(`❌ Failed to update MCP server: ${updateResponse.status}`)
+        console.error(`❌ Error response body: ${errorText}`)
+        
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { detail: errorText || 'Unknown error' }
+        }
         
         return NextResponse.json({ 
           success: false, 
-          message: errorData.detail || 'Failed to update MCP server'
+          message: errorData.detail || 'Failed to update MCP server',
+          debugInfo: {
+            status: updateResponse.status,
+            response: errorText
+          }
         }, { status: updateResponse.status })
       }
     } catch (fetchError: any) {
@@ -81,7 +108,8 @@ export async function POST(request: NextRequest) {
       console.error('❌ MCP server update failed:', fetchError)
       return NextResponse.json({ 
         success: false, 
-        message: 'Failed to connect to MCP server'
+        message: 'Failed to connect to MCP server',
+        error: fetchError.message
       }, { status: 500 })
     }
     
@@ -89,7 +117,8 @@ export async function POST(request: NextRequest) {
     console.error('Error updating MCP Composio server:', error)
     return NextResponse.json({ 
       success: false, 
-      message: 'Failed to update MCP server configuration' 
+      message: 'Failed to update MCP server configuration',
+      error: error instanceof Error ? error.message : String(error)
     }, { status: 500 })
   }
 } 
