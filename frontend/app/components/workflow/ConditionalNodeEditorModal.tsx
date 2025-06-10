@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Save, Plus, Trash2, GripVertical } from 'lucide-react';
+import { X, Save, Plus, Trash2, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 
 const CONDITION_OPERATORS = [
   { value: 'equals', label: 'equals' },
@@ -40,32 +39,16 @@ interface ModalProps {
 
 export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData, initialAddCondition }: ModalProps) {
   const [conditions, setConditions] = useState<Condition[]>(nodeData.conditions || []);
-  const [isClient, setIsClient] = useState(false);
-
-  // Ensure we're on the client side before rendering portal
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     if (isOpen && nodeData) {
       setConditions(nodeData.conditions || []);
+      setIsExpanded(true);
+    } else {
+      setIsExpanded(false);
     }
   }, [isOpen, nodeData]);
-
-  // Handle escape key to close modal
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
-    }
-  }, [isOpen, onClose]);
 
   const addCondition = () => {
     const newCondition: Condition = {
@@ -107,107 +90,124 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData, 
     onClose();
   };
 
-  if (!isOpen || !isClient) return null;
+  const handleCancel = () => {
+    setConditions(nodeData.conditions || []);
+    onClose();
+  };
 
-  const modalContent = (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999] p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
-    >
-      <div 
-        className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900">Edit Conditional Router</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Define the rules to route your workflow. The first rule that evaluates to true will be chosen.
-            </p>
+  if (!isOpen) return null;
+
+  return (
+    <div className="nodrag">
+      {/* Expandable Editor Header */}
+      <div className="border-t border-gray-200 bg-gray-50 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-1 text-gray-500 hover:text-gray-700"
+            >
+              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            <h3 className="text-sm font-medium text-gray-700">Edit Conditional Router</h3>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            title="Close"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSave}
+              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+            >
+              <Save className="w-3 h-3" />
+              Save
+            </button>
+            <button
+              onClick={handleCancel}
+              className="px-3 py-1 text-gray-600 text-sm rounded hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
+      </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
-          <div className="space-y-6">
+      {/* Expandable Content */}
+      {isExpanded && (
+        <div className="border-t border-gray-200 bg-white max-h-96 overflow-y-auto">
+          <div className="p-4 space-y-4">
+            <p className="text-xs text-gray-600">
+              Define rules to route your workflow. The first rule that evaluates to true will be chosen.
+            </p>
+
             {/* Default Path */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Default Path</h3>
-              <p className="text-sm text-gray-600">
-                This path will be taken if no other conditions match.
+            <div className="border border-dashed border-gray-300 rounded-lg p-3 bg-gray-50">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                <span className="text-sm font-medium text-gray-700">Default Path</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Taken when no other conditions match
               </p>
             </div>
 
             {/* Conditional Paths */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">Conditional Paths</h3>
+                <span className="text-sm font-medium text-gray-700">Conditional Paths</span>
                 <button
                   onClick={addCondition}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
                 >
-                  <Plus className="w-4 h-4" />
-                  Add Condition
+                  <Plus className="w-3 h-3" />
+                  Add
                 </button>
               </div>
 
               {conditions.map((condition, index) => (
-                <div key={condition.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <GripVertical className="w-4 h-4 text-gray-400" />
+                <div key={condition.id} className="border border-gray-200 rounded-lg p-3 bg-white">
+                  {/* Condition Header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 flex-1">
+                      <GripVertical className="w-3 h-3 text-gray-400" />
                       <input
                         type="text"
                         value={condition.name}
                         onChange={(e) => updateConditionName(index, e.target.value)}
-                        className="text-lg font-medium bg-transparent border-none focus:ring-0 focus:outline-none"
+                        className="text-sm font-medium bg-transparent border-none focus:ring-0 focus:outline-none flex-1"
                         placeholder="Condition name"
                       />
                     </div>
                     <button
                       onClick={() => removeCondition(index)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
                       title="Remove condition"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
 
-                  <div className="space-y-3">
+                  {/* Condition Rules */}
+                  <div className="space-y-2">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
                         JSON Path
                       </label>
                       <input
                         type="text"
                         value={condition.rule?.jsonpath || ''}
                         onChange={(e) => updateConditionRule(index, 'jsonpath', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="$.field"
                       />
                     </div>
 
-                    <div className="flex gap-3">
-                      <div className="w-48">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <div className="flex gap-2">
+                      <div className="w-24">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
                           Operator
                         </label>
                         <select
                           value={condition.rule?.operator || 'equals'}
                           onChange={(e) => updateConditionRule(index, 'operator', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         >
                           {CONDITION_OPERATORS.map((op) => (
                             <option key={op.value} value={op.value}>
@@ -218,14 +218,14 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData, 
                       </div>
 
                       <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
                           Value
                         </label>
                         <input
                           type="text"
                           value={condition.rule?.value || ''}
                           onChange={(e) => updateConditionRule(index, 'value', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           placeholder="Expected value"
                         />
                       </div>
@@ -235,40 +235,21 @@ export function ConditionalNodeEditorModal({ isOpen, onClose, nodeId, nodeData, 
               ))}
 
               {conditions.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <p className="mb-4">No conditional paths defined yet.</p>
+                <div className="text-center py-6 text-gray-500">
+                  <p className="text-xs mb-2">No conditional paths defined yet.</p>
                   <button
                     onClick={addCondition}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
                   >
-                    <Plus className="w-4 h-4" />
-                    Add Your First Condition
+                    <Plus className="w-3 h-3" />
+                    Add First Condition
                   </button>
                 </div>
               )}
             </div>
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <Save className="w-4 h-4" />
-            Save Changes
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
-
-  return createPortal(modalContent, document.body);
 } 
