@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔧 Creating server with config:`, JSON.stringify(serverConfig, null, 2))
     
     const createController = new AbortController()
-    setTimeout(() => createController.abort(), 10000)
+    setTimeout(() => createController.abort(), 30000) // Increased to 30 seconds for Render
     
     const createResponse = await fetch(`${BACKEND_URL}/mcp/servers`, {
       method: 'POST',
