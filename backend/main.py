@@ -4814,6 +4814,98 @@ def _load_user_settings(userId: str) -> dict:
         logging.error(f"Error loading user settings for {userId}: {e}")
         return None
 
+@app.post("/composio/update-config")
+async def update_composio_config(request: dict):
+    """Update Composio configuration directly (bypass MCP)"""
+    try:
+        user_id = request.get('userId')
+        api_key = request.get('apiKey')
+        enabled = request.get('enabled', True)
+        
+        if not user_id or not api_key:
+            raise HTTPException(status_code=400, detail="userId and apiKey are required")
+        
+        # Set environment variables for direct integration
+        os.environ['COMPOSIO_API_KEY'] = api_key
+        os.environ['USER_ID'] = user_id
+        os.environ['ENCRYPTION_ENABLED'] = 'false'
+        
+        logging.info(f"✅ Updated Composio config for user: {user_id}")
+        
+        return {
+            "success": True,
+            "message": "Composio configuration updated successfully",
+            "user_id": user_id,
+            "method": "direct_integration"
+        }
+        
+    except Exception as e:
+        logging.error(f"Failed to update Composio config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/composio/test-connection")
+async def test_composio_connection(request: dict):
+    """Test Composio connection directly via HTTP API"""
+    try:
+        user_id = request.get('userId')
+        api_key = request.get('apiKey')
+        
+        if not user_id or not api_key:
+            raise HTTPException(status_code=400, detail="userId and apiKey are required")
+        
+        # Test connection using HTTP API
+        import aiohttp
+        
+        async with aiohttp.ClientSession() as session:
+            # Test API key validity
+            async with session.get(
+                'https://backend.composio.dev/api/v1/connectedAccounts',
+                headers={'x-api-key': api_key, 'Content-Type': 'application/json'},
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                if response.status == 200:
+                    accounts_data = await response.json()
+                    connected_apps = accounts_data.get('items', [])
+                    
+                    # Get tool count using direct integration
+                    from composio_mcp_bridge import UserComposioManager, UserContext
+                    
+                    user_context = UserContext(
+                        user_id=user_id,
+                        api_key=api_key,
+                        enabled_tools=None
+                    )
+                    
+                    manager = UserComposioManager()
+                    tools = await manager.get_available_tools_for_user(user_context)
+                    
+                    return {
+                        "success": True,
+                        "message": "Composio connection successful",
+                        "user_id": user_id,
+                        "connectedApps": len(connected_apps),
+                        "toolCount": len(tools),
+                        "method": "direct_integration",
+                        "status": "connected"
+                    }
+                else:
+                    error_text = await response.text()
+                    return {
+                        "success": False,
+                        "message": f"API key validation failed: HTTP {response.status}",
+                        "error": error_text,
+                        "user_id": user_id
+                    }
+                    
+    except Exception as e:
+        logging.error(f"Composio connection test failed: {e}")
+        return {
+            "success": False,
+            "message": f"Connection test failed: {str(e)}",
+            "user_id": user_id,
+            "error": str(e)
+        }
+
 if __name__ == "__main__":
     # Production MCP setup
     try:

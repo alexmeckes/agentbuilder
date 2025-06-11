@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔗 Backend URL: ${BACKEND_URL}`)
     
     // Step 0: Parse request body with error handling
-    let userId, apiKey
+    let userId: string, apiKey: string
     try {
       const body = await request.json()
       userId = body.userId
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔄 Forcing MCP Composio server reconnection for user: ${userId}`)
     
-    // Step 1: Remove the existing server
+    // Step 1: Remove the existing server (if any)
     try {
       console.log(`🗑️ Step 1: Removing existing server...`)
       const controller = new AbortController()
@@ -51,142 +51,145 @@ export async function POST(request: NextRequest) {
     console.log(`⏳ Step 2: Waiting 2 seconds...`)
     await new Promise(resolve => setTimeout(resolve, 2000))
     
-    // Step 3: Create a new server configuration
-    console.log(`🔧 Step 3: Preparing server config...`)
-    const serverConfig = {
-      id: "composio-tools",
-      name: "Composio Universal Tools",
-      description: "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
-      command: ["python", "-m", "composio_mcp_bridge"],
-      args: [],
-      env: {
-        COMPOSIO_API_KEY: apiKey,
-        USER_ID: userId,
-        ENABLED_TOOLS: "github_star_repo,googledocs_create_doc,gmail_send_email",
-        ENCRYPTION_ENABLED: "false"
-      }
-    }
+    // Step 3: Update Composio configuration directly (bypass MCP protocol)
+    console.log(`🔧 Step 3: Updating Composio configuration directly...`)
     
-    console.log(`🔧 Creating server with config:`, JSON.stringify(serverConfig, null, 2))
-    console.log(`🌐 POST URL will be: ${BACKEND_URL}/mcp/servers`)
-    console.log(`🚀 Step 4: Making POST request...`)
-    
-    const createController = new AbortController()
-    setTimeout(() => {
-      console.log(`⏰ AbortController timeout hit after 60 seconds`)
-      createController.abort()
-    }, 60000) // Increased to 60 seconds for Render cold starts
-    
-    let createResponse: Response
     try {
-      createResponse = await fetch(`${BACKEND_URL}/mcp/servers`, {
+      // Set environment variables for direct integration
+      const configResponse = await fetch(`${BACKEND_URL}/composio/update-config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(serverConfig),
-        signal: createController.signal
+        body: JSON.stringify({
+          userId: userId,
+          apiKey: apiKey,
+          enabled: true
+        }),
+        signal: AbortSignal.timeout(10000) // 10 second timeout
       })
-      console.log(`📡 POST request completed with status: ${createResponse.status}`)
-    } catch (fetchError: any) {
-      console.error(`❌ POST request failed:`, fetchError)
-      console.error(`❌ Error name: ${fetchError.name}`)
-      console.error(`❌ Error message: ${fetchError.message}`)
       
-      if (fetchError.name === 'AbortError') {
-        return NextResponse.json({ 
-          success: false, 
-          message: 'POST request timed out after 60 seconds',
-          error: 'Timeout during server creation'
-        }, { status: 408 })
-      }
-      
-      return NextResponse.json({ 
-        success: false, 
-        message: 'POST request failed',
-        error: fetchError.message
-      }, { status: 500 })
-    }
-    
-    console.log(`📊 Step 5: Processing response...`)
-    if (createResponse.ok) {
-      console.log(`✅ Server creation successful, parsing response...`)
-      let result
-      try {
-        result = await createResponse.json()
-        console.log(`✅ New MCP server created: ${result.message}`)
-      } catch (jsonError) {
-        console.error(`❌ Failed to parse success response JSON:`, jsonError)
-        return NextResponse.json({ 
-          success: false, 
-          message: 'Server created but response parsing failed'
-        }, { status: 500 })
-      }
-      
-      // Step 5: Wait for connection and test
-      console.log(`⏳ Step 6: Waiting 3 seconds for connection...`)
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      
-      // Step 6: Check status
-      console.log(`📊 Step 7: Checking server status...`)
-      try {
-        const statusResponse = await fetch(`${BACKEND_URL}/mcp/servers`)
-        if (statusResponse.ok) {
-          const statusData = await statusResponse.json()
-          const composioServer = statusData.servers?.['composio-tools']
-          
-          console.log(`📊 Server status after creation:`, composioServer)
+      if (configResponse.ok) {
+        console.log(`✅ Composio configuration updated successfully`)
+        
+        // Test the connection
+        console.log(`📊 Step 4: Testing Composio connection...`)
+        const testResponse = await fetch(`${BACKEND_URL}/composio/test-connection`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            userId: userId,
+            apiKey: apiKey
+          }),
+          signal: AbortSignal.timeout(15000) // 15 second timeout
+        })
+        
+        if (testResponse.ok) {
+          const testResult = await testResponse.json()
+          console.log(`✅ Composio connection test successful:`, testResult)
           
           return NextResponse.json({ 
             success: true, 
-            message: 'Composio MCP server reconnected successfully',
-            serverStatus: composioServer?.status || 'unknown',
-            toolCount: composioServer?.tool_count || 0,
+            message: 'Composio configuration updated successfully (direct integration)',
+            serverStatus: 'connected',
+            toolCount: testResult.toolCount || 0,
+            connectedApps: testResult.connectedApps || 0,
+            method: 'direct_integration',
             userId: userId
           })
         } else {
-          console.error(`❌ Status check failed: ${statusResponse.status}`)
+          console.log(`⚠️ Connection test failed but config was updated`)
           return NextResponse.json({ 
             success: true, 
-            message: 'Server created but status check failed',
+            message: 'Configuration updated but connection test failed',
+            serverStatus: 'configured',
+            method: 'direct_integration',
             userId: userId
           })
         }
-      } catch (statusError) {
-        console.error(`❌ Status check error:`, statusError)
-        return NextResponse.json({ 
-          success: true, 
-          message: 'Server created but status check failed',
-          userId: userId
-        })
+      } else {
+        // Fallback: Try the old MCP approach as last resort
+        console.log(`⚠️ Direct config update failed, trying MCP approach...`)
+        return await createMCPServer()
       }
-    } else {
-      console.error(`❌ Server creation failed with status: ${createResponse.status}`)
-      let errorText
-      let errorData
+    } catch (error) {
+      console.error(`❌ Direct config update failed:`, error)
+      console.log(`🔄 Falling back to MCP approach...`)
+      return await createMCPServer()
+    }
+    
+    // Fallback function for MCP server creation
+    async function createMCPServer() {
+      console.log(`🔧 Creating MCP server as fallback...`)
+      const serverConfig = {
+        id: "composio-tools",
+        name: "Composio Universal Tools", 
+        description: "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
+        command: ["python3", "composio_mcp_bridge.py"],
+        args: [],
+        env: {
+          COMPOSIO_API_KEY: apiKey,
+          USER_ID: userId,
+          ENABLED_TOOLS: "github_star_repo,googledocs_create_doc,gmail_send_email",
+          ENCRYPTION_ENABLED: "false"
+        }
+      }
+      
+      console.log(`🔧 Creating server with config:`, JSON.stringify(serverConfig, null, 2))
+      
+      const createController = new AbortController()
+      setTimeout(() => {
+        console.log(`⏰ MCP creation timeout hit after 30 seconds`)
+        createController.abort()
+      }, 30000) // Reduced timeout since this is fallback
       
       try {
-        errorText = await createResponse.text()
-        console.error(`❌ Error response body: ${errorText}`)
+        const createResponse = await fetch(`${BACKEND_URL}/mcp/servers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(serverConfig),
+          signal: createController.signal
+        })
         
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { detail: errorText || 'Unknown error' }
+        if (createResponse.ok) {
+          console.log(`✅ MCP server created successfully`)
+          return NextResponse.json({ 
+            success: true, 
+            message: 'Composio MCP server created (fallback mode)',
+            serverStatus: 'configured',
+            method: 'mcp_fallback',
+            userId: userId
+          })
+        } else {
+          const errorText = await createResponse.text()
+          console.error(`❌ MCP server creation failed: ${createResponse.status} - ${errorText}`)
+          return NextResponse.json({ 
+            success: false, 
+            message: 'Both direct integration and MCP server creation failed',
+            error: errorText
+          }, { status: createResponse.status })
         }
-      } catch (textError) {
-        console.error(`❌ Failed to read error response:`, textError)
-        errorData = { detail: 'Failed to read error response' }
+      } catch (fetchError: any) {
+        console.error(`❌ MCP server creation failed:`, fetchError)
+        
+        if (fetchError.name === 'AbortError') {
+          return NextResponse.json({ 
+            success: false, 
+            message: 'MCP server creation timed out after 30 seconds',
+            error: 'Timeout during fallback server creation'
+          }, { status: 408 })
+        }
+        
+        return NextResponse.json({ 
+          success: false, 
+          message: 'Both direct integration and MCP approaches failed',
+          error: fetchError.message
+        }, { status: 500 })
       }
-      
-      return NextResponse.json({ 
-        success: false, 
-        message: errorData?.detail || 'Failed to create MCP server',
-        debugInfo: {
-          status: createResponse.status,
-          response: errorText || 'No response body'
-        }
-      }, { status: createResponse.status })
     }
     
   } catch (error) {

@@ -760,6 +760,10 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
 def _extract_trace_from_result(result) -> Dict[str, Any]:
     """Extract detailed trace information from any-agent result object"""
     try:
+        # Debug logging
+        logger.info(f"🔍 Trace extraction: result type = {type(result)}")
+        logger.info(f"🔍 Trace extraction: result attributes = {dir(result) if hasattr(result, '__dict__') else 'N/A'}")
+        
         trace_data = {
             "final_output": result,
             "spans": [],
@@ -770,7 +774,8 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
         # Extract spans if available
         if hasattr(result, 'spans'):
             spans = getattr(result, 'spans', [])
-            for span in spans:
+            logger.info(f"🔍 Trace extraction: Found {len(spans)} spans")
+            for i, span in enumerate(spans):
                 span_data = {
                     "name": getattr(span, 'name', 'unknown'),
                     "span_id": getattr(span, 'span_id', None),
@@ -791,10 +796,14 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
                     span_data["duration_ms"] = duration_ns / 1_000_000
                 
                 trace_data["spans"].append(span_data)
+                logger.info(f"  Span {i}: {span_data['name']}, attrs: {list(span_data['attributes'].keys())}")
+        else:
+            logger.info("🔍 Trace extraction: No 'spans' attribute found on result")
         
         # Extract cost information if available
         if hasattr(result, 'get_total_cost'):
             try:
+                logger.info("🔍 Trace extraction: Calling get_total_cost()")
                 cost_info = result.get_total_cost()
                 trace_data["cost_info"] = {
                     "total_cost": getattr(cost_info, 'total_cost', 0),
@@ -802,8 +811,12 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
                     "input_tokens": getattr(cost_info, 'input_tokens', 0),
                     "output_tokens": getattr(cost_info, 'output_tokens', 0)
                 }
+                logger.info(f"🔍 Trace extraction: Cost info = {trace_data['cost_info']}")
             except Exception as cost_e:
+                logger.error(f"❌ Trace extraction: Error getting cost info: {cost_e}")
                 trace_data["cost_info"] = {"extraction_error": str(cost_e)}
+        else:
+            logger.info("🔍 Trace extraction: No 'get_total_cost' method found")
         
         # If get_total_cost didn't work, manually aggregate from spans
         if not trace_data["cost_info"] or trace_data["cost_info"].get("total_cost", 0) == 0:
