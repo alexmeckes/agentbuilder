@@ -813,6 +813,40 @@ async def main():
     """Main MCP server loop (stdio protocol)"""
     server = PerUserMCPServer()
     
+    # Check if stdin is available (not running as detached subprocess)
+    import select
+    import sys
+    
+    try:
+        # Test if stdin is available for reading without blocking
+        if hasattr(select, 'select'):
+            # Unix-like systems
+            ready, _, _ = select.select([sys.stdin], [], [], 0)
+            stdin_available = bool(ready)
+        else:
+            # Windows or when select is not available
+            stdin_available = sys.stdin.isatty()
+    except:
+        stdin_available = False
+    
+    if not stdin_available:
+        # Running as subprocess without stdin - use standalone mode
+        print(json.dumps({
+            "status": "Composio MCP Bridge ready (standalone mode)",
+            "composio_available": COMPOSIO_AVAILABLE,
+            "user_id": server.default_user_context.user_id,
+            "has_api_key": bool(server.default_user_context.api_key)
+        }), file=sys.stderr)
+        
+        # Keep the process alive but don't block
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("Composio MCP Bridge shutting down...", file=sys.stderr)
+            return
+    
+    # Original stdin/stdout protocol mode
     while True:
         try:
             # Read JSON-RPC request from stdin
