@@ -973,60 +973,100 @@ class WorkflowExecutor:
             
             # Analyze agent names and instructions for context
             agent_contexts = []
+            system_workflow_detected = False
+            
             for node in nodes:
                 if node.get("type") == "agent":
                     agent_data = node.get("data", {})
                     agent_name = agent_data.get("name", "").lower()
                     agent_instructions = agent_data.get("instructions", "").lower()
                     agent_contexts.append(f"{agent_name} {agent_instructions}")
+                    
+                    # Detect system workflows
+                    if agent_name in ["contextextractor", "contextgenerator"]:
+                        system_workflow_detected = True
             
             combined_context = f"{input_data} {' '.join(agent_contexts)}".lower()
             
-            # Advanced pattern matching for specific use cases
-            if any(word in combined_context for word in ["grizzly", "bear", "wildlife", "animal", "yellowstone", "park"]):
-                if "grizzly" in combined_context and ("yellowstone" in combined_context or "park" in combined_context):
-                    workflow_name = "Grizzly Bear Viewing Guide"
-                    workflow_description = "Find the best locations for grizzly bear viewing in Yellowstone"
+            # Handle system workflows first
+            if system_workflow_detected:
+                if "contextextractor" in combined_context:
+                    workflow_name = "Context Extraction"
+                    workflow_description = "Extract actionable context from user inputs"
+                    workflow_category = "system"
+                    confidence = 0.95
+                elif "contextgenerator" in combined_context:
+                    workflow_name = "Context Generation"
+                    workflow_description = "Generate workflow suggestions from user requests"
+                    workflow_category = "system"
+                    confidence = 0.95
+                else:
+                    workflow_name = "System Workflow"
+                    workflow_description = "Internal system processing"
+                    workflow_category = "system"
                     confidence = 0.9
-                elif "wildlife" in combined_context:
+            else:
+                # Advanced pattern matching for specific use cases - improved logic
+                if "moose" in combined_context:
+                    if "yellowstone" in combined_context or "park" in combined_context:
+                        workflow_name = "Moose Viewing Guide"
+                        workflow_description = "Find the best locations for moose viewing in Yellowstone"
+                        confidence = 0.9
+                    else:
+                        workflow_name = "Moose Research Guide"
+                        workflow_description = "Research and information gathering about moose"
+                        confidence = 0.8
+                    workflow_category = "research"
+                elif "grizzly" in combined_context and "bear" in combined_context:
+                    if "yellowstone" in combined_context or "park" in combined_context:
+                        workflow_name = "Grizzly Bear Viewing Guide"
+                        workflow_description = "Find the best locations for grizzly bear viewing in Yellowstone"
+                        confidence = 0.9
+                    else:
+                        workflow_name = "Grizzly Bear Research Guide"
+                        workflow_description = "Research and information gathering about grizzly bears"
+                        confidence = 0.8
+                    workflow_category = "research"
+                elif "wildlife" in combined_context and ("viewing" in combined_context or "spotting" in combined_context):
                     workflow_name = "Wildlife Viewing Guide"
                     workflow_description = "Discover optimal wildlife viewing locations and tips"
                     confidence = 0.85
-                else:
+                    workflow_category = "research"
+                elif any(word in combined_context for word in ["animal", "wildlife"]) and "research" in combined_context:
                     workflow_name = "Animal Research Guide"
                     workflow_description = "Research and information gathering about animals"
                     confidence = 0.8
-                workflow_category = "research"
-                
-            elif any(word in combined_context for word in ["customer", "onboard", "support", "service"]):
-                workflow_name = "Customer Service Automation"
-                workflow_description = "Streamline customer onboarding and support processes"
-                workflow_category = "automation"
-                confidence = 0.85
-                
-            elif any(word in combined_context for word in ["content", "create", "generate", "write", "blog", "article"]):
-                workflow_name = "Content Creation Assistant"
-                workflow_description = "Generate and create various types of content"
-                workflow_category = "content"
-                confidence = 0.8
-                
-            elif any(word in combined_context for word in ["research", "find", "search", "discover", "information", "data"]):
-                workflow_name = "Research Assistant"
-                workflow_description = "Gather and analyze information from various sources"
-                workflow_category = "research"
-                confidence = 0.8
-                
-            elif any(word in combined_context for word in ["analyze", "analysis", "insight", "metric", "report"]):
-                workflow_name = "Data Analysis Tool"
-                workflow_description = "Analyze data and generate insights"
-                workflow_category = "analysis"
-                confidence = 0.8
-                
-            elif any(word in combined_context for word in ["workflow", "builder", "assistant", "help", "guide"]):
-                workflow_name = "Workflow Assistant"
-                workflow_description = "Help users build and design workflows"
-                workflow_category = "support"
-                confidence = 0.85
+                    workflow_category = "research"
+                    
+                elif any(word in combined_context for word in ["customer", "onboard", "support", "service"]):
+                    workflow_name = "Customer Service Automation"
+                    workflow_description = "Streamline customer onboarding and support processes"
+                    workflow_category = "automation"
+                    confidence = 0.85
+                    
+                elif any(word in combined_context for word in ["content", "create", "generate", "write", "blog", "article"]):
+                    workflow_name = "Content Creation Assistant"
+                    workflow_description = "Generate and create various types of content"
+                    workflow_category = "content"
+                    confidence = 0.8
+                    
+                elif any(word in combined_context for word in ["research", "find", "search", "discover", "information", "data"]):
+                    workflow_name = "Research Assistant"
+                    workflow_description = "Gather and analyze information from various sources"
+                    workflow_category = "research"
+                    confidence = 0.8
+                    
+                elif any(word in combined_context for word in ["analyze", "analysis", "insight", "metric", "report"]):
+                    workflow_name = "Data Analysis Tool"
+                    workflow_description = "Analyze data and generate insights"
+                    workflow_category = "analysis"
+                    confidence = 0.8
+                    
+                elif any(word in combined_context for word in ["workflow", "builder", "assistant", "help", "guide"]):
+                    workflow_name = "Workflow Assistant"
+                    workflow_description = "Help users build and design workflows"
+                    workflow_category = "support"
+                    confidence = 0.85
             
             # Enhance based on node count and structure
             agent_count = len([n for n in nodes if n.get("type") == "agent"])
@@ -1735,8 +1775,13 @@ async def get_execution_analytics():
         trace = execution.get("trace", {})
         performance = trace.get("performance", {})
         
-        total_cost += performance.get("total_cost", 0)
-        total_tokens += performance.get("total_tokens", 0)
+        # Use top-level cost_info first, fallback to trace performance
+        cost_info = execution.get("cost_info", {})
+        execution_cost = cost_info.get("total_cost", performance.get("total_cost", 0))
+        execution_tokens = cost_info.get("total_tokens", performance.get("total_tokens", 0))
+        
+        total_cost += execution_cost
+        total_tokens += execution_tokens
         total_duration += performance.get("total_duration_ms", 0)
         
         # Track model usage with support for both GenAI and OpenInference attribute conventions
@@ -1775,7 +1820,7 @@ async def get_execution_analytics():
             {
                 "execution_id": exec_id,
                 "status": execution["status"],
-                "cost": execution.get("trace", {}).get("performance", {}).get("total_cost", 0),
+                "cost": execution.get("cost_info", {}).get("total_cost", execution.get("trace", {}).get("performance", {}).get("total_cost", 0)),
                 "duration_ms": execution.get("trace", {}).get("performance", {}).get("total_duration_ms", 0)
             }
             for exec_id, execution in list(executor.executions.items())[-10:]  # Last 10 executions
