@@ -2929,6 +2929,15 @@ async def get_workflow_analytics():
     
     print(f"📊 Analytics calculation: {len(completed_executions)} completed executions, total_cost=${total_cost:.6f}, total_tokens={total_tokens}")
     
+    # DEBUG: Print execution details for workflow grouping investigation
+    print(f"🔍 DEBUG: Workflow grouping analysis:")
+    for exec_id, execution in executor.executions.items():
+        workflow_identity = execution.get("workflow_identity", {})
+        structure_hash = workflow_identity.get("structure_hash", "no_hash")
+        workflow_name = execution.get("workflow_name", "no_name")
+        input_preview = str(execution.get("input", ""))[:50] + "..." if len(str(execution.get("input", ""))) > 50 else str(execution.get("input", ""))
+        print(f"  {exec_id}: '{workflow_name}' | hash={structure_hash[:8]}... | input='{input_preview}'")
+    
     # Group executions by workflow structure hash for intelligent grouping
     workflow_groups = {}
     for exec_id, execution in executor.executions.items():

@@ -1011,6 +1011,12 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
     
     # Aggregate all trace data from agent executions
     logger.info(f"🔗 Aggregating traces from {len(all_agent_traces)} agent executions")
+    print(f"🔍 DEBUG: Step-by-step execution completed with {len(all_agent_traces)} agent nodes:")
+    for i, trace_info in enumerate(all_agent_traces):
+        spans_count = len(trace_info["trace"].get("spans", []))
+        cost = trace_info["trace"].get("cost_info", {}).get("total_cost", 0)
+        print(f"  Step {i+1}: {trace_info['node_name']} ({trace_info['node_id']}) - {spans_count} spans, ${cost:.6f}")
+    
     aggregated_trace = _aggregate_agent_traces(all_agent_traces, current_input)
     
     return {
