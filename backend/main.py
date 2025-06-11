@@ -709,10 +709,10 @@ class WorkflowExecutor:
                 for i, span in enumerate(spans):
                     if hasattr(span, 'attributes'):
                         attrs = getattr(span, 'attributes', {})
-                        input_cost = attrs.get("gen_ai.usage.input_cost", 0.0)
-                        output_cost = attrs.get("gen_ai.usage.output_cost", 0.0)
-                        span_input_tokens = attrs.get("gen_ai.usage.input_tokens", 0)
-                        span_output_tokens = attrs.get("gen_ai.usage.output_tokens", 0)
+                        input_cost = attrs.get("gen_ai.usage.input_cost", attrs.get("cost_prompt", 0.0))
+                        output_cost = attrs.get("gen_ai.usage.output_cost", attrs.get("cost_completion", 0.0))
+                        span_input_tokens = attrs.get("gen_ai.usage.input_tokens", attrs.get("llm.token_count.prompt", 0))
+                        span_output_tokens = attrs.get("gen_ai.usage.output_tokens", attrs.get("llm.token_count.completion", 0))
                         
                         span_cost = float(input_cost) + float(output_cost)
                         span_tokens = int(span_input_tokens) + int(span_output_tokens)
@@ -772,13 +772,13 @@ class WorkflowExecutor:
                 for i, span in enumerate(spans):
                     attributes = span.get("attributes", {})
                     
-                    # Extract costs from GenAI semantic convention attributes
-                    input_cost = attributes.get("gen_ai.usage.input_cost", 0.0)
-                    output_cost = attributes.get("gen_ai.usage.output_cost", 0.0)
+                    # Extract costs using GenAI semantic convention or fallback to OpenInference names
+                    input_cost = attributes.get("gen_ai.usage.input_cost", attributes.get("cost_prompt", 0.0))
+                    output_cost = attributes.get("gen_ai.usage.output_cost", attributes.get("cost_completion", 0.0))
                     
-                    # Extract token counts
-                    span_input_tokens = attributes.get("gen_ai.usage.input_tokens", 0)
-                    span_output_tokens = attributes.get("gen_ai.usage.output_tokens", 0)
+                    # Extract token counts using GenAI semantic convention or fallback to OpenInference names
+                    span_input_tokens = attributes.get("gen_ai.usage.input_tokens", attributes.get("llm.token_count.prompt", 0))
+                    span_output_tokens = attributes.get("gen_ai.usage.output_tokens", attributes.get("llm.token_count.completion", 0))
                     
                     span_total_cost = float(input_cost) + float(output_cost)
                     span_total_tokens = int(span_input_tokens) + int(span_output_tokens)
@@ -4646,8 +4646,8 @@ async def debug_analytics_cost_data():
         span_costs = []
         for i, span in enumerate(spans):
             attrs = span.get("attributes", {})
-            input_cost = attrs.get("gen_ai.usage.input_cost", 0)
-            output_cost = attrs.get("gen_ai.usage.output_cost", 0)
+            input_cost = attrs.get("gen_ai.usage.input_cost", attrs.get("cost_prompt", 0))
+            output_cost = attrs.get("gen_ai.usage.output_cost", attrs.get("cost_completion", 0))
             span_costs.append({
                 "span_index": i,
                 "input_cost": input_cost,
