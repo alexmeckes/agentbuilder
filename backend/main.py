@@ -34,6 +34,7 @@ config = setup_environment()
 
 # Import lightweight evaluation instead of heavy any-agent evaluation
 from lightweight_evaluation import evaluate_workflow_output
+from enhanced_workflow_evaluation import evaluate_end_to_end_workflow, WorkflowEvaluationResult
 
 # Import the REAL any-agent framework (but not evaluation components)
 from any_agent import AgentFramework
@@ -2017,6 +2018,123 @@ async def get_evaluation_metrics():
         }
     }
 
+@app.post("/evaluations/run-enhanced")
+async def run_enhanced_workflow_evaluation(request: dict):
+    """Run enhanced end-to-end workflow evaluation with step-by-step analysis"""
+    try:
+        # Extract request data
+        execution_id = request.get("execution_id")
+        evaluation_criteria = request.get("evaluation_criteria", {})
+        llm_judge = request.get("llm_judge", "gpt-4o-mini")
+        
+        if not execution_id:
+            raise HTTPException(status_code=400, detail="execution_id is required")
+        
+        # Get execution data
+        if execution_id not in executor.executions:
+            raise HTTPException(status_code=404, detail="Execution not found")
+        
+        execution = executor.executions[execution_id]
+        trace_data = execution.get("trace", {})
+        
+        if not trace_data:
+            raise HTTPException(status_code=400, detail="No trace data available for this execution")
+        
+        print(f"🔍 Starting enhanced evaluation for execution {execution_id}")
+        print(f"📊 Trace has {len(trace_data.get('spans', []))} spans")
+        
+        # Set up default evaluation criteria if not provided
+        if not evaluation_criteria:
+            evaluation_criteria = {
+                "final_output_criteria": [
+                    {"criteria": "The workflow produced a clear and comprehensive final result", "points": 3},
+                    {"criteria": "The output directly addresses the original request", "points": 2},
+                    {"criteria": "The information provided is accurate and relevant", "points": 2}
+                ],
+                "step_criteria": {
+                    "generic": [
+                        {"criteria": "This step produced meaningful output that contributes to the workflow", "points": 2},
+                        {"criteria": "The step executed efficiently without unnecessary redundancy", "points": 1}
+                    ],
+                    "Research Agent": [
+                        {"criteria": "Gathered comprehensive and relevant information", "points": 3},
+                        {"criteria": "Used appropriate sources and search strategies", "points": 2}
+                    ],
+                    "Analysis Agent": [
+                        {"criteria": "Analyzed information thoroughly and accurately", "points": 3},
+                        {"criteria": "Drew meaningful insights from the data", "points": 2}
+                    ]
+                }
+            }
+        
+        # Run enhanced evaluation
+        evaluation_result = evaluate_end_to_end_workflow(
+            execution_id=execution_id,
+            trace_data=trace_data,
+            evaluation_criteria=evaluation_criteria,
+            model=llm_judge
+        )
+        
+        # Convert to serializable format
+        result_dict = {
+            "execution_id": evaluation_result.execution_id,
+            "overall_score": evaluation_result.overall_score,
+            "final_output_evaluation": evaluation_result.final_output_evaluation,
+            "step_evaluations": [
+                {
+                    "step_name": step.step_name,
+                    "node_id": step.node_id,
+                    "step_score": step.step_score,
+                    "duration_ms": step.duration_ms,
+                    "cost": step.cost,
+                    "evaluation_results": [
+                        {
+                            "passed": r.passed,
+                            "reason": r.reason,
+                            "criteria": r.criteria,
+                            "points": r.points
+                        }
+                        for r in step.evaluation_results
+                    ]
+                }
+                for step in evaluation_result.step_evaluations
+            ],
+            "flow_evaluation": {
+                "flow_coherence": evaluation_result.flow_evaluation.flow_coherence,
+                "information_preservation": evaluation_result.flow_evaluation.information_preservation,
+                "efficiency": evaluation_result.flow_evaluation.efficiency,
+                "transition_quality": evaluation_result.flow_evaluation.transition_quality
+            },
+            "step_scores": evaluation_result.step_scores,
+            "bottleneck_analysis": evaluation_result.bottleneck_analysis,
+            "performance_metrics": {
+                "total_duration_ms": evaluation_result.total_duration_ms,
+                "total_cost": evaluation_result.total_cost,
+                "efficiency_score": evaluation_result.efficiency_score
+            }
+        }
+        
+        print(f"✅ Enhanced evaluation completed for {execution_id}")
+        print(f"📊 Overall score: {evaluation_result.overall_score:.2f}")
+        print(f"🔍 {len(evaluation_result.step_evaluations)} steps evaluated")
+        print(f"⚡ Flow coherence: {evaluation_result.flow_evaluation.flow_coherence:.2f}")
+        
+        return {
+            "success": True,
+            "evaluation_type": "enhanced_workflow",
+            "result": result_dict,
+            "summary": f"Enhanced evaluation completed with overall score: {evaluation_result.overall_score:.1%}"
+        }
+        
+    except Exception as e:
+        print(f"❌ Enhanced evaluation failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "evaluation_type": "enhanced_workflow"
+        }
+
+
 @app.post("/evaluations/run")
 async def run_evaluation(request: dict):
     """Run an evaluation with proper storage and tracking"""
@@ -2943,6 +3061,9 @@ async def get_workflow_analytics():
     for exec_id, execution in executor.executions.items():
         workflow_identity = execution.get("workflow_identity", {})
         structure_hash = workflow_identity.get("structure_hash", exec_id)
+        
+        # DEBUG: Show grouping logic
+        print(f"🔍 Grouping {exec_id} with structure_hash {structure_hash[:8]}...")
         
         if structure_hash not in workflow_groups:
             workflow_groups[structure_hash] = {
