@@ -797,18 +797,15 @@ class WorkflowExecutor:
                     if span_total_tokens > 0 and span_total_cost == 0 and model_name != "unknown":
                         try:
                             import litellm
+                            from litellm.cost_calculator import cost_per_token
                             print(f"🔧 Attempting to calculate cost for model '{model_name}' with {span_input_tokens} input + {span_output_tokens} output tokens")
                             
-                            # Calculate cost using LiteLLM
-                            if span_input_tokens > 0:
-                                input_cost_calc = litellm.cost_per_token(model=model_name, num_tokens=span_input_tokens, is_completion=False) or 0.0
-                            else:
-                                input_cost_calc = 0.0
-                                
-                            if span_output_tokens > 0:
-                                output_cost_calc = litellm.cost_per_token(model=model_name, num_tokens=span_output_tokens, is_completion=True) or 0.0
-                            else:
-                                output_cost_calc = 0.0
+                            # Calculate cost using LiteLLM - correctly using prompt_tokens and completion_tokens
+                            input_cost_calc, output_cost_calc = cost_per_token(
+                                model=model_name,
+                                prompt_tokens=int(span_input_tokens),
+                                completion_tokens=int(span_output_tokens)
+                            )
                                 
                             calculated_cost = input_cost_calc + output_cost_calc
                             if calculated_cost > 0:
