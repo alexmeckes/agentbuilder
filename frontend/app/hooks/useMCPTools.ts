@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 export interface MCPTool {
   id: string;
   name: string;
-  type: 'built-in' | 'mcp' | 'composio';
+  type: 'built-in' | 'mcp' | 'composio' | 'app';
   source: 'built-in' | 'composio' | 'mcp';
   description: string;
   category: string;
@@ -12,6 +12,11 @@ export interface MCPTool {
   server_status?: string;
   app?: string;
   enabled?: boolean;
+  // App Node specific fields
+  appId?: string;
+  availableActions?: string[];
+  defaultAction?: string;
+  isComposioApp?: boolean;
 }
 
 export function useMCPTools(userId?: string) {
@@ -49,9 +54,10 @@ export function useMCPTools(userId?: string) {
               if (userToolsData.success && userToolsData.tools) {
                 const toolsArray = userToolsData.tools as MCPTool[];
                 setTools(toolsArray);
-                setMcpEnabled(toolsArray.some(tool => tool.type === 'mcp' || tool.type === 'composio'));
+                setMcpEnabled(toolsArray.some(tool => tool.type === 'mcp' || tool.type === 'composio' || tool.type === 'app'));
                 console.log('✅ User-specific tools loaded:', {
                   total: toolsArray.length,
+                  appNodes: toolsArray.filter(t => t.type === 'app').length,
                   composio: toolsArray.filter(t => t.type === 'composio').length,
                   mcp: toolsArray.filter(t => t.type === 'mcp').length,
                   builtIn: toolsArray.filter(t => t.type === 'built-in').length
@@ -78,9 +84,10 @@ export function useMCPTools(userId?: string) {
       if (response.ok && data.tools) {
         const toolsArray = Object.values(data.tools) as MCPTool[];
         setTools(toolsArray);
-        setMcpEnabled(toolsArray.some(tool => tool.type === 'mcp'));
+        setMcpEnabled(toolsArray.some(tool => tool.type === 'mcp' || tool.type === 'app'));
         console.log('✅ General tools loaded:', {
           total: toolsArray.length,
+          appNodes: toolsArray.filter(t => t.type === 'app').length,
           composio: toolsArray.filter(t => t.type === 'composio').length,
           mcp: toolsArray.filter(t => t.type === 'mcp').length,
           builtIn: toolsArray.filter(t => t.type === 'built-in').length
@@ -138,6 +145,10 @@ export function useMCPTools(userId?: string) {
     return tools.filter(tool => tool.type === 'composio');
   };
 
+  const getAppNodes = () => {
+    return tools.filter(tool => tool.type === 'app');
+  };
+
   return {
     tools,
     loading,
@@ -147,6 +158,7 @@ export function useMCPTools(userId?: string) {
     getBuiltInTools,
     getMCPTools,
     getComposioTools,
+    getAppNodes,
     getActiveTools,
     refresh: loadTools
   };

@@ -1,13 +1,21 @@
 // Node type definitions for manual workflow creation
 export interface NodeTemplate {
   id: string
-  type: 'agent' | 'tool' | 'input' | 'output' | 'logic'
+  type: 'agent' | 'tool' | 'input' | 'output' | 'logic' | 'app'
   name: string
   description: string
   category: string
   icon: string
   defaultData: any
   configurable: string[] // Fields that user can configure
+}
+
+// App Node specific interface for Composio integrations
+export interface AppNodeTemplate extends NodeTemplate {
+  type: 'app'
+  appId: string // The Composio app identifier (e.g., 'github', 'slack')
+  availableActions: string[] // List of actions this app can perform
+  defaultAction?: string // Default action when dropped
 }
 
 export interface NodeCategory {
@@ -279,6 +287,177 @@ export const LOGIC_TEMPLATES: NodeTemplate[] = [
   }
 ]
 
+// NEW: App Node templates for Composio integrations
+export const APP_TEMPLATES: AppNodeTemplate[] = [
+  {
+    id: 'github-app',
+    type: 'app',
+    name: 'GitHub',
+    description: 'GitHub repository operations and management',
+    category: 'composio-apps',
+    icon: '🐙',
+    appId: 'github',
+    availableActions: [
+      'create_issue',
+      'star_repo', 
+      'fork_repo',
+      'create_pull_request',
+      'get_repo_info',
+      'list_issues',
+      'comment_on_issue',
+      'create_repo'
+    ],
+    defaultAction: 'create_issue',
+    defaultData: {
+      type: 'app',
+      appId: 'github',
+      appName: 'GitHub',
+      action: 'create_issue',
+      name: 'GitHubApp',
+      description: 'Performs GitHub operations as configured by the agent',
+      isComposioApp: true
+    },
+    configurable: ['name', 'description', 'action']
+  },
+  {
+    id: 'slack-app',
+    type: 'app',
+    name: 'Slack',
+    description: 'Slack messaging and workspace operations',
+    category: 'composio-apps',
+    icon: '💬',
+    appId: 'slack',
+    availableActions: [
+      'send_message',
+      'create_channel',
+      'list_channels',
+      'get_user_info',
+      'send_direct_message',
+      'upload_file'
+    ],
+    defaultAction: 'send_message',
+    defaultData: {
+      type: 'app',
+      appId: 'slack',
+      appName: 'Slack',
+      action: 'send_message',
+      name: 'SlackApp',
+      description: 'Performs Slack operations as configured by the agent',
+      isComposioApp: true
+    },
+    configurable: ['name', 'description', 'action']
+  },
+  {
+    id: 'gmail-app',
+    type: 'app',
+    name: 'Gmail',
+    description: 'Gmail email operations and management',
+    category: 'composio-apps',
+    icon: '📧',
+    appId: 'gmail',
+    availableActions: [
+      'send_email',
+      'read_emails',
+      'search_emails',
+      'create_draft',
+      'send_draft',
+      'get_email_info'
+    ],
+    defaultAction: 'send_email',
+    defaultData: {
+      type: 'app',
+      appId: 'gmail',
+      appName: 'Gmail',
+      action: 'send_email',
+      name: 'GmailApp',
+      description: 'Performs Gmail operations as configured by the agent',
+      isComposioApp: true
+    },
+    configurable: ['name', 'description', 'action']
+  },
+  {
+    id: 'googledocs-app',
+    type: 'app',
+    name: 'Google Docs',
+    description: 'Google Docs document creation and management',
+    category: 'composio-apps',
+    icon: '📄',
+    appId: 'googledocs',
+    availableActions: [
+      'create_doc',
+      'update_doc',
+      'get_doc_content',
+      'share_doc',
+      'create_from_template'
+    ],
+    defaultAction: 'create_doc',
+    defaultData: {
+      type: 'app',
+      appId: 'googledocs',
+      appName: 'Google Docs',
+      action: 'create_doc',
+      name: 'GoogleDocsApp',
+      description: 'Performs Google Docs operations as configured by the agent',
+      isComposioApp: true
+    },
+    configurable: ['name', 'description', 'action']
+  },
+  {
+    id: 'notion-app',
+    type: 'app',
+    name: 'Notion',
+    description: 'Notion page and database operations',
+    category: 'composio-apps',
+    icon: '📝',
+    appId: 'notion',
+    availableActions: [
+      'create_page',
+      'update_page',
+      'create_database',
+      'add_database_row',
+      'search_pages'
+    ],
+    defaultAction: 'create_page',
+    defaultData: {
+      type: 'app',
+      appId: 'notion',
+      appName: 'Notion',
+      action: 'create_page',
+      name: 'NotionApp',
+      description: 'Performs Notion operations as configured by the agent',
+      isComposioApp: true
+    },
+    configurable: ['name', 'description', 'action']
+  },
+  {
+    id: 'linear-app',
+    type: 'app',
+    name: 'Linear',
+    description: 'Linear issue tracking and project management',
+    category: 'composio-apps',
+    icon: '📋',
+    appId: 'linear',
+    availableActions: [
+      'create_issue',
+      'update_issue',
+      'list_issues',
+      'create_project',
+      'add_comment'
+    ],
+    defaultAction: 'create_issue',
+    defaultData: {
+      type: 'app',
+      appId: 'linear',
+      appName: 'Linear',
+      action: 'create_issue',
+      name: 'LinearApp',
+      description: 'Performs Linear operations as configured by the agent',
+      isComposioApp: true
+    },
+    configurable: ['name', 'description', 'action']
+  }
+]
+
 // Organize templates by category
 export const NODE_CATEGORIES: NodeCategory[] = [
   {
@@ -287,6 +466,13 @@ export const NODE_CATEGORIES: NodeCategory[] = [
     description: 'Intelligent agents for processing and analysis',
     icon: '🤖',
     nodes: AGENT_TEMPLATES
+  },
+  {
+    id: 'composio-apps',
+    name: 'Connected Apps',
+    description: 'Your connected Composio applications',
+    icon: '🔗',
+    nodes: APP_TEMPLATES
   },
   {
     id: 'tools',
@@ -313,8 +499,12 @@ export const NODE_CATEGORIES: NodeCategory[] = [
 
 // Helper functions
 export const getNodeTemplate = (templateId: string): NodeTemplate | undefined => {
-  return [...AGENT_TEMPLATES, ...TOOL_TEMPLATES, ...IO_TEMPLATES, ...LOGIC_TEMPLATES]
+  return [...AGENT_TEMPLATES, ...APP_TEMPLATES, ...TOOL_TEMPLATES, ...IO_TEMPLATES, ...LOGIC_TEMPLATES]
     .find(template => template.id === templateId)
+}
+
+export const getAppTemplate = (appId: string): AppNodeTemplate | undefined => {
+  return APP_TEMPLATES.find(template => template.appId === appId)
 }
 
 export const getNodesByCategory = (categoryId: string): NodeTemplate[] => {
@@ -323,5 +513,9 @@ export const getNodesByCategory = (categoryId: string): NodeTemplate[] => {
 }
 
 export const getAllNodeTemplates = (): NodeTemplate[] => {
-  return [...AGENT_TEMPLATES, ...TOOL_TEMPLATES, ...IO_TEMPLATES, ...LOGIC_TEMPLATES]
+  return [...AGENT_TEMPLATES, ...APP_TEMPLATES, ...TOOL_TEMPLATES, ...IO_TEMPLATES, ...LOGIC_TEMPLATES]
+}
+
+export const getAllAppTemplates = (): AppNodeTemplate[] => {
+  return APP_TEMPLATES
 } 

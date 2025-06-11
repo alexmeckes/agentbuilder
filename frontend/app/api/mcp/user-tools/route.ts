@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log(`🔍 Getting user-specific tools for: ${userId}`)
+    console.log(`🔍 Getting user-specific app nodes for: ${userId}`)
     
     // Start with built-in tools (always available)
     const tools: Record<string, any> = {}
@@ -36,36 +36,10 @@ export async function POST(request: NextRequest) {
       server_status: 'built-in'
     }
 
-    // If user has settings with enabled tools, add those
-    if (userSettings?.enabledTools && Array.isArray(userSettings.enabledTools)) {
-      console.log(`🔧 Processing ${userSettings.enabledTools.length} enabled tools for user`);
-      
-      // Map enabled tools to actual tool definitions
-      userSettings.enabledTools.forEach((toolId: string) => {
-        const toolConfig = getComposioToolConfig(toolId);
-        if (toolConfig) {
-          tools[toolId] = {
-            id: toolId,
-            type: 'composio',
-            source: 'composio', 
-            name: toolConfig.name,
-            description: toolConfig.description,
-            category: toolConfig.category.toLowerCase(),
-            server_id: 'composio-tools',
-            server_name: 'Composio Universal Tools',
-            server_status: 'connected'
-          };
-          console.log(`✅ Added user tool: ${toolConfig.name}`);
-        } else {
-          console.warn(`⚠️ Unknown tool ID: ${toolId}`);
-        }
-      });
-    }
-
-    // If user has Composio API key, try to get their connected apps dynamically
+    // NEW: If user has Composio API key, discover their connected apps and create App Nodes
     if (userSettings?.composioApiKey || userSettings?.encryptedComposioKey) {
       try {
-        console.log('🔍 User has Composio key, attempting to discover connected tools...');
+        console.log('🔍 User has Composio key, discovering connected apps...');
         
         // Use the existing test-composio endpoint to get connected apps
         let apiKey = userSettings.composioApiKey;
@@ -77,45 +51,57 @@ export async function POST(request: NextRequest) {
         }
         
         if (apiKey) {
-          const discoveredTools = await discoverComposioTools(apiKey, userId);
+          const connectedApps = await discoverComposioApps(apiKey, userId);
           
-          // Add discovered tools (they override enabled tools if same ID)
-          Object.entries(discoveredTools).forEach(([toolId, toolInfo]: [string, any]) => {
-            tools[toolId] = {
-              id: toolId,
-              type: 'composio',
-              source: 'composio',
-              name: toolInfo.name,
-              description: toolInfo.description,
-              category: toolInfo.category.toLowerCase(),
-              server_id: 'composio-tools',
-              server_name: 'Composio Universal Tools',
-              server_status: 'connected',
-              discovered: true
-            };
+          // Create App Nodes for each connected app
+          connectedApps.forEach((appName: string) => {
+            const appNode = createAppNode(appName);
+            if (appNode) {
+              tools[appNode.id] = appNode;
+              console.log(`✅ Added app node: ${appNode.name}`);
+            }
           });
           
-          console.log(`🎯 Added ${Object.keys(discoveredTools).length} discovered tools`);
+          console.log(`🎯 Added ${connectedApps.length} connected app nodes`);
         }
       } catch (discoveryError) {
-        console.warn('⚠️ Failed to discover Composio tools:', discoveryError);
-        // Continue with enabled tools only
+        console.warn('⚠️ Failed to discover Composio apps:', discoveryError);
+        // Continue without Composio apps
       }
     }
+
+    // FALLBACK: If user has enabled tools in settings but no API key, create app nodes for those
+    if (userSettings?.enabledTools && Array.isArray(userSettings.enabledTools) && userSettings.enabledTools.length > 0) {
+      console.log(`🔧 Creating app nodes from ${userSettings.enabledTools.length} enabled tools`);
+      
+      // Extract unique app names from enabled tool IDs
+      const appNames = extractAppNamesFromTools(userSettings.enabledTools);
+      
+      appNames.forEach(appName => {
+        const appNodeId = `${appName}-app`;
+        if (!tools[appNodeId]) { // Don't override discovered apps
+          const appNode = createAppNode(appName);
+          if (appNode) {
+            tools[appNode.id] = appNode;
+            console.log(`✅ Added fallback app node: ${appNode.name}`);
+          }
+        }
+      });
+    }
     
-    console.log(`🎯 Final user tools summary:`, {
-      totalTools: Object.keys(tools).length,
-      toolIds: Object.keys(tools),
-      composioTools: Object.values(tools).filter(t => t.type === 'composio').length,
+    console.log(`🎯 Final user nodes summary:`, {
+      totalNodes: Object.keys(tools).length,
+      nodeIds: Object.keys(tools),
+      appNodes: Object.values(tools).filter(t => t.type === 'app').length,
       builtInTools: Object.values(tools).filter(t => t.type === 'built-in').length
     });
     
     return NextResponse.json({ 
       success: true,
-      tools: Object.values(tools),
+      tools: Object.values(tools), // Keep 'tools' for backwards compatibility
       summary: {
-        totalTools: Object.keys(tools).length,
-        composioTools: Object.values(tools).filter(t => t.type === 'composio').length,
+        totalNodes: Object.keys(tools).length,
+        appNodes: Object.values(tools).filter(t => t.type === 'app').length,
         builtInTools: Object.values(tools).filter(t => t.type === 'built-in').length
       }
     })
@@ -130,68 +116,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to get Composio tool configuration
-function getComposioToolConfig(toolId: string): any {
-  const toolMapping: Record<string, any> = {
-    'github_star_repo': { 
-      name: 'GitHub Star', 
-      description: 'Star a GitHub repository', 
-      category: 'Development'
-    },
-    'github_create_issue': { 
-      name: 'GitHub Issue', 
-      description: 'Create a GitHub issue', 
-      category: 'Development'
-    },
-    'slack_send_message': { 
-      name: 'Slack Message', 
-      description: 'Send message to Slack', 
-      category: 'Communication'
-    },
-    'gmail_send_email': { 
-      name: 'Gmail Email', 
-      description: 'Send email via Gmail', 
-      category: 'Communication'
-    },
-    'googledocs_create_doc': { 
-      name: 'Google Docs', 
-      description: 'Create a Google Docs document', 
-      category: 'Productivity'
-    },
-    'googlesheets_create_sheet': { 
-      name: 'Google Sheets', 
-      description: 'Create a Google Sheets spreadsheet', 
-      category: 'Productivity'
-    },
-    'googledrive_upload': { 
-      name: 'Google Drive', 
-      description: 'Upload file to Google Drive', 
-      category: 'Productivity'
-    },
-    'googlecalendar_create_event': { 
-      name: 'Google Calendar', 
-      description: 'Create a Google Calendar event', 
-      category: 'Productivity'
-    },
-    'notion_create_page': { 
-      name: 'Notion Page', 
-      description: 'Create a Notion page', 
-      category: 'Productivity'
-    },
-    'linear_create_issue': { 
-      name: 'Linear Issue', 
-      description: 'Create a Linear issue', 
-      category: 'Productivity'
-    }
-  }
-  
-  return toolMapping[toolId] || null
-}
-
-// Helper function to discover Composio tools dynamically
-async function discoverComposioTools(apiKey: string, userId: string): Promise<Record<string, any>> {
+// Helper function to discover connected Composio apps
+async function discoverComposioApps(apiKey: string, userId: string): Promise<string[]> {
   try {
-    console.log('🔍 Discovering tools via test-composio endpoint...');
+    console.log('🔍 Discovering connected apps via test-composio endpoint...');
     
     // Call the existing test-composio endpoint to get connected apps
     const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/test-composio`, {
@@ -207,45 +135,123 @@ async function discoverComposioTools(apiKey: string, userId: string): Promise<Re
     const result = await response.json();
     
     if (result.success && result.availableApps) {
-      return mapComposioAppsToTools(result.availableApps);
+      console.log(`✅ Discovered ${result.availableApps.length} connected apps:`, result.availableApps);
+      return result.availableApps;
     }
     
-    return {};
+    return [];
   } catch (error) {
-    console.error('Failed to discover Composio tools:', error);
-    return {};
+    console.error('Failed to discover Composio apps:', error);
+    return [];
   }
 }
 
-// Helper function to map Composio apps to tool definitions
-function mapComposioAppsToTools(availableApps: string[]): Record<string, any> {
-  const toolMapping: Record<string, any> = {
-    'github': { id: 'github_star_repo', name: 'GitHub Operations', category: 'Development', description: 'GitHub repository operations' },
-    'slack': { id: 'slack_send_message', name: 'Slack Messaging', category: 'Communication', description: 'Send messages via Slack' },
-    'gmail': { id: 'gmail_send_email', name: 'Gmail Operations', category: 'Communication', description: 'Send emails via Gmail' },
-    'google': { id: 'gmail_send_email', name: 'Gmail Operations', category: 'Communication', description: 'Google services operations' },
-    'googledocs': { id: 'googledocs_create_doc', name: 'Google Docs', category: 'Productivity', description: 'Create Google Docs documents' },
-    'googlesheets': { id: 'googlesheets_create_sheet', name: 'Google Sheets', category: 'Productivity', description: 'Create Google Sheets spreadsheets' },
-    'googledrive': { id: 'googledrive_upload', name: 'Google Drive', category: 'Productivity', description: 'Upload files to Google Drive' },
-    'googlecalendar': { id: 'googlecalendar_create_event', name: 'Google Calendar', category: 'Productivity', description: 'Create Google Calendar events' },
-    'notion': { id: 'notion_create_page', name: 'Notion Pages', category: 'Productivity', description: 'Create Notion pages' },
-    'linear': { id: 'linear_create_issue', name: 'Linear Issues', category: 'Productivity', description: 'Create Linear issues' }
+// Helper function to create App Node from app name
+function createAppNode(appName: string): any {
+  const normalizedName = appName.toLowerCase().replace(/[\s-_]/g, '');
+  
+  const appMapping: Record<string, any> = {
+    'github': {
+      id: 'github-app',
+      name: 'GitHub',
+      description: 'GitHub repository operations and management',
+      icon: '🐙',
+      appId: 'github',
+      availableActions: ['create_issue', 'star_repo', 'fork_repo', 'create_pull_request', 'get_repo_info']
+    },
+    'slack': {
+      id: 'slack-app',
+      name: 'Slack',
+      description: 'Slack messaging and workspace operations',
+      icon: '💬',
+      appId: 'slack',
+      availableActions: ['send_message', 'create_channel', 'list_channels', 'send_direct_message']
+    },
+    'gmail': {
+      id: 'gmail-app',
+      name: 'Gmail',
+      description: 'Gmail email operations and management',
+      icon: '📧',
+      appId: 'gmail',
+      availableActions: ['send_email', 'read_emails', 'search_emails', 'create_draft']
+    },
+    'google': {
+      id: 'gmail-app',
+      name: 'Gmail',
+      description: 'Gmail email operations and management',
+      icon: '📧',
+      appId: 'gmail',
+      availableActions: ['send_email', 'read_emails', 'search_emails', 'create_draft']
+    },
+    'googledocs': {
+      id: 'googledocs-app',
+      name: 'Google Docs',
+      description: 'Google Docs document creation and management',
+      icon: '📄',
+      appId: 'googledocs',
+      availableActions: ['create_doc', 'update_doc', 'get_doc_content', 'share_doc']
+    },
+    'googlesheets': {
+      id: 'googlesheets-app',
+      name: 'Google Sheets',
+      description: 'Google Sheets spreadsheet operations',
+      icon: '📊',
+      appId: 'googlesheets',
+      availableActions: ['create_sheet', 'update_sheet', 'get_sheet_data', 'share_sheet']
+    },
+    'notion': {
+      id: 'notion-app',
+      name: 'Notion',
+      description: 'Notion page and database operations',
+      icon: '📝',
+      appId: 'notion',
+      availableActions: ['create_page', 'update_page', 'create_database', 'add_database_row']
+    },
+    'linear': {
+      id: 'linear-app',
+      name: 'Linear',
+      description: 'Linear issue tracking and project management',
+      icon: '📋',
+      appId: 'linear',
+      availableActions: ['create_issue', 'update_issue', 'list_issues', 'add_comment']
+    }
+  };
+  
+  const appConfig = appMapping[normalizedName];
+  if (!appConfig) {
+    console.log(`❓ No app mapping found for: ${appName}`);
+    return null;
   }
   
-  const discoveredTools: Record<string, any> = {};
+  return {
+    id: appConfig.id,
+    type: 'app',
+    source: 'composio',
+    name: appConfig.name,
+    description: appConfig.description,
+    category: 'composio-apps',
+    icon: appConfig.icon,
+    appId: appConfig.appId,
+    availableActions: appConfig.availableActions,
+    defaultAction: appConfig.availableActions[0],
+    server_id: 'composio-tools',
+    server_name: 'Composio Universal Tools',
+    server_status: 'connected',
+    isComposioApp: true
+  };
+}
+
+// Helper function to extract app names from tool IDs (for fallback)
+function extractAppNamesFromTools(toolIds: string[]): string[] {
+  const appNames = new Set<string>();
   
-  availableApps.forEach(appName => {
-    const normalizedName = appName.toLowerCase().replace(/[\s-_]/g, '');
-    console.log(`📱 Processing app: "${appName}" -> "${normalizedName}"`);
-    
-    if (toolMapping[normalizedName]) {
-      const tool = toolMapping[normalizedName];
-      discoveredTools[tool.id] = tool;
-      console.log(`✅ Mapped: ${appName} -> ${tool.name}`);
-    } else {
-      console.log(`❓ No mapping found for: ${appName}`);
+  toolIds.forEach(toolId => {
+    // Extract app name from tool ID patterns like "github_star_repo", "slack_send_message"
+    const parts = toolId.split('_');
+    if (parts.length > 0) {
+      appNames.add(parts[0]); // First part is usually the app name
     }
   });
   
-  return discoveredTools;
+  return Array.from(appNames);
 }

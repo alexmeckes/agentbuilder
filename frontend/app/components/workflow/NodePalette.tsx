@@ -229,19 +229,32 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
   const [dynamicCategories, setDynamicCategories] = useState<NodeCategory[]>(NODE_CATEGORIES)
-  const { tools: mcpTools, refresh: refreshTools } = useMCPTools(userSettings?.userId)
+  const { tools: mcpTools, getAppNodes, getBuiltInTools, refresh: refreshTools } = useMCPTools(userSettings?.userId)
   const [composioCategories, setComposioCategories] = useState<any[]>([])
   const [builtInTools, setBuiltInTools] = useState<any[]>([])
+  const [appNodes, setAppNodes] = useState<any[]>([])
 
-  // Debug logging for MCP tools
+  // Debug logging for MCP tools and App Nodes
   useEffect(() => {
-    console.log('🎨 NodePalette: MCP Tools updated:', {
+    const appNodesData = getAppNodes();
+    const builtInData = getBuiltInTools();
+    
+    console.log('🎨 NodePalette: Tools updated:', {
       totalTools: mcpTools.length,
       toolTypes: mcpTools.map(t => ({ id: t.id, type: t.type, source: t.source, status: t.server_status })),
+      appNodes: appNodesData.length,
       composioTools: mcpTools.filter(t => t.type === 'composio' || t.source === 'composio').length,
-      builtInTools: mcpTools.filter(t => t.type === 'built-in' || t.source === 'built-in').length
+      builtInTools: builtInData.length
     });
-  }, [mcpTools]);
+    
+    setAppNodes(appNodesData);
+    setBuiltInTools(builtInData);
+    
+    // Auto-expand Connected Apps if we have app nodes
+    if (appNodesData.length > 0) {
+      setExpandedCategories(prev => ({ ...prev, 'connected-apps': true }));
+    }
+  }, [mcpTools, getAppNodes, getBuiltInTools]);
 
   // Load user settings and create dynamic Composio categories
   useEffect(() => {
@@ -500,6 +513,54 @@ export default function NodePalette({ className = '' }: NodePaletteProps) {
                         <div>
                             <div className="font-medium text-gray-900">{tool.name}</div>
                             <div className="text-sm text-gray-500">{tool.description}</div>
+                        </div>
+                        </div>
+                    </div>
+                    ))}
+                </div>
+                )}
+            </div>
+        )}
+        {/* NEW: Render App Nodes (Connected Apps) */}
+        {appNodes.length > 0 && (
+            <div className="mb-4">
+                <button
+                onClick={() => toggleCategory('connected-apps')}
+                className="w-full flex items-center justify-between text-left py-2 px-2 rounded-md hover:bg-gray-100"
+                >
+                <h3 className="text-sm font-semibold text-blue-700 uppercase tracking-wider">
+                  🔗 Connected Apps ({appNodes.length})
+                </h3>
+                {expandedCategories['connected-apps'] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+                {expandedCategories['connected-apps'] && (
+                <div className="mt-2 space-y-2">
+                    {appNodes.map((appNode: any) => (
+                    <div
+                        key={appNode.id}
+                        className="p-3 border border-blue-200 rounded-md cursor-move hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, { 
+                          defaultData: { 
+                            type: 'app',
+                            appId: appNode.appId,
+                            appName: appNode.name,
+                            defaultAction: appNode.defaultAction,
+                            availableActions: appNode.availableActions,
+                            label: appNode.name,
+                            isComposioApp: true
+                          } 
+                        })}
+                        title={`${appNode.name} - Actions: ${appNode.availableActions?.join(', ')}`}
+                    >
+                        <div className="flex items-center gap-3 mb-1">
+                        <div className="text-lg">{appNode.icon || '🔗'}</div>
+                        <div className="flex-1">
+                            <div className="font-medium text-gray-900">{appNode.name}</div>
+                            <div className="text-sm text-gray-500">{appNode.description}</div>
+                            <div className="text-xs text-blue-600 mt-1">
+                              {appNode.availableActions?.length || 0} actions available
+                            </div>
                         </div>
                         </div>
                     </div>
