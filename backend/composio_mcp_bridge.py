@@ -221,7 +221,7 @@ class UserComposioManager:
                     ) as response:
                         connected_apps = []
                         if response.status == 200:
-                            accounts_data = await response.json()
+                            accounts_data = await response.json(content_type=None)
                             
                             if accounts_data.get('items'):
                                 connected_apps = [
@@ -252,7 +252,7 @@ class UserComposioManager:
                             timeout=aiohttp.ClientTimeout(total=10)
                         ) as actions_response:
                             if actions_response.status == 200:
-                                actions_data = await actions_response.json()
+                                actions_data = await actions_response.json(content_type=None)
                                 
                                 if actions_data.get('items'):
                                     for action in actions_data['items']:
@@ -401,7 +401,7 @@ class UserComposioManager:
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status == 200:
-                        result = await response.json()
+                        result = await response.json(content_type=None)
                         return {
                             "success": True,
                             "result": result,
@@ -687,7 +687,7 @@ class PerUserMCPServer:
                     timeout=aiohttp.ClientTimeout(total=10)
                 ) as response:
                     if response.status == 200:
-                        accounts_data = await response.json()
+                        accounts_data = await response.json(content_type=None)
                         return {
                             "valid": True,
                             "message": "Decrypted API key is valid",

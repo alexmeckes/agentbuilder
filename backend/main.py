@@ -4864,7 +4864,7 @@ async def test_composio_connection(request: dict):
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 if response.status == 200:
-                    accounts_data = await response.json()
+                    accounts_data = await response.json(content_type=None)
                     connected_apps = accounts_data.get('items', [])
                     
                     # Get tool count using direct integration
