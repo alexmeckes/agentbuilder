@@ -17,126 +17,11 @@ interface UserSettings {
   preferences: any
 }
 
-// Mapping from user-enabled tools to node templates
-const createComposioNodeTemplate = (toolId: string, toolConfig: any): NodeTemplate => {
-  return {
-    id: `composio-${toolId}`,
-    type: 'tool',
-    name: toolConfig.name,
-    description: toolConfig.description,
-    category: `composio-${toolConfig.category.toLowerCase()}`,
-    icon: toolConfig.icon,
-    defaultData: {
-      type: 'tool',
-      tool_type: toolConfig.tool_type,
-      name: toolConfig.name.replace(/\s+/g, ''),
-      description: toolConfig.description,
-      isComposio: true,
-      category: toolConfig.category
-    },
-    configurable: ['name', 'description']
-  }
-}
-
-const composioToolsMapping: Record<string, any> = {
-  'github_star_repo': { 
-    name: 'GitHub Star', 
-    description: 'Star a GitHub repository', 
-    icon: '⭐',
-    category: 'Development',
-    tool_type: 'composio_github_star_repo'
-  },
-  'github_create_issue': { 
-    name: 'GitHub Issue', 
-    description: 'Create a GitHub issue', 
-    icon: '🐙',
-    category: 'Development',
-    tool_type: 'composio_github_create_issue'
-  },
-  'slack_send_message': { 
-    name: 'Slack Message', 
-    description: 'Send message to Slack', 
-    icon: '💬',
-    category: 'Communication',
-    tool_type: 'composio_slack_send_message'
-  },
-  'gmail_send_email': { 
-    name: 'Gmail Email', 
-    description: 'Send email via Gmail', 
-    icon: '📧',
-    category: 'Communication',
-    tool_type: 'composio_gmail_send_email'
-  },
-  'googledocs_create_doc': { 
-    name: 'Google Docs', 
-    description: 'Create a Google Docs document', 
-    icon: '📄',
-    category: 'Productivity',
-    tool_type: 'composio_googledocs_create_doc'
-  },
-  'googlesheets_create_sheet': { 
-    name: 'Google Sheets', 
-    description: 'Create a Google Sheets spreadsheet', 
-    icon: '📊',
-    category: 'Productivity',
-    tool_type: 'composio_googlesheets_create_sheet'
-  },
-  'googledrive_upload': { 
-    name: 'Google Drive', 
-    description: 'Upload file to Google Drive', 
-    icon: '💾',
-    category: 'Productivity',
-    tool_type: 'composio_googledrive_upload'
-  },
-  'googlecalendar_create_event': { 
-    name: 'Google Calendar', 
-    description: 'Create a Google Calendar event', 
-    icon: '📅',
-    category: 'Productivity',
-    tool_type: 'composio_googlecalendar_create_event'
-  },
-  'notion_create_page': { 
-    name: 'Notion Page', 
-    description: 'Create a Notion page', 
-    icon: '📝',
-    category: 'Productivity',
-    tool_type: 'composio_notion_create_page'
-  },
-  'linear_create_issue': { 
-    name: 'Linear Issue', 
-    description: 'Create a Linear issue', 
-    icon: '📋',
-    category: 'Productivity',
-    tool_type: 'composio_linear_create_issue'
-  },
-  'trello_create_card': { 
-    name: 'Trello Card', 
-    description: 'Create a Trello card', 
-    icon: '🗃️',
-    category: 'Productivity',
-    tool_type: 'composio_trello_create_card'
-  },
-  'airtable_create_record': { 
-    name: 'Airtable Record', 
-    description: 'Create record in Airtable', 
-    icon: '🗃️',
-    category: 'Productivity',
-    tool_type: 'composio_airtable_create_record'
-  },
-  'jira_create_issue': { 
-    name: 'Jira Issue', 
-    description: 'Create a Jira issue', 
-    icon: '🎯',
-    category: 'Development',
-    tool_type: 'composio_jira_create_issue'
-  }
-}
 
 // Define categories for better organization
 const categories = {
   CORE: 'Core Components',
   CONTROL_FLOW: 'Logic & Control',
-  TOOLS: 'Standard Tools',
   BETA: 'Beta Features',
 }
 
@@ -205,18 +90,6 @@ const nodeTemplates = [
       description: 'Starts the workflow when a POST request is received.',
     },
   },
-  {
-    category: categories.TOOLS,
-    name: 'Web Search',
-    description: 'Searches the web for up-to-date information.',
-    icon: Book,
-    defaultData: {
-      type: 'web_search',
-      name: 'Web_Search',
-      label: 'Web Search',
-      description: 'Searches the web for up-to-date information.',
-    },
-  },
 ]
 
 export default function NodePalette({ className = '', isManualMode = true }: NodePaletteProps) {
@@ -224,14 +97,11 @@ export default function NodePalette({ className = '', isManualMode = true }: Nod
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     [categories.CORE]: true,
     [categories.CONTROL_FLOW]: true,
-    [categories.TOOLS]: true,
     [categories.BETA]: true,
   })
   const [hoveredNode, setHoveredNode] = useState<string | null>(null)
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
-  const [dynamicCategories, setDynamicCategories] = useState<NodeCategory[]>(NODE_CATEGORIES)
   const { tools: mcpTools, getAppNodes, getBuiltInTools, refresh: refreshTools } = useMCPTools(userSettings?.userId)
-  const [composioCategories, setComposioCategories] = useState<any[]>([])
   const [builtInTools, setBuiltInTools] = useState<any[]>([])
   const [appNodes, setAppNodes] = useState<any[]>([])
 
@@ -284,47 +154,6 @@ export default function NodePalette({ className = '', isManualMode = true }: Nod
     }
   }, [])
 
-  useEffect(() => {
-    if (mcpTools.length > 0) {
-      const composioTools = mcpTools.filter(tool => tool.type === 'composio' || tool.source === 'composio');
-      const builtIn = mcpTools.filter(tool => tool.type === 'built-in' || tool.source === 'built-in');
-      setBuiltInTools(builtIn);
-
-      const grouped = composioTools.reduce((acc, tool) => {
-        const categoryName = `Composio ${tool.category.charAt(0).toUpperCase() + tool.category.slice(1)}`;
-        if (!acc[categoryName]) {
-          acc[categoryName] = {
-            id: `composio-${tool.category}`,
-            name: categoryName,
-            nodes: []
-          };
-        }
-        acc[categoryName].nodes.push({
-          id: tool.id,
-          name: tool.name,
-          description: tool.description,
-          icon: '⚡️', // Placeholder icon
-          type: 'tool',
-          defaultData: {
-            isComposio: true,
-            tool_type: tool.id,
-            label: tool.name,
-            category: tool.category
-          }
-        });
-        return acc;
-      }, {} as any);
-      
-      setComposioCategories(Object.values(grouped));
-      
-      // Auto-expand the first Composio category if tools are found
-      if (Object.keys(grouped).length > 0) {
-        const firstCategory = Object.values(grouped)[0] as any;
-        setExpandedCategories(prev => ({ ...prev, [firstCategory.id]: true }));
-        console.log(`🎨 NodePalette: Found ${composioTools.length} Composio tools, auto-expanding ${firstCategory.name}`);
-      }
-    }
-  }, [mcpTools]);
 
   const loadUserSettings = () => {
     try {
@@ -341,58 +170,16 @@ export default function NodePalette({ className = '', isManualMode = true }: Nod
         console.log('🔧 NodePalette: Encrypted key present:', !!settings.encryptedComposioKey)
         console.log('🔧 NodePalette: Enabled tools:', settings.enabledTools)
         
-        // Create dynamic Composio categories based on enabled tools
-        if (settings.enabledTools && settings.enabledTools.length > 0) {
-          console.log('🔧 NodePalette: Creating dynamic categories for enabled tools')
-          createDynamicComposioCategories(settings.enabledTools)
-        } else {
-          console.log('🔧 NodePalette: No enabled tools found, showing default categories only')
-          setDynamicCategories(NODE_CATEGORIES) // Reset to default if no tools enabled
-        }
+        // Note: App Nodes are now handled by useMCPTools and user-tools endpoint
       } else {
         console.log('🔧 NodePalette: No user settings found in localStorage - user needs to set up Account settings first')
         setUserSettings(null)
-        setDynamicCategories(NODE_CATEGORIES) // Reset to default
       }
     } catch (error) {
       console.error('Failed to load user settings:', error)
-      setDynamicCategories(NODE_CATEGORIES) // Reset to default on error
     }
   }
 
-  const createDynamicComposioCategories = (enabledTools: string[]) => {
-    // Group enabled tools by category
-    const toolsByCategory: Record<string, NodeTemplate[]> = {}
-    
-    enabledTools.forEach(toolId => {
-      const toolConfig = composioToolsMapping[toolId]
-      if (toolConfig) {
-        const categoryKey = toolConfig.category.toLowerCase()
-        if (!toolsByCategory[categoryKey]) {
-          toolsByCategory[categoryKey] = []
-        }
-        toolsByCategory[categoryKey].push(createComposioNodeTemplate(toolId, toolConfig))
-      }
-    })
-
-    // Create category objects for each category with tools
-    const composioCategories: NodeCategory[] = Object.entries(toolsByCategory).map(([categoryKey, tools]) => ({
-      id: `composio-${categoryKey}`,
-      name: `Composio ${tools[0].defaultData.category}`,
-      description: `${tools[0].defaultData.category} tools powered by Composio`,
-      icon: '⚡',
-      nodes: tools
-    }))
-
-    // Combine static categories with dynamic Composio categories
-    const allCategories = [...NODE_CATEGORIES, ...composioCategories]
-    setDynamicCategories(allCategories)
-
-    // Auto-expand first Composio category if it exists
-    if (composioCategories.length > 0) {
-      setExpandedCategories(prev => ({ ...prev, [composioCategories[0].id]: true }))
-    }
-  }
 
   const onDragStart = (event: DragEvent<HTMLDivElement>, template: any) => {
     // Handle dynamic Composio tools
@@ -579,37 +366,6 @@ export default function NodePalette({ className = '', isManualMode = true }: Nod
                 )}
             </div>
         )}
-        {composioCategories.map(category => (
-          <div key={category.id} className="mb-4">
-            <button
-              onClick={() => toggleCategory(category.id)}
-              className="w-full flex items-center justify-between text-left py-2 px-2 rounded-md hover:bg-gray-100"
-            >
-              <h3 className="text-sm font-semibold text-purple-700 uppercase tracking-wider">{category.name}</h3>
-              {expandedCategories[category.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </button>
-            {expandedCategories[category.id] && (
-              <div className="mt-2 space-y-2">
-                {category.nodes.map((node: any) => (
-                  <div
-                    key={node.id}
-                    className="p-3 border border-purple-200 rounded-md cursor-move hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                    draggable
-                    onDragStart={(e) => onDragStart(e, node)}
-                  >
-                    <div className="flex items-center gap-3 mb-1">
-                      <Zap className="w-5 h-5 text-purple-600 flex-shrink-0" />
-                      <div>
-                        <div className="font-medium text-gray-900">{node.name}</div>
-                        <div className="text-sm text-gray-500">{node.description}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
       </div>
     </div>
   )
