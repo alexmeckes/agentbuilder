@@ -25,9 +25,52 @@ export function useMCPTools(userId?: string) {
       setLoading(true);
       setError(null);
       
-      // Build URL with userId parameter if provided
+      // NEW: If userId is provided, try to get user-specific tools first
+      if (userId) {
+        try {
+          console.log('🔍 Loading user-specific tools for:', userId);
+          
+          // Get user settings from localStorage
+          const userSettingsStr = localStorage.getItem('userSettings');
+          const userSettings = userSettingsStr ? JSON.parse(userSettingsStr) : null;
+          
+          if (userSettings && userSettings.userId === userId) {
+            console.log('📝 Found user settings, fetching personalized tools...');
+            
+            const userToolsResponse = await fetch('/api/mcp/user-tools', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId, userSettings })
+            });
+            
+            if (userToolsResponse.ok) {
+              const userToolsData = await userToolsResponse.json();
+              
+              if (userToolsData.success && userToolsData.tools) {
+                const toolsArray = userToolsData.tools as MCPTool[];
+                setTools(toolsArray);
+                setMcpEnabled(toolsArray.some(tool => tool.type === 'mcp' || tool.type === 'composio'));
+                console.log('✅ User-specific tools loaded:', {
+                  total: toolsArray.length,
+                  composio: toolsArray.filter(t => t.type === 'composio').length,
+                  mcp: toolsArray.filter(t => t.type === 'mcp').length,
+                  builtIn: toolsArray.filter(t => t.type === 'built-in').length
+                });
+                return; // Success! Exit early
+              }
+            }
+          }
+          
+          console.log('⚠️ User-specific tools failed or no settings found, falling back to general tools...');
+        } catch (userToolsError) {
+          console.warn('⚠️ Failed to load user-specific tools:', userToolsError);
+          // Continue with fallback approach
+        }
+      }
+      
+      // FALLBACK: Use the original general tools approach
       const url = userId ? `/api/mcp/tools?userId=${encodeURIComponent(userId)}` : '/api/mcp/tools';
-      console.log('🔍 Loading tools from:', url);
+      console.log('🔍 Loading general tools from:', url);
       
       const response = await fetch(url);
       const data = await response.json();
@@ -36,7 +79,7 @@ export function useMCPTools(userId?: string) {
         const toolsArray = Object.values(data.tools) as MCPTool[];
         setTools(toolsArray);
         setMcpEnabled(toolsArray.some(tool => tool.type === 'mcp'));
-        console.log('✅ Tools loaded:', {
+        console.log('✅ General tools loaded:', {
           total: toolsArray.length,
           composio: toolsArray.filter(t => t.type === 'composio').length,
           mcp: toolsArray.filter(t => t.type === 'mcp').length,
