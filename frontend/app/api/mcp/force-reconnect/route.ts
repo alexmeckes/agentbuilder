@@ -4,9 +4,26 @@ const BACKEND_URL = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_U
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, apiKey } = await request.json()
+    console.log(`🔄 Starting force-reconnect API call`)
+    console.log(`🔗 Backend URL: ${BACKEND_URL}`)
+    
+    // Step 0: Parse request body with error handling
+    let userId, apiKey
+    try {
+      const body = await request.json()
+      userId = body.userId
+      apiKey = body.apiKey
+      console.log(`📝 Request parsed - userId: ${userId}, hasApiKey: ${!!apiKey}`)
+    } catch (parseError) {
+      console.error(`❌ Failed to parse request body:`, parseError)
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Invalid request body' 
+      }, { status: 400 })
+    }
     
     if (!apiKey) {
+      console.log(`❌ No API key provided`)
       return NextResponse.json({ 
         success: false, 
         message: 'API key is required' 
@@ -14,10 +31,10 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`🔄 Forcing MCP Composio server reconnection for user: ${userId}`)
-    console.log(`🔗 Backend URL: ${BACKEND_URL}`)
     
     // Step 1: Remove the existing server
     try {
+      console.log(`🗑️ Step 1: Removing existing server...`)
       const controller = new AbortController()
       setTimeout(() => controller.abort(), 5000)
       
@@ -25,15 +42,17 @@ export async function POST(request: NextRequest) {
         method: 'DELETE',
         signal: controller.signal
       })
-      console.log(`🗑️ Removed existing server: ${removeResponse.status}`)
+      console.log(`🗑️ Remove server response: ${removeResponse.status}`)
     } catch (error) {
       console.log(`⚠️ Remove server failed (expected): ${error}`)
     }
 
     // Step 2: Wait a moment
+    console.log(`⏳ Step 2: Waiting 2 seconds...`)
     await new Promise(resolve => setTimeout(resolve, 2000))
     
     // Step 3: Create a new server configuration
+    console.log(`🔧 Step 3: Preparing server config...`)
     const serverConfig = {
       id: "composio-tools",
       name: "Composio Universal Tools",
@@ -50,15 +69,13 @@ export async function POST(request: NextRequest) {
     
     console.log(`🔧 Creating server with config:`, JSON.stringify(serverConfig, null, 2))
     console.log(`🌐 POST URL will be: ${BACKEND_URL}/mcp/servers`)
-    console.log(`🕒 About to start POST request...`)
+    console.log(`🚀 Step 4: Making POST request...`)
     
     const createController = new AbortController()
     setTimeout(() => {
       console.log(`⏰ AbortController timeout hit after 30 seconds`)
       createController.abort()
     }, 30000) // Increased to 30 seconds for Render
-    
-    console.log(`🚀 Making POST request to ${BACKEND_URL}/mcp/servers`)
     
     let createResponse: Response
     try {
@@ -91,55 +108,95 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
     
+    console.log(`📊 Step 5: Processing response...`)
     if (createResponse.ok) {
-      const result = await createResponse.json()
-      console.log(`✅ New MCP server created: ${result.message}`)
+      console.log(`✅ Server creation successful, parsing response...`)
+      let result
+      try {
+        result = await createResponse.json()
+        console.log(`✅ New MCP server created: ${result.message}`)
+      } catch (jsonError) {
+        console.error(`❌ Failed to parse success response JSON:`, jsonError)
+        return NextResponse.json({ 
+          success: false, 
+          message: 'Server created but response parsing failed'
+        }, { status: 500 })
+      }
       
-      // Step 4: Wait for connection and test
+      // Step 5: Wait for connection and test
+      console.log(`⏳ Step 6: Waiting 3 seconds for connection...`)
       await new Promise(resolve => setTimeout(resolve, 3000))
       
-      // Step 5: Check status
-      const statusResponse = await fetch(`${BACKEND_URL}/mcp/servers`)
-      const statusData = await statusResponse.json()
-      const composioServer = statusData.servers?.['composio-tools']
-      
-      console.log(`📊 Server status after creation:`, composioServer)
-      
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Composio MCP server reconnected successfully',
-        serverStatus: composioServer?.status || 'unknown',
-        toolCount: composioServer?.tool_count || 0,
-        userId: userId
-      })
-    } else {
-      const errorText = await createResponse.text()
-      console.error(`❌ Failed to create MCP server: ${createResponse.status}`)
-      console.error(`❌ Error response body: ${errorText}`)
-      
-      let errorData
+      // Step 6: Check status
+      console.log(`📊 Step 7: Checking server status...`)
       try {
-        errorData = JSON.parse(errorText)
-      } catch {
-        errorData = { detail: errorText || 'Unknown error' }
+        const statusResponse = await fetch(`${BACKEND_URL}/mcp/servers`)
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          const composioServer = statusData.servers?.['composio-tools']
+          
+          console.log(`📊 Server status after creation:`, composioServer)
+          
+          return NextResponse.json({ 
+            success: true, 
+            message: 'Composio MCP server reconnected successfully',
+            serverStatus: composioServer?.status || 'unknown',
+            toolCount: composioServer?.tool_count || 0,
+            userId: userId
+          })
+        } else {
+          console.error(`❌ Status check failed: ${statusResponse.status}`)
+          return NextResponse.json({ 
+            success: true, 
+            message: 'Server created but status check failed',
+            userId: userId
+          })
+        }
+      } catch (statusError) {
+        console.error(`❌ Status check error:`, statusError)
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Server created but status check failed',
+          userId: userId
+        })
+      }
+    } else {
+      console.error(`❌ Server creation failed with status: ${createResponse.status}`)
+      let errorText
+      let errorData
+      
+      try {
+        errorText = await createResponse.text()
+        console.error(`❌ Error response body: ${errorText}`)
+        
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { detail: errorText || 'Unknown error' }
+        }
+      } catch (textError) {
+        console.error(`❌ Failed to read error response:`, textError)
+        errorData = { detail: 'Failed to read error response' }
       }
       
       return NextResponse.json({ 
         success: false, 
-        message: errorData.detail || 'Failed to create MCP server',
+        message: errorData?.detail || 'Failed to create MCP server',
         debugInfo: {
           status: createResponse.status,
-          response: errorText
+          response: errorText || 'No response body'
         }
       }, { status: createResponse.status })
     }
     
   } catch (error) {
-    console.error('Error forcing MCP Composio server reconnection:', error)
+    console.error('❌ Unexpected error in force-reconnect:', error)
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
     return NextResponse.json({ 
       success: false, 
       message: 'Failed to force reconnection',
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
     }, { status: 500 })
   }
 } 
