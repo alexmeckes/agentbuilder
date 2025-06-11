@@ -907,6 +907,9 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
     """
     Executes a workflow step-by-step, handling conditional logic and sending progress.
     """
+    print(f"🔍 DEBUG: Starting step-by-step execution for execution_id: {execution_id}")
+    print(f"🔍 DEBUG: Workflow has {len(nodes)} nodes, {len(edges)} edges")
+    
     node_map = {node['id']: node for node in nodes}
     current_input = input_data
     
@@ -945,6 +948,7 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
             # Collect trace data from this agent execution
             logger.info(f"🔍 Collecting trace from agent node {current_node_id}")
             agent_trace_data = _extract_trace_from_result(result)
+            
             # Generate intelligent step name that combines node purpose with context
             base_node_name = current_node.get('data', {}).get('name', current_node_id)
             node_instructions = current_node.get('data', {}).get('instructions', '')
@@ -956,6 +960,17 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
                 intelligent_step_name = f"{base_node_name} - {step_description}"
             else:
                 intelligent_step_name = base_node_name
+            
+            # IMPORTANT: Mark spans with workflow context to prevent separate execution records
+            if agent_trace_data and "spans" in agent_trace_data:
+                for span in agent_trace_data["spans"]:
+                    if "attributes" not in span:
+                        span["attributes"] = {}
+                    # Add workflow context to prevent this span from creating separate execution
+                    span["attributes"]["workflow_node"] = intelligent_step_name
+                    span["attributes"]["workflow_node_id"] = current_node_id
+                    span["attributes"]["workflow_step_type"] = "agent_node"
+                    logger.info(f"🏷️  Tagged span with workflow context: {intelligent_step_name}")
             
             all_agent_traces.append({
                 "node_id": current_node_id,
@@ -1033,14 +1048,22 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
     
     aggregated_trace = _aggregate_agent_traces(all_agent_traces, current_input)
     
-    return {
+    # Final debug output
+    result = {
         "final_output": current_input,
         "agent_trace": aggregated_trace,
         "execution_pattern": "step_by_step",
-        "main_agent": all_agent_traces[0]["node_name"] if all_agent_traces else "unknown",
-        "managed_agents": [trace["node_name"] for trace in all_agent_traces[1:]] if len(all_agent_traces) > 1 else [],
+        "main_agent": all_agent_traces[0]["step_name"] if all_agent_traces else "unknown",
+        "managed_agents": [trace["step_name"] for trace in all_agent_traces[1:]] if len(all_agent_traces) > 1 else [],
         "framework_used": framework
     }
+    
+    print(f"🏁 DEBUG: Step-by-step execution completed for execution_id: {execution_id}")
+    print(f"🏁 DEBUG: Main agent: {result['main_agent']}")
+    print(f"🏁 DEBUG: Managed agents: {result['managed_agents']}")
+    print(f"🏁 DEBUG: Final output length: {len(current_input)}")
+    
+    return result
 
 
 def _aggregate_agent_traces(all_agent_traces: List[Dict], final_output: str) -> Dict[str, Any]:
