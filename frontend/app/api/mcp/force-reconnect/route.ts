@@ -73,9 +73,9 @@ export async function POST(request: NextRequest) {
     
     const createController = new AbortController()
     setTimeout(() => {
-      console.log(`⏰ AbortController timeout hit after 30 seconds`)
+      console.log(`⏰ AbortController timeout hit after 60 seconds`)
       createController.abort()
-    }, 30000) // Increased to 30 seconds for Render
+    }, 60000) // Increased to 60 seconds for Render cold starts
     
     let createResponse: Response
     try {
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       if (fetchError.name === 'AbortError') {
         return NextResponse.json({ 
           success: false, 
-          message: 'POST request timed out after 30 seconds',
+          message: 'POST request timed out after 60 seconds',
           error: 'Timeout during server creation'
         }, { status: 408 })
       }

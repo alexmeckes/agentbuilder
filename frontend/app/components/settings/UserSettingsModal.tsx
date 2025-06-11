@@ -331,6 +331,49 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
     }
   }
 
+  const checkMCPStatus = async () => {
+    setIsLoading(true)
+    setTestResult(null)
+
+    try {
+      const response = await fetch('/api/mcp/status', {
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' }
+      })
+
+      const result = await response.json()
+      
+      if (response.ok && result.success) {
+        if (result.connected) {
+          setTestResult({
+            success: true,
+            message: `✅ MCP Server Connected! ${result.toolCount} tools available`
+          })
+        } else if (result.serverExists) {
+          setTestResult({
+            success: false,
+            message: `⚠️ Server exists but not connected (${result.serverStatus}). ${result.lastError ? `Error: ${result.lastError}` : 'Try Force Reconnect.'}`
+          })
+        } else {
+          setTestResult({
+            success: false,
+            message: `❌ MCP server not configured. Click Force Reconnect to set it up.`
+          })
+        }
+      } else {
+        setTestResult({
+          success: false,
+          message: result.message || 'Failed to check MCP status'
+        })
+      }
+      
+    } catch (error) {
+      setTestResult({ success: false, message: 'Failed to check MCP status' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const forceReconnectMCP = async () => {
     const effectiveApiKey = decryptedApiKey || settings.composioApiKey
     
@@ -742,10 +785,18 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
                   {isLoading ? 'Testing...' : 'Test'}
                 </button>
                 <button
+                  onClick={checkMCPStatus}
+                  disabled={isLoading}
+                  className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  title="Check current MCP server status"
+                >
+                  {isLoading ? 'Checking...' : 'Status'}
+                </button>
+                <button
                   onClick={forceReconnectMCP}
                   disabled={isLoading || !settings.composioApiKey}
                   className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                  title="Force reconnect MCP server to detect tools"
+                  title="Force reconnect MCP server to detect tools (60 second timeout)"
                 >
                   {isLoading ? 'Reconnecting...' : 'Force Reconnect'}
                 </button>
