@@ -18,7 +18,7 @@ import { WebhookNode } from './workflow/WebhookNode'
 import DeletableEdge from './workflow/DeletableEdge'
 import NodePalette from './workflow/NodePalette'
 import { WorkflowService, type ExecutionResponse } from '../services/workflow'
-import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain, X, Sparkles } from 'lucide-react'
+import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Sparkles } from 'lucide-react'
 import { WorkflowManager } from '../services/workflowManager'
 import { ExecutionProvider, useExecutionContext } from '../contexts/ExecutionContext'
 import AICommandBar from './workflow/AICommandBar'
@@ -1449,96 +1449,6 @@ function WorkflowEditorInner({
             </button>
           </Panel>
 
-          {/* Mode Toggle - Top Left */}
-          <Panel position="top-left" className="bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200 w-72 z-50">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Settings className="w-4 h-4 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Workflow Mode</h3>
-                <p className="text-xs text-slate-600">Choose how to build your workflow</p>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              {/* AI Mode Toggle */}
-              <button
-                onClick={() => handleManualModeChange(false)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
-                  !useManualMode 
-                    ? 'bg-blue-50 border-2 border-blue-200 text-blue-900' 
-                    : 'bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700'
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  !useManualMode ? 'bg-blue-100' : 'bg-slate-100'
-                }`}>
-                  <Brain className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium">AI Assistant Mode</h4>
-                  <p className="text-xs opacity-80">Let AI create workflows from descriptions</p>
-                </div>
-                <div className="flex items-center justify-center w-4 h-4 flex-shrink-0">
-                  {!useManualMode && (
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  )}
-                </div>
-              </button>
-              
-              {/* Manual Mode Toggle */}
-              <button
-                onClick={() => handleManualModeChange(true)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all ${
-                  useManualMode 
-                    ? 'bg-green-50 border-2 border-green-200 text-green-900' 
-                    : 'bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700'
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  useManualMode ? 'bg-green-100' : 'bg-slate-100'
-                }`}>
-                  <Settings className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium">Manual Design Mode</h4>
-                  <p className="text-xs opacity-80">Drag to move • Click 🗑️ or select + Delete key to remove • ESC to deselect</p>
-                </div>
-                <div className="flex items-center justify-center w-4 h-4 flex-shrink-0">
-                  {useManualMode && (
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  )}
-                </div>
-              </button>
-            </div>
-            
-            {/* Quick Actions */}
-            <div className="mt-4 pt-3 border-t border-slate-200">
-              <button
-                onClick={() => {
-                  console.log('🔄 Manual clear selection and reset drag state clicked')
-                  // Clear selection
-                  onPaneClick()
-                  
-                  // Force reset any stuck drag state
-                  document.body.style.cursor = ''
-                  document.documentElement.style.cursor = ''
-                  
-                  // Reset ReactFlow instance if available
-                  if (reactFlowInstance) {
-                    reactFlowInstance.viewportInitialized = true
-                  }
-                  
-                  console.log('✅ Manual reset complete')
-                }}
-                className="w-full px-3 py-2 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <X className="w-4 h-4" />
-                Clear Selection & Reset
-              </button>
-            </div>
-          </Panel>
           
           {/* Floating Execution Panel - Top Right */}
           <Panel position="top-right" className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-slate-200 w-80 z-50">
