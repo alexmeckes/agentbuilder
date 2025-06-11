@@ -43,8 +43,10 @@ interface WorkflowAnalyticsData {
   category_breakdown: Record<string, number>
   performance_overview: {
     total_cost: number
+    total_tokens: number
     total_duration_ms: number
     average_cost_per_execution: number
+    average_tokens_per_execution: number
     average_duration_per_execution: number
   }
   recent_executions: Array<{
