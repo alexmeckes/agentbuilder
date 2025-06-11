@@ -3127,21 +3127,47 @@ async def get_workflow_analytics():
         category = group["workflow_category"]
         category_breakdown[category] = category_breakdown.get(category, 0) + len(executions_in_group)
     
-    # Recent executions with intelligent names
+    # Recent executions with intelligent step names
     recent_executions = []
     for exec_id, execution in list(executor.executions.items())[-10:]:
         # FIXED: cost_info is at top level, not in trace
         cost_info = execution.get("cost_info", {})
         
+        # Get intelligent step name from trace if available
+        trace = execution.get("trace", {})
+        main_agent = trace.get("main_agent", "")
+        base_workflow_name = execution.get("workflow_name", f"Workflow {exec_id}")
+        
+        # DEBUG: Show what we're working with
+        if exec_id in ["exec_1", "exec_2", "exec_3"]:
+            print(f"🔍 Analytics DEBUG {exec_id}: base_name='{base_workflow_name}', main_agent='{main_agent}'")
+        
+        # Use intelligent step name if available, otherwise fall back to workflow name
+        if main_agent and main_agent != "unknown" and " - " in main_agent:
+            # For multi-step workflows, show the main step with workflow context
+            display_name = f"{base_workflow_name} - {main_agent.split(' - ')[0]}"
+            step_description = main_agent.split(' - ', 1)[1] if len(main_agent.split(' - ')) > 1 else ""
+        elif main_agent and main_agent != "unknown":
+            # For single-step workflows, show step name with workflow context
+            display_name = f"{base_workflow_name} - {main_agent}"
+            step_description = ""
+        else:
+            # Fallback to original workflow name
+            display_name = base_workflow_name
+            step_description = ""
+        
         recent_executions.append({
             "execution_id": exec_id,
             "workflow_id": execution.get("workflow_identity", {}).get("structure_hash", exec_id),
-            "workflow_name": execution.get("workflow_name", f"Workflow {exec_id}"),
+            "workflow_name": display_name,
             "workflow_category": execution.get("workflow_category", "general"),
             "status": execution.get("status", "unknown"),
             "cost": cost_info.get("total_cost", 0),
             "duration_ms": execution.get("execution_time", 0) * 1000,
-            "created_at": execution.get("created_at", 0)
+            "created_at": execution.get("created_at", 0),
+            # Add step information for enhanced analytics
+            "step_description": step_description,
+            "main_agent": main_agent
         })
     
     return {
