@@ -67,9 +67,9 @@ async def test_encryption_flow():
         os.environ['ENABLED_TOOLS'] = 'GOOGLEDOCS_CREATE_DOCUMENT,github_star_repo'
         
         # Create MCP server instance
-        from composio_mcp_bridge import PerUserMCPServer
+        from composio_http_manager import PerUserComposioManager
         
-        mcp_server = PerUserMCPServer()
+        mcp_server = PerUserComposioManager()
         
         # Test ping (should show encryption enabled)
         ping_result = await mcp_server.handle_request({

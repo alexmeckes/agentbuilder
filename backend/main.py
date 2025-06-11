@@ -43,7 +43,7 @@ from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent,
 
 # Import Composio availability flag
 try:
-    from composio_mcp_bridge import COMPOSIO_AVAILABLE
+    from composio_http_manager import COMPOSIO_AVAILABLE
 except ImportError:
     COMPOSIO_AVAILABLE = False
 
@@ -4018,7 +4018,7 @@ async def _add_composio_tools_direct(tools: dict):
     """Add Composio tools via direct API calls (bypass MCP subprocess hang)"""
     try:
         # Import the bridge manager directly (not subprocess)
-        from composio_mcp_bridge import UserComposioManager, UserContext
+        from composio_http_manager import ComposioHttpClient, UserContext
         
         # Get user context from environment (set by MCP server config)
         api_key = os.getenv('COMPOSIO_API_KEY', '')
@@ -4035,7 +4035,7 @@ async def _add_composio_tools_direct(tools: dict):
             enabled_tools=None  # All tools
         )
         
-        manager = UserComposioManager()
+        manager = ComposioHttpClient()
         composio_tools = manager.get_available_tools_for_user(user_context)
         
         # Add each Composio tool to the tools dict
@@ -4868,7 +4868,7 @@ async def test_composio_connection(request: dict):
                     connected_apps = accounts_data.get('items', [])
                     
                     # Get tool count using direct integration
-                    from composio_mcp_bridge import UserComposioManager, UserContext
+                    from composio_http_manager import ComposioHttpClient, UserContext
                     
                     user_context = UserContext(
                         user_id=user_id,
@@ -4876,7 +4876,7 @@ async def test_composio_connection(request: dict):
                         enabled_tools=None
                     )
                     
-                    manager = UserComposioManager()
+                    manager = ComposioHttpClient()
                     tools = await manager.get_available_tools_for_user(user_context)
                     
                     return {
@@ -4938,7 +4938,7 @@ async def save_and_update_composio(request: dict):
                             connected_apps = accounts_data.get('items', [])
                             
                             # Get tool count using direct integration
-                            from composio_mcp_bridge import UserComposioManager, UserContext
+                            from composio_http_manager import ComposioHttpClient, UserContext
                             
                             user_context = UserContext(
                                 user_id=user_id,
@@ -4946,7 +4946,7 @@ async def save_and_update_composio(request: dict):
                                 enabled_tools=enabled_tools
                             )
                             
-                            manager = UserComposioManager()
+                            manager = ComposioHttpClient()
                             tools = await manager.get_available_tools_for_user(user_context)
                             
                             return {

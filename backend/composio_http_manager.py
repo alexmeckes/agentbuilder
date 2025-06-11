@@ -39,7 +39,7 @@ class UserContext:
     enabled_tools: List[str] = None
     preferences: Dict[str, Any] = None
 
-class UserComposioManager:
+class ComposioHttpClient:
     """Manages per-user Composio clients via HTTP API only"""
     
     def __init__(self):
@@ -508,10 +508,10 @@ class UserComposioManager:
         return tools
 
 # Global manager instance
-user_manager = UserComposioManager()
+user_manager = ComposioHttpClient()
 
 # Enhanced MCP Server with user context support
-class PerUserMCPServer:
+class PerUserComposioManager:
     def __init__(self):
         self.user_manager = user_manager
         # Get user context from environment variables (set by MCP server config)
@@ -767,7 +767,7 @@ class PerUserMCPServer:
 
 def simple_test():
     """Simple test mode for verification"""
-    server = PerUserMCPServer()
+            server = PerUserComposioManager()
     
     # Test user context
     test_user_context = {
@@ -813,7 +813,7 @@ def simple_test():
 
 async def main():
     """Main MCP server loop (stdio protocol)"""
-    server = PerUserMCPServer()
+    server = PerUserComposioManager()
     
     # Check if stdin is available (not running as detached subprocess)
     import select

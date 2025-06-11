@@ -24,7 +24,7 @@
       "description": "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
       "command": [
         "python3",
-        "composio_mcp_bridge.py"
+        "composio_http_manager.py"
       ],
       "args": [],
       "env": {

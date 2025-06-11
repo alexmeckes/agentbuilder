@@ -103,7 +103,7 @@ class VisualToAnyAgentTranslator:
         """Add Composio tools to available_tools for workflow execution"""
         try:
             # Import our Composio bridge for per-user execution
-            from composio_mcp_bridge import UserComposioManager, UserContext
+            from composio_http_manager import ComposioHttpClient, UserContext
             
             # Create placeholder functions for each Composio tool that will be executed with user context
             composio_tools = {
@@ -135,7 +135,7 @@ class VisualToAnyAgentTranslator:
             """Wrapper that executes Composio tool with user context during workflow execution"""
             try:
                 # Import here to avoid circular imports
-                from composio_mcp_bridge import UserComposioManager, UserContext
+                from composio_http_manager import ComposioHttpClient, UserContext
                 import asyncio
                 import os
                 
@@ -170,8 +170,8 @@ class VisualToAnyAgentTranslator:
                     preferences={}
                 )
                 
-                # Execute the tool for real using the UserComposioManager
-                manager = UserComposioManager()
+                # Execute the tool for real using the ComposioHttpClient
+                manager = ComposioHttpClient()
                 
                 # Run the async execution in the current event loop or create a new one
                 try:
@@ -599,7 +599,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
             try:
                 # Import Composio bridge in subprocess
                 sys.path.insert(0, os.path.dirname(__file__))
-                from composio_mcp_bridge import UserComposioManager, UserContext
+                from composio_http_manager import ComposioHttpClient, UserContext
                 
                 # Create Composio tool wrappers in subprocess
                 def create_composio_wrapper(tool_name):

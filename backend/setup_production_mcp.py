@@ -189,7 +189,7 @@ def setup_production_mcp():
                 "id": "composio-tools",
                 "name": "Composio Universal Tools",
                 "description": "Access to popular tools (GitHub, Slack, Notion, Gmail, Linear)",
-                "command": [python_cmd, "composio_mcp_bridge.py"],
+                "command": [python_cmd, "composio_http_manager.py"],
                 "args": [],
                 "env": {
                     "COMPOSIO_API_KEY": os.getenv('COMPOSIO_API_KEY', '')
@@ -263,7 +263,7 @@ def setup_production_mcp():
     required_files = [
         "simple_mcp_server.py",
         "mcp_manager.py",
-        "composio_mcp_bridge.py"
+        "composio_http_manager.py"
     ]
     
     missing_files = []
