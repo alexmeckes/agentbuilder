@@ -945,9 +945,22 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
             # Collect trace data from this agent execution
             logger.info(f"🔍 Collecting trace from agent node {current_node_id}")
             agent_trace_data = _extract_trace_from_result(result)
+            # Generate intelligent step name that combines node purpose with context
+            base_node_name = current_node.get('data', {}).get('name', current_node_id)
+            node_instructions = current_node.get('data', {}).get('instructions', '')
+            
+            # Create descriptive step name
+            if node_instructions:
+                # Extract key action from instructions
+                step_description = _extract_step_purpose(node_instructions, input_data)
+                intelligent_step_name = f"{base_node_name} - {step_description}"
+            else:
+                intelligent_step_name = base_node_name
+            
             all_agent_traces.append({
                 "node_id": current_node_id,
-                "node_name": current_node.get('data', {}).get('name', current_node_id),
+                "node_name": base_node_name,  # Keep original node name
+                "step_name": intelligent_step_name,  # New: descriptive step name
                 "trace": agent_trace_data
             })
             logger.info(f"📊 Agent trace collected: {len(agent_trace_data.get('spans', []))} spans, cost=${agent_trace_data.get('cost_info', {}).get('total_cost', 0):.6f}")
@@ -1015,7 +1028,8 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
     for i, trace_info in enumerate(all_agent_traces):
         spans_count = len(trace_info["trace"].get("spans", []))
         cost = trace_info["trace"].get("cost_info", {}).get("total_cost", 0)
-        print(f"  Step {i+1}: {trace_info['node_name']} ({trace_info['node_id']}) - {spans_count} spans, ${cost:.6f}")
+        step_name = trace_info.get('step_name', trace_info['node_name'])
+        print(f"  Step {i+1}: {step_name} ({trace_info['node_id']}) - {spans_count} spans, ${cost:.6f}")
     
     aggregated_trace = _aggregate_agent_traces(all_agent_traces, current_input)
     
@@ -1099,6 +1113,74 @@ def _aggregate_agent_traces(all_agent_traces: List[Dict], final_output: str) -> 
     logger.info(f"🎯 Aggregated trace: {len(all_spans)} total spans, ${total_cost:.6f} total cost, {total_tokens} total tokens")
     
     return aggregated_trace
+
+
+def _extract_step_purpose(instructions: str, context_input: str) -> str:
+    """
+    Extract a concise description of what this step does based on instructions and context
+    """
+    instructions_lower = instructions.lower()
+    context_lower = context_input.lower()
+    
+    # Extract key actions and subjects
+    if "research" in instructions_lower or "search" in instructions_lower or "find" in instructions_lower:
+        if "grizzly" in context_lower or "bear" in context_lower:
+            return "Research grizzly bear information"
+        elif "moose" in context_lower:
+            return "Research moose information" 
+        elif "wildlife" in context_lower or "animal" in context_lower:
+            return "Research wildlife information"
+        else:
+            return "Research information"
+    
+    elif "analyze" in instructions_lower or "analysis" in instructions_lower:
+        if "habitat" in instructions_lower or "location" in instructions_lower:
+            return "Analyze habitat and locations"
+        elif "data" in instructions_lower:
+            return "Analyze data"
+        else:
+            return "Analyze information"
+    
+    elif "recommend" in instructions_lower or "suggest" in instructions_lower or "provide" in instructions_lower:
+        if "viewing" in instructions_lower or "spotting" in instructions_lower:
+            return "Generate viewing recommendations"
+        elif "location" in instructions_lower:
+            return "Recommend locations"
+        else:
+            return "Provide recommendations"
+    
+    elif "extract" in instructions_lower:
+        if "workflow" in context_lower:
+            return "Extract workflow information"
+        else:
+            return "Extract information"
+    
+    elif "build" in instructions_lower or "create" in instructions_lower:
+        if "workflow" in instructions_lower:
+            return "Build workflow"
+        else:
+            return "Create content"
+    
+    else:
+        # Fallback: extract first meaningful verb + object
+        import re
+        # Look for action words
+        action_words = re.findall(r'\b(analyze|research|find|search|create|build|generate|provide|recommend|extract|process|review|evaluate|assess|identify|determine|calculate|compute|transform|convert|filter|sort|rank|compare|summarize|explain|describe|list|show|display)\b', instructions_lower)
+        
+        if action_words:
+            action = action_words[0].title()
+            # Try to find what they're acting on
+            if "information" in instructions_lower:
+                return f"{action} information"
+            elif "data" in instructions_lower:
+                return f"{action} data"  
+            elif "result" in instructions_lower:
+                return f"{action} results"
+            else:
+                return f"{action} content"
+        
+        # Final fallback
+        return "Process information"
 
 
 def _evaluate_condition(rule: Dict[str, str], data: Dict[str, Any]) -> bool:

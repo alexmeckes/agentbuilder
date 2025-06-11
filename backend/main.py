@@ -3159,6 +3159,101 @@ async def get_workflow_analytics():
     }
 
 
+@app.get("/analytics/workflow-steps")
+async def get_workflow_steps_analytics():
+    """Get step-by-step analytics showing individual workflow nodes"""
+    if not executor.executions:
+        return {"steps": [], "total_steps": 0}
+    
+    all_steps = []
+    completed_executions = [e for e in executor.executions.values() if e.get("status") == "completed"]
+    
+    for exec_id, execution in executor.executions.items():
+        trace = execution.get("trace", {})
+        spans = trace.get("spans", [])
+        workflow_name = execution.get("workflow_name", f"Workflow {exec_id}")
+        
+        # Extract step information from spans
+        for span in spans:
+            attributes = span.get("attributes", {})
+            workflow_node = attributes.get("workflow_node", "Unknown Step")
+            workflow_node_id = attributes.get("workflow_node_id", "unknown")
+            
+            # Calculate step metrics
+            duration_ms = 0
+            if span.get("start_time") and span.get("end_time"):
+                duration_ms = (span.get("end_time") - span.get("start_time")) / 1_000_000
+            
+            # Calculate step cost
+            input_cost = attributes.get("gen_ai.usage.input_cost", attributes.get("cost_prompt", 0))
+            output_cost = attributes.get("gen_ai.usage.output_cost", attributes.get("cost_completion", 0))
+            step_cost = float(input_cost) + float(output_cost)
+            
+            # Get tokens
+            input_tokens = attributes.get("gen_ai.usage.input_tokens", attributes.get("llm.token_count.prompt", 0))
+            output_tokens = attributes.get("gen_ai.usage.output_tokens", attributes.get("llm.token_count.completion", 0))
+            total_tokens = int(input_tokens) + int(output_tokens)
+            
+            step_info = {
+                "execution_id": exec_id,
+                "workflow_name": workflow_name,
+                "step_name": workflow_node,
+                "step_id": workflow_node_id,
+                "step_cost": step_cost,
+                "step_duration_ms": duration_ms,
+                "step_tokens": total_tokens,
+                "created_at": execution.get("created_at", 0),
+                "status": execution.get("status", "unknown")
+            }
+            
+            all_steps.append(step_info)
+    
+    # Sort by most recent first
+    all_steps.sort(key=lambda x: x["created_at"], reverse=True)
+    
+    # Calculate step-level analytics
+    step_analytics = {}
+    for step in all_steps:
+        step_name = step["step_name"]
+        if step_name not in step_analytics:
+            step_analytics[step_name] = {
+                "step_name": step_name,
+                "total_executions": 0,
+                "total_cost": 0,
+                "total_duration_ms": 0,
+                "total_tokens": 0,
+                "avg_cost": 0,
+                "avg_duration_ms": 0,
+                "avg_tokens": 0
+            }
+        
+        analytics = step_analytics[step_name]
+        analytics["total_executions"] += 1
+        analytics["total_cost"] += step["step_cost"]
+        analytics["total_duration_ms"] += step["step_duration_ms"]
+        analytics["total_tokens"] += step["step_tokens"]
+    
+    # Calculate averages
+    for step_name, analytics in step_analytics.items():
+        count = analytics["total_executions"]
+        if count > 0:
+            analytics["avg_cost"] = analytics["total_cost"] / count
+            analytics["avg_duration_ms"] = analytics["total_duration_ms"] / count
+            analytics["avg_tokens"] = analytics["total_tokens"] / count
+    
+    return {
+        "recent_steps": all_steps[:20],  # Latest 20 steps
+        "step_analytics": list(step_analytics.values()),
+        "total_steps": len(all_steps),
+        "summary": {
+            "total_cost": sum(step["step_cost"] for step in all_steps),
+            "total_duration_ms": sum(step["step_duration_ms"] for step in all_steps),
+            "total_tokens": sum(step["step_tokens"] for step in all_steps),
+            "unique_step_types": len(step_analytics)
+        }
+    }
+
+
 @app.get("/analytics/insights")
 async def get_analytics_insights():
     """Get analytics insights and recommendations from real data"""
