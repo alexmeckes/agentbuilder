@@ -4906,6 +4906,83 @@ async def test_composio_connection(request: dict):
             "error": str(e)
         }
 
+@app.post("/api/composio/save-and-update")
+async def save_and_update_composio(request: dict):
+    """Save Composio settings and trigger tool library update (simplified direct approach)"""
+    try:
+        user_id = request.get('userId')
+        api_key = request.get('apiKey')
+        enabled_tools = request.get('enabledTools', [])
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="userId is required")
+        
+        # Update environment for direct integration
+        if api_key:
+            os.environ['COMPOSIO_API_KEY'] = api_key
+            os.environ['USER_ID'] = user_id
+            os.environ['ENCRYPTION_ENABLED'] = 'false'
+            
+            # Test connection and get tool count
+            try:
+                import aiohttp
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        'https://backend.composio.dev/api/v1/connectedAccounts',
+                        headers={'x-api-key': api_key, 'Content-Type': 'application/json'},
+                        timeout=aiohttp.ClientTimeout(total=10)
+                    ) as response:
+                        if response.status == 200:
+                            accounts_data = await response.json(content_type=None)
+                            connected_apps = accounts_data.get('items', [])
+                            
+                            # Get tool count using direct integration
+                            from composio_mcp_bridge import UserComposioManager, UserContext
+                            
+                            user_context = UserContext(
+                                user_id=user_id,
+                                api_key=api_key,
+                                enabled_tools=enabled_tools
+                            )
+                            
+                            manager = UserComposioManager()
+                            tools = await manager.get_available_tools_for_user(user_context)
+                            
+                            return {
+                                "success": True,
+                                "message": "Composio settings saved and tools updated",
+                                "user_id": user_id,
+                                "connectedApps": len(connected_apps),
+                                "toolCount": len(tools),
+                                "method": "direct_integration"
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "message": f"Failed to connect: HTTP {response.status}",
+                                "user_id": user_id
+                            }
+                            
+            except Exception as e:
+                logging.error(f"Connection test failed: {e}")
+                return {
+                    "success": False,
+                    "message": f"Failed to test connection: {str(e)}",
+                    "user_id": user_id
+                }
+        else:
+            return {
+                "success": True,
+                "message": "Settings saved (no API key provided)",
+                "user_id": user_id,
+                "method": "settings_only"
+            }
+        
+    except Exception as e:
+        logging.error(f"Failed to save Composio settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     # Production MCP setup
     try:

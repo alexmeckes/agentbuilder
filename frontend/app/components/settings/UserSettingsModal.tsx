@@ -331,95 +331,7 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
     }
   }
 
-  const checkMCPStatus = async () => {
-    setIsLoading(true)
-    setTestResult(null)
-
-    try {
-      const response = await fetch('/api/mcp/status', {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' }
-      })
-
-      const result = await response.json()
-      
-      if (response.ok && result.success) {
-        if (result.connected) {
-          setTestResult({
-            success: true,
-            message: `✅ MCP Server Connected! ${result.toolCount} tools available`
-          })
-        } else if (result.serverExists) {
-          setTestResult({
-            success: false,
-            message: `⚠️ Server exists but not connected (${result.serverStatus}). ${result.lastError ? `Error: ${result.lastError}` : 'Try Force Reconnect.'}`
-          })
-        } else {
-          setTestResult({
-            success: false,
-            message: `❌ MCP server not configured. Click Force Reconnect to set it up.`
-          })
-        }
-      } else {
-        setTestResult({
-          success: false,
-          message: result.message || 'Failed to check MCP status'
-        })
-      }
-      
-    } catch (error) {
-      setTestResult({ success: false, message: 'Failed to check MCP status' })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const forceReconnectMCP = async () => {
-    const effectiveApiKey = decryptedApiKey || settings.composioApiKey
-    
-    if (!effectiveApiKey) {
-      setTestResult({ success: false, message: 'Please enter an API key first' })
-      return
-    }
-
-    setIsLoading(true)
-    setTestResult(null)
-
-    try {
-      const response = await fetch('/api/mcp/force-reconnect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          apiKey: effectiveApiKey,
-          userId: settings.userId 
-        })
-      })
-
-      const result = await response.json()
-      
-      if (response.ok && result.success) {
-        setTestResult({
-          success: true,
-          message: `✅ MCP server reconnected! Status: ${result.serverStatus}, Tools: ${result.toolCount}`
-        })
-        
-        // Refresh the page to reload tool palette
-        setTimeout(() => {
-          window.location.reload()
-        }, 2000)
-      } else {
-        setTestResult({
-          success: false,
-          message: result.message || 'Failed to reconnect MCP server'
-        })
-      }
-      
-    } catch (error) {
-      setTestResult({ success: false, message: 'Failed to reconnect MCP server' })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  // Removed old MCP functions (checkMCPStatus, forceReconnectMCP) - now using simplified direct integration
 
   const testComposioConnection = async () => {
     const effectiveApiKey = decryptedApiKey || settings.composioApiKey
@@ -605,6 +517,91 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
     }))
   }
 
+    const saveAndUpdateTools = async () => {
+     try {
+       setIsLoading(true)
+       setTestResult(null)
+       
+       // Handle API key encryption if needed
+       let finalSettings = { ...settings }
+       
+       // If user entered a new API key and encryption is supported, auto-encrypt it
+       if (settings.composioApiKey && encryptionSupported) {
+         // Auto-generate master password based on user ID if not provided by user
+         const effectiveMasterPassword = masterPassword || await ClientSideEncryption.generateUserMasterPassword(settings.userId)
+         
+         const encrypted = await encryptAndStoreApiKey(settings.composioApiKey, effectiveMasterPassword)
+         if (encrypted) {
+           finalSettings = { ...settings }
+         }
+       }
+       
+       // Save settings to localStorage
+       localStorage.setItem('userSettings', JSON.stringify(finalSettings))
+       
+       // Use simplified direct integration approach
+       const effectiveApiKey = decryptedApiKey || settings.composioApiKey
+       if (effectiveApiKey) {
+         try {
+           const response = await fetch('/api/composio/save-and-update', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               userId: settings.userId,
+               apiKey: effectiveApiKey,
+               enabledTools: settings.enabledTools
+             })
+           })
+           
+           const result = await response.json()
+           
+           if (response.ok && result.success) {
+             setTestResult({
+               success: true,
+               message: `✅ Settings saved! Connected apps: ${result.connectedApps}, Tools: ${result.toolCount}`
+             })
+             
+             // Call the save callback
+             onSave(finalSettings)
+             
+             // Trigger event to refresh tool palette
+             window.dispatchEvent(new CustomEvent('userSettingsUpdated'))
+             
+             // Close modal after brief delay
+             setTimeout(() => onClose(), 1500)
+           } else {
+             setTestResult({
+               success: false,
+               message: result.message || 'Failed to save and update tools'
+             })
+           }
+         } catch (error) {
+           setTestResult({
+             success: false,
+             message: 'Failed to save and update tools'
+           })
+         }
+       } else {
+         // No API key - just save settings
+         onSave(finalSettings)
+         setTestResult({
+           success: true,
+           message: '✅ Settings saved (no Composio API key provided)'
+         })
+         setTimeout(() => onClose(), 1500)
+       }
+       
+     } catch (error) {
+       console.error('Failed to save settings:', error)
+       setTestResult({
+         success: false,
+         message: 'Failed to save settings'
+       })
+     } finally {
+       setIsLoading(false)
+     }
+   }
+
   if (!isOpen) return null
 
   const modalContent = (
@@ -782,23 +779,15 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
                   disabled={isLoading || !settings.composioApiKey}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isLoading ? 'Testing...' : 'Test'}
+                  {isLoading ? 'Testing...' : 'Test & Connect'}
                 </button>
                 <button
-                  onClick={checkMCPStatus}
-                  disabled={isLoading}
-                  className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                  title="Check current MCP server status"
-                >
-                  {isLoading ? 'Checking...' : 'Status'}
-                </button>
-                <button
-                  onClick={forceReconnectMCP}
+                  onClick={saveAndUpdateTools}
                   disabled={isLoading || !settings.composioApiKey}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                  title="Force reconnect MCP server to detect tools (60 second timeout)"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  title="Save settings and update tool library"
                 >
-                  {isLoading ? 'Reconnecting...' : 'Force Reconnect'}
+                  {isLoading ? 'Updating...' : 'Save & Update Tools'}
                 </button>
               </div>
             </div>
