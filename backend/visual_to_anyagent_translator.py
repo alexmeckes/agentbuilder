@@ -760,6 +760,9 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
 def _extract_trace_from_result(result) -> Dict[str, Any]:
     """Extract detailed trace information from any-agent result object"""
     try:
+        # Create logger for this function
+        logger = logging.getLogger(__name__)
+        
         # Debug logging
         logger.info(f"🔍 Trace extraction: result type = {type(result)}")
         logger.info(f"🔍 Trace extraction: result attributes = {dir(result) if hasattr(result, '__dict__') else 'N/A'}")
@@ -825,14 +828,25 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
             total_input_cost = 0.0
             total_output_cost = 0.0
             
-            for span in trace_data["spans"]:
+            for i, span in enumerate(trace_data["spans"]):
                 attrs = span.get("attributes", {})
                 
-                # Extract token counts from gen_ai.usage.* fields
-                input_tokens = attrs.get("gen_ai.usage.input_tokens", 0)
-                output_tokens = attrs.get("gen_ai.usage.output_tokens", 0)
-                input_cost = attrs.get("gen_ai.usage.input_cost", 0.0)
-                output_cost = attrs.get("gen_ai.usage.output_cost", 0.0)
+                # Debug: Log available attributes for the first few spans
+                if i < 3:
+                    logger.info(f"🔍 Span {i} attributes: {list(attrs.keys())}")
+                    for key in attrs.keys():
+                        if any(keyword in key.lower() for keyword in ['token', 'cost', 'usage']):
+                            logger.info(f"   {key}: {attrs[key]}")
+                
+                # Extract token counts using GenAI semantic convention or fallback to OpenInference
+                input_tokens = attrs.get("gen_ai.usage.input_tokens", attrs.get("llm.token_count.prompt", 0))
+                output_tokens = attrs.get("gen_ai.usage.output_tokens", attrs.get("llm.token_count.completion", 0))
+                input_cost = attrs.get("gen_ai.usage.input_cost", attrs.get("cost_prompt", 0.0))
+                output_cost = attrs.get("gen_ai.usage.output_cost", attrs.get("cost_completion", 0.0))
+                
+                # Debug: Log extracted values
+                if i < 3 and (input_tokens > 0 or output_tokens > 0 or input_cost > 0 or output_cost > 0):
+                    logger.info(f"🔍 Span {i} extracted: tokens={input_tokens}+{output_tokens}, cost=${input_cost:.6f}+${output_cost:.6f}")
                 
                 total_input_tokens += input_tokens
                 total_output_tokens += output_tokens
@@ -850,6 +864,9 @@ def _extract_trace_from_result(result) -> Dict[str, Any]:
                 "input_cost": total_input_cost,
                 "output_cost": total_output_cost
             }
+            
+            # Debug: Log final cost info
+            logger.info(f"💰 Final trace cost info: {trace_data['cost_info']}")
         
         # Calculate performance metrics
         if trace_data["spans"]:
