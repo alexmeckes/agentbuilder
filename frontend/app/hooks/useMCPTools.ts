@@ -25,8 +25,28 @@ export function useMCPTools(userId?: string) {
       setLoading(true);
       setError(null);
       
-      // Build URL with userId parameter if provided
-      const url = userId ? `/api/mcp/tools?userId=${encodeURIComponent(userId)}` : '/api/mcp/tools';
+      // Load user settings to get enabled tools
+      let enabledTools: string[] = [];
+      try {
+        const savedSettings = localStorage.getItem('userSettings');
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          enabledTools = settings.enabledTools || [];
+          console.log('🔍 useMCPTools: Loaded user enabled tools:', enabledTools);
+        }
+      } catch (e) {
+        console.warn('Failed to load user settings:', e);
+      }
+      
+      // Build URL with userId parameter and enabled tools
+      let url = userId ? `/api/mcp/tools?userId=${encodeURIComponent(userId)}` : '/api/mcp/tools';
+      
+      // Add enabled tools as query parameter if available
+      if (enabledTools.length > 0) {
+        const enabledToolsParam = encodeURIComponent(JSON.stringify(enabledTools));
+        url += `${url.includes('?') ? '&' : '?'}enabledTools=${enabledToolsParam}`;
+      }
+      
       console.log('🔍 Loading tools from:', url);
       
       const response = await fetch(url);
@@ -40,7 +60,8 @@ export function useMCPTools(userId?: string) {
           total: toolsArray.length,
           composio: toolsArray.filter(t => t.type === 'composio').length,
           mcp: toolsArray.filter(t => t.type === 'mcp').length,
-          builtIn: toolsArray.filter(t => t.type === 'built-in').length
+          builtIn: toolsArray.filter(t => t.type === 'built-in').length,
+          enabledToolsUsed: enabledTools.length
         });
       } else {
         setError(data.error || 'Failed to load tools');
