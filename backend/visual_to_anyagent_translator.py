@@ -1255,11 +1255,40 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict], edges: List[D
         return await _execute_graph_step_by_step(nodes, edges, input_data, framework, translator, execution_id, websocket)
     else:
         # Fallback to old execution model if no execution context is provided
-        # This part needs to be refactored or removed if we fully commit to the new model
+        # Enhanced to include intelligent step naming for single-node workflows
         main_agent_config, _ = translator.translate_workflow(nodes, edges, framework)
         agent = AnyAgent.create(agent_framework=AgentFramework.from_string(framework.upper()), agent_config=main_agent_config)
         result = agent.run(input_data)
-        return {"final_output": result.final_output}
+        
+        # Generate intelligent step name for single-node workflows
+        if nodes:
+            primary_node = nodes[0]  # Use first agent node for naming
+            if primary_node.get("type") == "agent":
+                base_node_name = primary_node.get('data', {}).get('name', 'Agent')
+                node_instructions = primary_node.get('data', {}).get('instructions', '')
+                
+                if node_instructions:
+                    step_description = _extract_step_purpose(node_instructions, input_data)
+                    intelligent_step_name = f"{base_node_name} - {step_description}"
+                else:
+                    intelligent_step_name = base_node_name
+                
+                print(f"🏁 Fallback execution completed: {intelligent_step_name}")
+                
+                return {
+                    "final_output": result.final_output,
+                    "main_agent": intelligent_step_name,
+                    "execution_pattern": "single_agent",
+                    "framework_used": framework
+                }
+        
+        # Final fallback if no agent nodes found
+        return {
+            "final_output": result.final_output,
+            "main_agent": "Single Agent Workflow", 
+            "execution_pattern": "single_agent",
+            "framework_used": framework
+        }
 
 
 def _generate_workflow_suggestions(user_request: str) -> str:
