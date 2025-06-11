@@ -767,7 +767,7 @@ class PerUserComposioManager:
 
 def simple_test():
     """Simple test mode for verification"""
-            server = PerUserComposioManager()
+    server = PerUserComposioManager()
     
     # Test user context
     test_user_context = {
