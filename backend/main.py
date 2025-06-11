@@ -772,6 +772,16 @@ class WorkflowExecutor:
                 for i, span in enumerate(spans):
                     attributes = span.get("attributes", {})
                     
+                    # Debug: Log all attributes to see what's actually available
+                    print(f"🔍 Span {i} all attributes: {list(attributes.keys())}")
+                    cost_related = {k: v for k, v in attributes.items() if any(word in k.lower() for word in ['cost', 'token', 'usage'])}
+                    model_name = attributes.get("llm.model_name") or attributes.get("gen_ai.request.model") or "unknown"
+                    print(f"🔍 Span {i} model_name: '{model_name}'")
+                    if cost_related:
+                        print(f"🔍 Span {i} cost/token attributes: {cost_related}")
+                    else:
+                        print(f"⚠️  Span {i} has NO cost or token attributes!")
+                    
                     # Extract costs using GenAI semantic convention or fallback to OpenInference names
                     input_cost = attributes.get("gen_ai.usage.input_cost", attributes.get("cost_prompt", 0.0))
                     output_cost = attributes.get("gen_ai.usage.output_cost", attributes.get("cost_completion", 0.0))
@@ -783,7 +793,37 @@ class WorkflowExecutor:
                     span_total_cost = float(input_cost) + float(output_cost)
                     span_total_tokens = int(span_input_tokens) + int(span_output_tokens)
                     
+                    # If we have tokens but no cost, try to calculate cost using LiteLLM
+                    if span_total_tokens > 0 and span_total_cost == 0 and model_name != "unknown":
+                        try:
+                            import litellm
+                            print(f"🔧 Attempting to calculate cost for model '{model_name}' with {span_input_tokens} input + {span_output_tokens} output tokens")
+                            
+                            # Calculate cost using LiteLLM
+                            if span_input_tokens > 0:
+                                input_cost_calc = litellm.cost_per_token(model=model_name, num_tokens=span_input_tokens, is_completion=False) or 0.0
+                            else:
+                                input_cost_calc = 0.0
+                                
+                            if span_output_tokens > 0:
+                                output_cost_calc = litellm.cost_per_token(model=model_name, num_tokens=span_output_tokens, is_completion=True) or 0.0
+                            else:
+                                output_cost_calc = 0.0
+                                
+                            calculated_cost = input_cost_calc + output_cost_calc
+                            if calculated_cost > 0:
+                                print(f"✅ Calculated cost: ${calculated_cost:.6f} (${input_cost_calc:.6f} input + ${output_cost_calc:.6f} output)")
+                                span_total_cost = calculated_cost
+                                input_cost = input_cost_calc
+                                output_cost = output_cost_calc
+                            else:
+                                print(f"⚠️  LiteLLM returned $0.00 for model '{model_name}' - model may not be supported")
+                        except Exception as e:
+                            print(f"❌ Failed to calculate cost with LiteLLM: {e}")
+                    
                     print(f"   Span {i}: cost=${span_total_cost:.6f}, tokens={span_total_tokens}")
+                    if span_total_tokens > 0 and span_total_cost == 0:
+                        print(f"⚠️  Span {i} has tokens but ZERO cost - model '{model_name}' may not be supported by LiteLLM!")
                     
                     total_cost += span_total_cost
                     input_tokens += int(span_input_tokens)
