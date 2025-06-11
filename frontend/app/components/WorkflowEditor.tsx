@@ -16,7 +16,6 @@ import 'reactflow/dist/style.css'
 import AgentNode from './workflow/AgentNode'
 import { WebhookNode } from './workflow/WebhookNode'
 import DeletableEdge from './workflow/DeletableEdge'
-import Sidebar from './workflow/Sidebar'
 import NodePalette from './workflow/NodePalette'
 import { WorkflowService, type ExecutionResponse } from '../services/workflow'
 import { Play, Square, Loader2, Maximize2, Copy, CheckCircle, Settings, Brain, X, Sparkles } from 'lucide-react'
@@ -1326,12 +1325,8 @@ function WorkflowEditorInner({
 
   return (
     <div className="h-full w-full bg-slate-50 flex">
-      {/* Left Sidebar - Manual Mode Node Palette or Legacy Sidebar */}
-      {useManualMode ? (
-        <NodePalette />
-      ) : (
-        <Sidebar />
-      )}
+      {/* Left Sidebar - Unified Node Palette for both AI and Manual modes */}
+      <NodePalette isManualMode={useManualMode} />
       
       <div className="flex-1 h-full" ref={reactFlowWrapper}>
         <ReactFlow
