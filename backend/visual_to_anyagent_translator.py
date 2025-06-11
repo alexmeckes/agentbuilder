@@ -910,6 +910,10 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
     node_map = {node['id']: node for node in nodes}
     current_input = input_data
     
+    # Collect trace data from all agent executions
+    all_agent_traces = []
+    logger = logging.getLogger(__name__)
+    
     # Find the start node (a node with no incoming edges)
     # This is a simplification; a robust implementation should handle multiple start nodes or triggers.
     all_node_ids = set(node_map.keys())
@@ -937,6 +941,16 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
             string_input = _ensure_string_input(current_input)
             result = agent.run(string_input)
             current_input = result.final_output
+            
+            # Collect trace data from this agent execution
+            logger.info(f"🔍 Collecting trace from agent node {current_node_id}")
+            agent_trace_data = _extract_trace_from_result(result)
+            all_agent_traces.append({
+                "node_id": current_node_id,
+                "node_name": current_node.get('data', {}).get('name', current_node_id),
+                "trace": agent_trace_data
+            })
+            logger.info(f"📊 Agent trace collected: {len(agent_trace_data.get('spans', []))} spans, cost=${agent_trace_data.get('cost_info', {}).get('total_cost', 0):.6f}")
         elif node_type == 'tool':
             tool_name = current_node.get('data', {}).get('tool_type')
             if tool_name in translator.available_tools:
@@ -994,8 +1008,91 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
             current_node_id = next_edge['target']
         else:
             current_node_id = None
-            
-    return {"final_output": current_input}
+    
+    # Aggregate all trace data from agent executions
+    logger.info(f"🔗 Aggregating traces from {len(all_agent_traces)} agent executions")
+    aggregated_trace = _aggregate_agent_traces(all_agent_traces, current_input)
+    
+    return {
+        "final_output": current_input,
+        "agent_trace": aggregated_trace,
+        "execution_pattern": "step_by_step",
+        "main_agent": all_agent_traces[0]["node_name"] if all_agent_traces else "unknown",
+        "managed_agents": [trace["node_name"] for trace in all_agent_traces[1:]] if len(all_agent_traces) > 1 else [],
+        "framework_used": framework
+    }
+
+
+def _aggregate_agent_traces(all_agent_traces: List[Dict], final_output: str) -> Dict[str, Any]:
+    """
+    Aggregate trace data from multiple agent executions into a single trace
+    """
+    logger = logging.getLogger(__name__)
+    
+    if not all_agent_traces:
+        logger.warning("🔍 No agent traces to aggregate")
+        return {
+            "final_output": final_output,
+            "spans": [],
+            "performance": {"total_duration_ms": 0, "total_cost": 0, "total_tokens": 0},
+            "cost_info": {"total_cost": 0, "total_tokens": 0, "input_tokens": 0, "output_tokens": 0}
+        }
+    
+    # Combine all spans from all agent executions
+    all_spans = []
+    total_cost = 0.0
+    total_tokens = 0
+    total_input_tokens = 0
+    total_output_tokens = 0
+    total_duration = 0.0
+    
+    for agent_trace_info in all_agent_traces:
+        trace = agent_trace_info["trace"]
+        node_name = agent_trace_info["node_name"]
+        
+        # Add spans with node context
+        spans = trace.get("spans", [])
+        for span in spans:
+            # Add context about which workflow node this span came from
+            span_with_context = span.copy()
+            span_with_context["workflow_node"] = node_name
+            span_with_context["workflow_node_id"] = agent_trace_info["node_id"]
+            all_spans.append(span_with_context)
+        
+        # Aggregate cost info
+        cost_info = trace.get("cost_info", {})
+        total_cost += cost_info.get("total_cost", 0)
+        total_tokens += cost_info.get("total_tokens", 0)
+        total_input_tokens += cost_info.get("input_tokens", 0)
+        total_output_tokens += cost_info.get("output_tokens", 0)
+        
+        # Aggregate performance
+        performance = trace.get("performance", {})
+        total_duration += performance.get("total_duration_ms", 0)
+        
+        logger.info(f"  📊 {node_name}: {len(spans)} spans, ${cost_info.get('total_cost', 0):.6f}, {cost_info.get('total_tokens', 0)} tokens")
+    
+    aggregated_trace = {
+        "final_output": final_output,
+        "spans": all_spans,
+        "performance": {
+            "total_duration_ms": total_duration,
+            "total_cost": total_cost,
+            "total_tokens": total_tokens,
+            "span_count": len(all_spans),
+            "agent_count": len(all_agent_traces)
+        },
+        "cost_info": {
+            "total_cost": total_cost,
+            "total_tokens": total_tokens,
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens
+        }
+    }
+    
+    logger.info(f"🎯 Aggregated trace: {len(all_spans)} total spans, ${total_cost:.6f} total cost, {total_tokens} total tokens")
+    
+    return aggregated_trace
 
 
 def _evaluate_condition(rule: Dict[str, str], data: Dict[str, Any]) -> bool:
