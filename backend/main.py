@@ -425,6 +425,7 @@ class WorkflowExecutor:
                     "error_details": error_details,
                     "completed_at": completion_time,
                     "execution_time": completion_time - start_time,
+                    "cost_info": {"total_cost": 0, "total_tokens": 0, "input_tokens": 0, "output_tokens": 0},  # Empty cost_info for failed executions
                     "trace": {
                         "error": workflow_result["error"],
                         "error_details": error_details,
@@ -448,11 +449,15 @@ class WorkflowExecutor:
                     node_id = node["id"]
                     self._update_node_status(execution_id, node_id, "completed")
                 
+                # Extract cost info for both trace and top-level storage
+                cost_info = self._extract_cost_info_from_trace(workflow_result.get("agent_trace"))
+                
                 self.executions[execution_id].update({
                     "status": "completed",
                     "result": final_output,
                     "completed_at": completion_time,
                     "execution_time": completion_time - start_time,
+                    "cost_info": cost_info,  # Store at top level for analytics
                     "trace": {
                         "final_output": final_output,
                         "execution_pattern": workflow_result.get("execution_pattern", "unknown"),
@@ -461,7 +466,7 @@ class WorkflowExecutor:
                         "framework_used": workflow_result.get("framework_used", framework),
                         "agent_trace": self._serialize_agent_trace(workflow_result.get("agent_trace")),
                         "execution_time": completion_time - start_time,
-                        "cost_info": self._extract_cost_info_from_trace(workflow_result.get("agent_trace")),
+                        "cost_info": cost_info,  # Keep in trace for backward compatibility
                         "performance": self._extract_performance_metrics(workflow_result.get("agent_trace"), completion_time - start_time),
                         "spans": self._extract_spans_from_trace(workflow_result.get("agent_trace")),
                         "workflow_identity": workflow_identity
@@ -504,6 +509,7 @@ class WorkflowExecutor:
                 "error_details": error_details,
                 "completed_at": completion_time,
                 "execution_time": completion_time - start_time,
+                "cost_info": {"total_cost": 0, "total_tokens": 0, "input_tokens": 0, "output_tokens": 0},  # Empty cost_info for failed executions
                 "trace": {
                     "error": str(e),
                     "error_details": error_details,
