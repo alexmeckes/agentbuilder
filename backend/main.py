@@ -2906,11 +2906,15 @@ async def get_workflow_analytics():
     completed_executions = [e for e in executions if e.get("status") == "completed"]
     failed_executions = [e for e in executions if e.get("status") == "failed"]
     
-    # Calculate totals
-    total_cost = sum(e.get("trace", {}).get("cost_info", {}).get("total_cost", 0) for e in completed_executions)
+    # Calculate totals - FIXED: cost_info is at top level, not in trace
+    total_cost = sum(e.get("cost_info", {}).get("total_cost", 0) for e in completed_executions)
+    total_tokens = sum(e.get("cost_info", {}).get("total_tokens", 0) for e in completed_executions)
     total_duration = sum(e.get("execution_time", 0) * 1000 for e in completed_executions)  # Convert to ms
     avg_cost = total_cost / len(completed_executions) if completed_executions else 0
     avg_duration = total_duration / len(completed_executions) if completed_executions else 0
+    avg_tokens = total_tokens / len(completed_executions) if completed_executions else 0
+    
+    print(f"📊 Analytics calculation: {len(completed_executions)} completed executions, total_cost=${total_cost:.6f}, total_tokens={total_tokens}")
     
     # Group executions by workflow structure hash for intelligent grouping
     workflow_groups = {}
@@ -2946,8 +2950,8 @@ async def get_workflow_analytics():
         completed_in_group = [e for _, e in executions_in_group if e.get("status") == "completed"]
         failed_in_group = [e for _, e in executions_in_group if e.get("status") == "failed"]
         
-        # Calculate group metrics
-        group_cost = sum(e.get("trace", {}).get("cost_info", {}).get("total_cost", 0) for e in completed_in_group)
+        # Calculate group metrics - FIXED: cost_info is at top level, not in trace
+        group_cost = sum(e.get("cost_info", {}).get("total_cost", 0) for e in completed_in_group)
         group_duration = sum(e.get("execution_time", 0) * 1000 for e in completed_in_group)
         avg_group_cost = group_cost / len(completed_in_group) if completed_in_group else 0
         avg_group_duration = group_duration / len(completed_in_group) if completed_in_group else 0
@@ -2980,8 +2984,8 @@ async def get_workflow_analytics():
     # Recent executions with intelligent names
     recent_executions = []
     for exec_id, execution in list(executor.executions.items())[-10:]:
-        trace = execution.get("trace", {})
-        cost_info = trace.get("cost_info", {})
+        # FIXED: cost_info is at top level, not in trace
+        cost_info = execution.get("cost_info", {})
         
         recent_executions.append({
             "execution_id": exec_id,
@@ -3002,8 +3006,10 @@ async def get_workflow_analytics():
         "category_breakdown": category_breakdown,
         "performance_overview": {
             "total_cost": total_cost,
+            "total_tokens": total_tokens,
             "total_duration_ms": total_duration,
             "average_cost_per_execution": avg_cost,
+            "average_tokens_per_execution": avg_tokens,
             "average_duration_per_execution": avg_duration
         },
         "recent_executions": recent_executions

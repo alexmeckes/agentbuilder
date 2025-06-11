@@ -266,13 +266,11 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
                     <Activity className="w-8 h-8 text-orange-600" />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Success Rate</p>
+                    <p className="text-sm font-medium text-gray-500">Total Tokens</p>
                     <p className="text-2xl font-semibold text-gray-900">
-                      {workflowAnalytics.all_workflows && workflowAnalytics.all_workflows.length > 0 
-                        ? Math.round(workflowAnalytics.all_workflows.reduce((sum, w) => sum + (w.success_rate || 0), 0) / workflowAnalytics.all_workflows.length)
-                        : 0}%
+                      {workflowAnalytics.performance_overview?.total_tokens?.toLocaleString() || 0}
                     </p>
-                    <p className="text-sm text-gray-600">Average</p>
+                    <p className="text-sm text-gray-600">Avg: {Math.round(workflowAnalytics.performance_overview?.average_tokens_per_execution || 0)}</p>
                   </div>
                 </div>
               </div>
