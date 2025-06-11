@@ -907,8 +907,7 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
     """
     Executes a workflow step-by-step, handling conditional logic and sending progress.
     """
-    print(f"🔍 DEBUG: Starting step-by-step execution for execution_id: {execution_id}")
-    print(f"🔍 DEBUG: Workflow has {len(nodes)} nodes, {len(edges)} edges")
+    print(f"🔍 Step-by-step execution for {execution_id}: {len(nodes)} nodes")
     
     node_map = {node['id']: node for node in nodes}
     current_input = input_data
@@ -1058,10 +1057,7 @@ async def _execute_graph_step_by_step(nodes: List[Dict], edges: List[Dict], inpu
         "framework_used": framework
     }
     
-    print(f"🏁 DEBUG: Step-by-step execution completed for execution_id: {execution_id}")
-    print(f"🏁 DEBUG: Main agent: {result['main_agent']}")
-    print(f"🏁 DEBUG: Managed agents: {result['managed_agents']}")
-    print(f"🏁 DEBUG: Final output length: {len(current_input)}")
+    print(f"🏁 Completed {execution_id}: {result['main_agent']}")
     
     return result
 

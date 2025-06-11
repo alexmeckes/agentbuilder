@@ -195,11 +195,8 @@ class WorkflowExecutor:
         execution_id = f"exec_{len(self.executions) + 1}"
         start_time = time.time()
         
-        print(f"🚀 DEBUG: NEW WORKFLOW EXECUTION STARTED")
-        print(f"🆔 DEBUG: Assigned execution_id: {execution_id}")
-        print(f"📝 DEBUG: Current executions count: {len(self.executions)}")
-        print(f"📊 DEBUG: Input preview: {request.input_data[:100]}...")
-        print(f"🏗️  DEBUG: Workflow has {len(request.workflow.nodes)} nodes")
+        # Minimal debug - avoid excessive logging that might cause issues
+        print(f"🚀 Starting execution {execution_id} with {len(request.workflow.nodes)} nodes")
         
         # Initialize execution record EARLY with progress tracking
         self.executions[execution_id] = {
