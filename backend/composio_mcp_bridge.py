@@ -24,20 +24,12 @@ except ImportError:
 
 # Try to import Composio with correct import path
 try:
-    from composio import ComposioToolSet, Action, App
+    # Only import for type hints, don't actually use the SDK
     COMPOSIO_AVAILABLE = True
-    ComposioToolSetType = ComposioToolSet
+    logging.info("🚀 Using HTTP-only Composio integration (no SDK)")
 except ImportError:
-    try:
-        # Alternative import path
-        from composio.client import Composio
-        from composio.tools import ComposioToolSet
-        COMPOSIO_AVAILABLE = True
-        ComposioToolSetType = ComposioToolSet
-    except ImportError:
-        COMPOSIO_AVAILABLE = False
-        # Create dummy type for type annotations when Composio is not available
-        ComposioToolSetType = Any
+    COMPOSIO_AVAILABLE = False
+    logging.warning("Composio integration disabled")
 
 @dataclass
 class UserContext:
@@ -48,13 +40,15 @@ class UserContext:
     preferences: Dict[str, Any] = None
 
 class UserComposioManager:
-    """Manages per-user Composio clients"""
+    """Manages per-user Composio clients via HTTP API only"""
     
     def __init__(self):
-        self.user_clients: Dict[str, ComposioToolSetType] = {}
+        # No SDK clients - pure HTTP API approach
+        self.user_api_keys: Dict[str, str] = {}  # user_id -> api_key
         self.available_tools = {}
         self._discover_base_tools()
         self._dynamic_discovery_cache = {}
+        logging.info("🚀 Composio manager initialized with HTTP-only approach")
     
     def _discover_base_tools(self):
         """Discover popular Composio tools (lightweight subset)"""
@@ -338,32 +332,25 @@ class UserComposioManager:
         
         return 'unknown'
     
-    def get_user_client(self, user_context: UserContext) -> Optional[ComposioToolSetType]:
-        """Get or create Composio client for specific user"""
+    def get_user_client(self, user_context: UserContext) -> bool:
+        """Register user's API key for HTTP API calls (no SDK client creation)"""
         # Get the actual API key (decrypted if needed)
         actual_api_key = self._get_decrypted_api_key(user_context)
         
         if not actual_api_key or not COMPOSIO_AVAILABLE:
-            return None
+            return False
             
-        client_key = f"{user_context.user_id}_{hash(actual_api_key)}"
-        
-        if client_key not in self.user_clients:
-            try:
-                # Create user-specific client with entity isolation
-                self.user_clients[client_key] = ComposioToolSetType(
-                    api_key=actual_api_key,
-                    entity_id="default"  # Use default entity as per API requirements
-                )
-                logging.info(f"✅ Created Composio client for user: {user_context.user_id}")
-            except Exception as e:
-                logging.error(f"❌ Failed to create Composio client for user {user_context.user_id}: {e}")
-                return None
-        
-        return self.user_clients[client_key]
+        # Store API key for HTTP calls (no SDK initialization)
+        self.user_api_keys[user_context.user_id] = actual_api_key
+        logging.info(f"✅ Registered API key for user: {user_context.user_id} (HTTP-only)")
+        return True
+    
+    def get_user_api_key(self, user_context: UserContext) -> Optional[str]:
+        """Get user's API key for direct HTTP calls"""
+        return self.user_api_keys.get(user_context.user_id) or self._get_decrypted_api_key(user_context)
     
     async def execute_tool_for_user(self, tool_name: str, params: Dict[str, Any], user_context: UserContext, retry_count: int = 0) -> Dict[str, Any]:
-        """Execute tool with user-specific API key and permissions"""
+        """Execute tool with user-specific API key via HTTP API only"""
         
         # Check if user has this tool enabled
         if user_context.enabled_tools and tool_name not in user_context.enabled_tools:
@@ -387,10 +374,10 @@ class UserComposioManager:
         tool_info = available_tools[tool_name]
         app_name = tool_info.get('app_name', self._extract_app_name_from_tool(tool_name))
         
-        # Get user's Composio client
-        client = self.get_user_client(user_context)
+        # Get user's API key (HTTP-only approach)
+        actual_api_key = self.get_user_api_key(user_context)
         
-        if not client:
+        if not actual_api_key:
             return {
                 "error": "No valid Composio API key provided for user",
                 "mock_result": f"Mock execution of {tool_name} with params: {params}",
@@ -398,22 +385,11 @@ class UserComposioManager:
             }
         
         try:
-            # Get decrypted API key for HTTP calls
-            actual_api_key = self._get_decrypted_api_key(user_context)
-            
-            if not actual_api_key:
-                return {
-                    "error": "API key is encrypted and cannot be decrypted for direct execution",
-                    "message": "💡 Encrypted keys require frontend decryption",
-                    "user_id": user_context.user_id,
-                    "tool": tool_name
-                }
-            
-            # Execute with direct HTTP API (same approach as successful test)
+            # Execute with direct HTTP API only
             import aiohttp
             
             async with aiohttp.ClientSession() as session:
-                # Use the same HTTP API approach that worked in testing
+                # Use direct HTTP API approach (no SDK)
                 async with session.post(
                     f'https://backend.composio.dev/api/v2/actions/{tool_name}/execute',
                     headers={'x-api-key': actual_api_key, 'Content-Type': 'application/json'},
@@ -431,7 +407,8 @@ class UserComposioManager:
                             "result": result,
                             "user_id": user_context.user_id,
                             "tool": tool_name,
-                            "retry_count": retry_count
+                            "retry_count": retry_count,
+                            "method": "http_api_direct"
                         }
                     elif response.status == 429 and retry_count < 3:
                         # Rate limited - retry with exponential backoff
@@ -731,7 +708,7 @@ class PerUserMCPServer:
             }
     
     async def _validate_user_setup(self, user_context: UserContext) -> Dict[str, Any]:
-        """Validate user's Composio setup"""
+        """Validate user's Composio setup using HTTP API only"""
         if not user_context.api_key:
             return {
                 "valid": False,
@@ -739,23 +716,48 @@ class PerUserMCPServer:
                 "user_id": user_context.user_id
             }
         
-        client = self.user_manager.get_user_client(user_context)
-        if not client:
+        # Register API key for HTTP calls (no SDK client creation)
+        api_key_registered = self.user_manager.get_user_client(user_context)
+        if not api_key_registered:
             return {
                 "valid": False,
-                "message": "Failed to create Composio client",
+                "message": "Failed to register API key for HTTP access",
                 "user_id": user_context.user_id
             }
         
         try:
-            # Test the connection (you can add real API call here)
-            return {
-                "valid": True,
-                "message": "Composio client created successfully",
-                "user_id": user_context.user_id,
-                "enabled_tools": user_context.enabled_tools,
-                "tools_count": len(user_context.enabled_tools or [])
-            }
+            # Test API key with a simple HTTP call
+            actual_api_key = self.user_manager.get_user_api_key(user_context)
+            if actual_api_key:
+                import aiohttp
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        'https://backend.composio.dev/api/v1/connectedAccounts',
+                        headers={'x-api-key': actual_api_key, 'Content-Type': 'application/json'},
+                        timeout=aiohttp.ClientTimeout(total=10)
+                    ) as response:
+                        if response.status == 200:
+                            return {
+                                "valid": True,
+                                "message": "Composio HTTP API connection successful",
+                                "user_id": user_context.user_id,
+                                "enabled_tools": user_context.enabled_tools,
+                                "tools_count": len(user_context.enabled_tools or []),
+                                "method": "http_api_direct"
+                            }
+                        else:
+                            return {
+                                "valid": False,
+                                "message": f"API key validation failed: HTTP {response.status}",
+                                "user_id": user_context.user_id
+                            }
+            else:
+                return {
+                    "valid": False,
+                    "message": "No valid API key available for HTTP calls",
+                    "user_id": user_context.user_id
+                }
         except Exception as e:
             return {
                 "valid": False,
@@ -832,10 +834,11 @@ async def main():
     if not stdin_available:
         # Running as subprocess without stdin - use standalone mode
         print(json.dumps({
-            "status": "Composio MCP Bridge ready (standalone mode)",
+            "status": "Composio MCP Bridge ready (standalone HTTP-only mode)",
             "composio_available": COMPOSIO_AVAILABLE,
             "user_id": server.default_user_context.user_id,
-            "has_api_key": bool(server.default_user_context.api_key)
+            "has_api_key": bool(server.default_user_context.api_key),
+            "method": "http_api_direct"
         }), file=sys.stderr)
         
         # Keep the process alive but don't block
@@ -891,8 +894,9 @@ if __name__ == "__main__":
         sys.exit(1)
     
     print(json.dumps({
-        "status": "Per-User Composio MCP Bridge starting...",
-        "composio_available": COMPOSIO_AVAILABLE
+        "status": "Per-User Composio MCP Bridge starting (HTTP-only mode)...",
+        "composio_available": COMPOSIO_AVAILABLE,
+        "method": "http_api_direct"
     }), file=sys.stderr)
     
     asyncio.run(main()) 
