@@ -228,7 +228,6 @@ export default function NodePalette({ className = '', isManualMode = true }: Nod
                 <span className="text-xs text-gray-500">
                   {isManualMode ? 'Manual Design Mode' : 'AI Assistant Mode'}
                 </span>
-                <span className="text-xs text-gray-400 ml-1">• Toggle above ↑</span>
               </div>
             </div>
             <button
