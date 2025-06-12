@@ -1841,7 +1841,7 @@ async def get_execution_analytics(request: Request):
     
     return {
         "summary": {
-            "total_executions": len(executor.executions),
+            "total_executions": len(executions),
             "completed_executions": len(completed_executions),
             "total_cost": round(total_cost, 4),
             "total_tokens": total_tokens,
@@ -1857,7 +1857,7 @@ async def get_execution_analytics(request: Request):
                 "cost": execution.get("cost_info", {}).get("total_cost", execution.get("trace", {}).get("performance", {}).get("total_cost", 0)),
                 "duration_ms": execution.get("trace", {}).get("performance", {}).get("total_duration_ms", 0)
             }
-            for exec_id, execution in list(executor.executions.items())[-10:]  # Last 10 executions
+            for exec_id, execution in list(user_executions.items())[-10:]  # Last 10 executions
         ]
     }
 
@@ -2113,10 +2113,9 @@ async def run_enhanced_workflow_evaluation(request: dict):
             raise HTTPException(status_code=400, detail="execution_id is required")
         
         # Get execution data
-        if execution_id not in executor.executions:
+        execution = executor._get_execution_by_id(execution_id)
+        if not execution:
             raise HTTPException(status_code=404, detail="Execution not found")
-        
-        execution = executor.executions[execution_id]
         trace_data = execution.get("trace", {})
         
         if not trace_data:
@@ -3373,9 +3372,14 @@ async def get_workflow_steps_analytics(request: Request):
 
 
 @app.get("/analytics/insights")
-async def get_analytics_insights():
+async def get_analytics_insights(request: Request):
     """Get analytics insights and recommendations from real data"""
-    if not executor.executions:
+    # Extract user_id from headers
+    user_id = request.headers.get("x-user-id", "anonymous")
+    
+    # Get user-specific executions
+    user_executions = executor._get_user_executions(user_id)
+    if not user_executions:
         return {
             "insights": [
                 {
@@ -3391,7 +3395,7 @@ async def get_analytics_insights():
             "health_score": 100
         }
     
-    executions = list(executor.executions.values())
+    executions = list(user_executions.values())
     total_executions = len(executions)
     completed_executions = [e for e in executions if e.get("status") == "completed"]
     failed_executions = [e for e in executions if e.get("status") == "failed"]
@@ -3508,9 +3512,14 @@ async def enhance_workflow_name(request: dict):
 
 
 @app.get("/analytics/performance")
-async def get_performance_analytics():
+async def get_performance_analytics(request: Request):
     """Get detailed performance analytics from real executions"""
-    if not executor.executions:
+    # Extract user_id from headers
+    user_id = request.headers.get("x-user-id", "anonymous")
+    
+    # Get user-specific executions
+    user_executions = executor._get_user_executions(user_id)
+    if not user_executions:
         return {
             "overall_metrics": {
                 "avg_response_time": 0,
@@ -3525,7 +3534,7 @@ async def get_performance_analytics():
             "message": "No execution data available for performance analysis"
         }
     
-    executions = list(executor.executions.values())
+    executions = list(user_executions.values())
     completed_executions = [e for e in executions if e.get("status") == "completed"]
     failed_executions = [e for e in executions if e.get("status") == "failed"]
     
@@ -3584,7 +3593,7 @@ async def get_performance_analytics():
                 "status": execution.get("status", "unknown"),
                 "framework": execution.get("framework", "unknown")
             }
-            for exec_id, execution in list(executor.executions.items())[-20:]  # Last 20 executions
+            for exec_id, execution in list(user_executions.items())[-20:]  # Last 20 executions
         ]
     }
 
@@ -3592,9 +3601,14 @@ async def get_performance_analytics():
 # ===== TRACE VIEWER ENDPOINTS =====
 
 @app.get("/traces")
-async def get_traces():
+async def get_traces(request: Request):
     """Get all execution traces from real executions with intelligent naming"""
-    if not executor.executions:
+    # Extract user_id from headers
+    user_id = request.headers.get("x-user-id", "anonymous")
+    
+    # Get user-specific executions
+    user_executions = executor._get_user_executions(user_id)
+    if not user_executions:
         return {
             "traces": [],
             "message": "No execution traces available yet",
@@ -3602,7 +3616,7 @@ async def get_traces():
         }
     
     traces = []
-    for exec_id, execution in executor.executions.items():
+    for exec_id, execution in user_executions.items():
         trace_data = execution.get("trace", {})
         cost_info = trace_data.get("cost_info", {})
         performance = trace_data.get("performance", {})
