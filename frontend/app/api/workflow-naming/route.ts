@@ -101,73 +101,79 @@ Analyze the workflow structure and user context to generate an appropriate name.
 
       console.log('Backend response status:', backendResponse.status)
 
-    if (!backendResponse.ok) {
-      const errorText = await backendResponse.text()
-      console.error('Backend response error:', errorText)
-      
-      // Return a fallback response instead of throwing
-      return NextResponse.json({
-        content: '{"name": "Custom Workflow", "description": "A workflow for processing tasks", "category": "general", "confidence": 0.5, "alternatives": ["Task Processor", "Data Handler", "Custom Pipeline"]}'
-      })
-    }
-
-    const result = await backendResponse.json()
-    console.log('🔍 Backend workflow naming result:', {
-      execution_id: result.execution_id,
-      status: result.status,
-      hasResult: !!result.result,
-      hasTrace: !!result.trace,
-      resultType: typeof result.result,
-      resultLength: result.result ? String(result.result).length : 0,
-      error: result.error || 'none'
-    })
-    console.log('📋 Full backend response keys:', Object.keys(result))
-    console.log('🎯 Result value:', result.result)
-    console.log('🔍 Trace outputs:', result.trace?.outputs || 'none')
-    
-    // Check if result might be in different places
-    let possibleResult = result.result || result.output || result.trace?.final_output || result.data
-    
-    // If result is nested in trace outputs, try to extract it
-    if (!possibleResult && result.trace?.outputs) {
-      const outputs = Object.values(result.trace.outputs)
-      if (outputs.length > 0) {
-        possibleResult = outputs[0]
+      if (!backendResponse.ok) {
+        const errorText = await backendResponse.text()
+        console.error('Backend response error:', errorText)
+        
+        // Return a fallback response instead of throwing
+        return NextResponse.json({
+          content: '{"name": "Custom Workflow", "description": "A workflow for processing tasks", "category": "general", "confidence": 0.5, "alternatives": ["Task Processor", "Data Handler", "Custom Pipeline"]}'
+        })
       }
-    }
-    
-    console.log('Possible result:', possibleResult)
-    console.log('Possible result type:', typeof possibleResult)
-    
-    // If the result is already an object, stringify it
-    if (possibleResult && typeof possibleResult === 'object') {
-      possibleResult = JSON.stringify(possibleResult)
-    }
-    
-    if (result.status === 'failed') {
-      console.error('Backend execution failed:', result.error)
+
+      const result = await backendResponse.json()
+      console.log('🔍 Backend workflow naming result:', {
+        execution_id: result.execution_id,
+        status: result.status,
+        hasResult: !!result.result,
+        hasTrace: !!result.trace,
+        resultType: typeof result.result,
+        resultLength: result.result ? String(result.result).length : 0,
+        error: result.error || 'none'
+      })
+      console.log('📋 Full backend response keys:', Object.keys(result))
+      console.log('🎯 Result value:', result.result)
+      console.log('🔍 Trace outputs:', result.trace?.outputs || 'none')
       
-      // Return a fallback response instead of throwing
+      // Check if result might be in different places
+      let possibleResult = result.result || result.output || result.trace?.final_output || result.data
+      
+      // If result is nested in trace outputs, try to extract it
+      if (!possibleResult && result.trace?.outputs) {
+        const outputs = Object.values(result.trace.outputs)
+        if (outputs.length > 0) {
+          possibleResult = outputs[0]
+        }
+      }
+      
+      console.log('Possible result:', possibleResult)
+      console.log('Possible result type:', typeof possibleResult)
+      
+      // If the result is already an object, stringify it
+      if (possibleResult && typeof possibleResult === 'object') {
+        possibleResult = JSON.stringify(possibleResult)
+      }
+      
+      if (result.status === 'failed') {
+        console.error('Backend execution failed:', result.error)
+        
+        // Return a fallback response instead of throwing
+        return NextResponse.json({
+          content: '{"name": "Custom Workflow", "description": "A workflow for processing tasks", "category": "general", "confidence": 0.5, "alternatives": ["Task Processor", "Data Handler", "Custom Pipeline"]}'
+        })
+      }
+
+      // Return the content in the format expected by the workflow naming service
+      return NextResponse.json({
+        content: possibleResult || '{"name": "Unknown Workflow", "description": "A workflow", "category": "general", "confidence": 0.5, "alternatives": []}'
+      })
+      
+    } catch (error: any) {
+      clearTimeout(timeout)
+      if (error.name === 'AbortError') {
+        console.error('🚨 Backend workflow naming timed out after 30s')
+      }
+      console.error('🚨 Workflow naming API error:', error)
+      
+      // Return a fallback response instead of error
       return NextResponse.json({
         content: '{"name": "Custom Workflow", "description": "A workflow for processing tasks", "category": "general", "confidence": 0.5, "alternatives": ["Task Processor", "Data Handler", "Custom Pipeline"]}'
       })
     }
-
-    // Return the content in the format expected by the workflow naming service
+  } catch (error) {
+    console.error('Workflow naming API route error:', error)
     return NextResponse.json({
-      content: possibleResult || '{"name": "Unknown Workflow", "description": "A workflow", "category": "general", "confidence": 0.5, "alternatives": []}'
-    })
-    
-  } catch (error: any) {
-    clearTimeout(timeout)
-    if (error.name === 'AbortError') {
-      console.error('🚨 Backend workflow naming timed out after 30s')
-    }
-    console.error('🚨 Workflow naming API error:', error)
-    
-    // Return a fallback response instead of error
-    return NextResponse.json({
-      content: '{"name": "Custom Workflow", "description": "A workflow for processing tasks", "category": "general", "confidence": 0.5, "alternatives": ["Task Processor", "Data Handler", "Custom Pipeline"]}'
+      content: '{"name": "Error Workflow", "description": "Failed to generate workflow name", "category": "general", "confidence": 0.1, "alternatives": []}'
     })
   }
 } 
