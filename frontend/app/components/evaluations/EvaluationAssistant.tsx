@@ -287,11 +287,119 @@ What kind of workflow are you looking to evaluate today?`,
     return emojiMap[category] || '🔧'
   }
 
-  // Generate workflow-specific prompt that triggers full workflow analysis
-  const generateWorkflowPrompt = (workflow: RecentWorkflow): string => {
-    // This will be sent to handleSendMessage, which will detect we have workflow context
-    // and automatically use the workflow-aware endpoint with the full workflow structure
-    return `Generate comprehensive evaluation criteria for my "${workflow.name}" workflow. This is a ${workflow.category} workflow${workflow.description ? `: ${workflow.description}` : ''}. Focus on domain-specific evaluation criteria that would test the key capabilities and potential failure modes of this particular workflow based on its actual structure and purpose.`
+  // Generate dynamic, insightful prompts based on workflow analysis
+  const generateWorkflowPrompt = async (workflow: RecentWorkflow): Promise<string> => {
+    try {
+      // First, try to use LLM to generate an even better prompt
+      try {
+        const promptGenerationRequest = {
+          nodes: workflow.workflow?.nodes || [],
+          edges: workflow.workflow?.edges || [],
+          user_context: `Generate a specific and insightful evaluation prompt for this ${workflow.category} workflow named "${workflow.name}". The prompt should identify unique testing scenarios and edge cases specific to this workflow's purpose.`
+        }
+        
+        const namingResponse = await WorkflowNamingService.generateWorkflowIdentity(promptGenerationRequest)
+        
+        // Check if we got a good description that can be used as a prompt base
+        if (namingResponse.identity?.description) {
+          const llmGeneratedPrompt = `I need sophisticated evaluation criteria for my "${workflow.name}" workflow. ${namingResponse.identity.description}\n\nBased on this workflow's specific purpose and structure, create evaluation criteria that:\n• Test unique edge cases for ${workflow.name.split(' ')[0].toLowerCase()} scenarios\n• Measure domain-specific quality metrics\n• Identify potential failure modes in the workflow's core functionality\n• Include both functional correctness and output quality assessments`
+          
+          return llmGeneratedPrompt
+        }
+      } catch (llmError) {
+        console.log('LLM prompt generation unavailable, using smart analysis:', llmError)
+      }
+      
+      // Fallback to smart structural analysis
+      // Analyze the workflow structure to create a more specific prompt
+      const nodes = workflow.workflow?.nodes || []
+      const edges = workflow.workflow?.edges || []
+      
+      // Extract key information about the workflow
+      const agentNodes = nodes.filter((n: any) => n.data?.type === 'agent')
+      const toolNodes = nodes.filter((n: any) => n.data?.type === 'tool')
+      const agentCount = agentNodes.length
+      const toolTypes = [...new Set(toolNodes.map((n: any) => n.data?.tool_type).filter(Boolean))]
+      
+      // Analyze agent instructions for key capabilities
+      const agentInstructions = agentNodes
+        .map((n: any) => n.data?.instructions || '')
+        .join(' ')
+        .toLowerCase()
+      
+      // Detect workflow patterns and concerns
+      const concerns = []
+      const capabilities = []
+      
+      // Analyze based on workflow structure
+      if (agentCount > 2) {
+        concerns.push("multi-agent coordination and handoffs")
+        capabilities.push("agent collaboration quality")
+      }
+      
+      if (toolTypes.includes('web_search')) {
+        concerns.push("information accuracy and source reliability")
+        capabilities.push("research thoroughness")
+      }
+      
+      if (toolTypes.includes('file_write') || toolTypes.includes('database')) {
+        concerns.push("data integrity and error handling")
+        capabilities.push("data processing accuracy")
+      }
+      
+      if (agentInstructions.includes('analyze') || agentInstructions.includes('analysis')) {
+        capabilities.push("analytical depth and insight quality")
+      }
+      
+      if (agentInstructions.includes('creative') || agentInstructions.includes('generate')) {
+        capabilities.push("creativity and originality")
+        concerns.push("maintaining consistency with requirements")
+      }
+      
+      // Build a context-rich prompt
+      let prompt = `I need evaluation criteria for my "${workflow.name}" workflow. `
+      
+      // Add specific context based on the workflow
+      if (workflow.input_data) {
+        const inputPreview = workflow.input_data.substring(0, 100)
+        prompt += `\n\nTypical input: "${inputPreview}${workflow.input_data.length > 100 ? '...' : ''}" `
+      }
+      
+      prompt += `\n\nThis ${workflow.category} workflow has ${agentCount} agent${agentCount !== 1 ? 's' : ''}`
+      if (toolTypes.length > 0) {
+        prompt += ` using ${toolTypes.join(', ')} tools`
+      }
+      prompt += '.'
+      
+      if (capabilities.length > 0) {
+        prompt += `\n\nKey capabilities to evaluate: ${capabilities.join(', ')}.`
+      }
+      
+      if (concerns.length > 0) {
+        prompt += `\n\nPotential failure points: ${concerns.join(', ')}.`
+      }
+      
+      // Add specific evaluation focus
+      prompt += `\n\nPlease create evaluation criteria that:`
+      prompt += `\n• Test the specific ${workflow.category} capabilities of this workflow`
+      prompt += `\n• Include edge cases relevant to ${workflow.name.split(' ')[0].toLowerCase()} scenarios`
+      prompt += `\n• Measure both correctness and quality of outputs`
+      
+      if (agentCount > 1) {
+        prompt += `\n• Assess the coordination between the ${agentCount} agents`
+      }
+      
+      if (toolTypes.length > 0) {
+        prompt += `\n• Verify proper ${toolTypes[0]} usage and error handling`
+      }
+      
+      return prompt
+      
+    } catch (error) {
+      console.log('Error generating dynamic prompt, using fallback:', error)
+      // Fallback to template if analysis fails
+      return `Generate comprehensive evaluation criteria for my "${workflow.name}" workflow. This is a ${workflow.category} workflow${workflow.description ? `: ${workflow.description}` : ''}. Focus on domain-specific evaluation criteria that would test the key capabilities and potential failure modes of this particular workflow based on its actual structure and purpose.`
+    }
   }
 
   const handleSendMessage = async () => {
@@ -831,7 +939,10 @@ I can suggest relevant criteria, test cases, and best practices based on your ne
           {recentWorkflows.map((workflow) => (
             <button
               key={workflow.id}
-              onClick={() => setInput(generateWorkflowPrompt(workflow))}
+              onClick={async () => {
+                const dynamicPrompt = await generateWorkflowPrompt(workflow)
+                setInput(dynamicPrompt)
+              }}
               className="px-2 py-1 text-xs bg-gradient-to-r from-blue-50 to-purple-50 text-blue-800 border border-blue-200 rounded hover:from-blue-100 hover:to-purple-100 transition-colors flex items-center gap-1"
               title={`Generate evaluation for: ${workflow.name}${workflow.description ? ' - ' + workflow.description : ''}`}
             >
