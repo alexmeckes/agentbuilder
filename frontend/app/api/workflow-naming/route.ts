@@ -68,29 +68,38 @@ Analyze the workflow structure and user context to generate an appropriate name.
     // Get the user's prompt (last message)
     const userMessage = messages[messages.length - 1]
     
-    console.log('Calling backend with workflow naming request...')
-    console.log('Backend URL:', BACKEND_URL)
-    console.log('User message content:', userMessage.content?.substring(0, 200) + '...')
+    console.log('🚀 Calling backend with workflow naming request...')
+    console.log('🌐 Backend URL:', BACKEND_URL)
+    console.log('📝 Naming workflow nodes:', namingWorkflow.nodes.length)
+    console.log('📋 WorkflowNamer instructions length:', namingWorkflow.nodes[0].data.instructions.length)
+    console.log('💬 User message preview:', userMessage.content?.substring(0, 100) + '...')
     
-    // Call our any-agent backend
-    const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        workflow: namingWorkflow,
-        input_data: userMessage.content,
-        framework: 'openai',
-        execution_context: {
-          type: 'workflow_naming',
-          source: 'workflow_naming_api',
-          user_prompt_length: userMessage.content?.length || 0
-        }
+    // Call our any-agent backend with timeout
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+    
+    try {
+      const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workflow: namingWorkflow,
+          input_data: userMessage.content,
+          framework: 'openai',
+          execution_context: {
+            type: 'workflow_naming',
+            source: 'workflow_naming_api',
+            user_prompt_length: userMessage.content?.length || 0
+          }
+        }),
+        signal: controller.signal
       })
-    })
+      
+      clearTimeout(timeout)
 
-    console.log('Backend response status:', backendResponse.status)
+      console.log('Backend response status:', backendResponse.status)
 
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text()
@@ -103,10 +112,18 @@ Analyze the workflow structure and user context to generate an appropriate name.
     }
 
     const result = await backendResponse.json()
-    console.log('Backend result:', result)
-    console.log('Result.result:', result.result)
-    console.log('Result type:', typeof result.result)
-    console.log('Full result keys:', Object.keys(result))
+    console.log('🔍 Backend workflow naming result:', {
+      execution_id: result.execution_id,
+      status: result.status,
+      hasResult: !!result.result,
+      hasTrace: !!result.trace,
+      resultType: typeof result.result,
+      resultLength: result.result ? String(result.result).length : 0,
+      error: result.error || 'none'
+    })
+    console.log('📋 Full backend response keys:', Object.keys(result))
+    console.log('🎯 Result value:', result.result)
+    console.log('🔍 Trace outputs:', result.trace?.outputs || 'none')
     
     // Check if result might be in different places
     let possibleResult = result.result || result.output || result.trace?.final_output || result.data
@@ -140,9 +157,13 @@ Analyze the workflow structure and user context to generate an appropriate name.
     return NextResponse.json({
       content: possibleResult || '{"name": "Unknown Workflow", "description": "A workflow", "category": "general", "confidence": 0.5, "alternatives": []}'
     })
-
-  } catch (error) {
-    console.error('Workflow naming API error:', error)
+    
+    } catch (error: any) {
+      clearTimeout(timeout)
+      if (error.name === 'AbortError') {
+        console.error('🚨 Backend workflow naming timed out after 30s')
+      }
+      console.error('🚨 Workflow naming API error:', error)
     
     // Return a fallback response instead of error
     return NextResponse.json({
