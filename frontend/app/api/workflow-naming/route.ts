@@ -111,8 +111,8 @@ Analyze the workflow structure and user context to generate an appropriate name.
         })
       }
 
-      const result = await backendResponse.json()
-      console.log('🔍 Backend workflow naming result:', {
+      let result = await backendResponse.json()
+      console.log('🔍 Initial backend workflow naming result:', {
         execution_id: result.execution_id,
         status: result.status,
         hasResult: !!result.result,
@@ -121,6 +121,37 @@ Analyze the workflow structure and user context to generate an appropriate name.
         resultLength: result.result ? String(result.result).length : 0,
         error: result.error || 'none'
       })
+      
+      // If the execution is still running, poll for completion
+      if (result.status === 'running' && result.execution_id) {
+        console.log('⏳ Workflow naming is running, polling for completion...')
+        
+        const maxAttempts = 20 // 20 attempts * 500ms = 10 seconds max
+        let attempts = 0
+        
+        while (attempts < maxAttempts && result.status === 'running') {
+          // Wait 500ms before polling
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Poll the execution status
+          const pollResponse = await fetch(`${BACKEND_URL}/executions/${result.execution_id}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+          
+          if (pollResponse.ok) {
+            result = await pollResponse.json()
+            console.log(`📊 Poll attempt ${attempts + 1}/${maxAttempts} - Status: ${result.status}`)
+          }
+          
+          attempts++
+        }
+        
+        console.log('✅ Polling complete. Final status:', result.status)
+      }
+      
       console.log('📋 Full backend response keys:', Object.keys(result))
       console.log('🎯 Result value:', result.result)
       console.log('🔍 Trace outputs:', result.trace?.outputs || 'none')
