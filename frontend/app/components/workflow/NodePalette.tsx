@@ -110,13 +110,14 @@ export default function NodePalette({ className = '', isManualMode = true }: Nod
     const appNodesData = getAppNodes();
     const builtInData = getBuiltInTools();
     
-    console.log('🎨 NodePalette: Tools updated:', {
-      totalTools: mcpTools.length,
-      toolTypes: mcpTools.map(t => ({ id: t.id, type: t.type, source: t.source, status: t.server_status })),
-      appNodes: appNodesData.length,
-      composioTools: mcpTools.filter(t => t.type === 'composio' || t.source === 'composio').length,
-      builtInTools: builtInData.length
-    });
+    // Only log when tools actually change
+    // console.log('🎨 NodePalette: Tools updated:', {
+    //   totalTools: mcpTools.length,
+    //   toolTypes: mcpTools.map(t => ({ id: t.id, type: t.type, source: t.source, status: t.server_status })),
+    //   appNodes: appNodesData.length,
+    //   composioTools: mcpTools.filter(t => t.type === 'composio' || t.source === 'composio').length,
+    //   builtInTools: builtInData.length
+    // });
     
     setAppNodes(appNodesData);
     setBuiltInTools(builtInData);
