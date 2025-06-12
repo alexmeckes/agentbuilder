@@ -104,25 +104,12 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
   const fetchAnalytics = async () => {
     setLoading(true)
     try {
-      // Debug: Check what users have executions
-      const debugResponse = await fetch('/api/debug/user-executions', {
-        headers: addUserHeaders()
-      })
-      if (debugResponse.ok) {
-        const debugData = await debugResponse.json()
-        console.log('🔍 DEBUG - User executions in system:', debugData)
-        console.log('🔍 DEBUG - Your user ID:', debugData.current_user_id)
-      }
-      
       // Fetch workflow analytics via API route (proxies to correct backend)
       const workflowResponse = await fetch('/api/analytics/workflows', {
         headers: addUserHeaders()
       })
       if (workflowResponse.ok) {
         const workflowData = await workflowResponse.json()
-        console.log('📊 DEBUG - Analytics data received:', workflowData)
-        console.log('📊 DEBUG - Total executions:', workflowData.total_executions)
-        console.log('📊 DEBUG - Recent executions:', workflowData.recent_executions)
         setWorkflowAnalytics(workflowData)
       }
 

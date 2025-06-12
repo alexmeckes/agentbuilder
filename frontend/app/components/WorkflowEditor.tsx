@@ -25,6 +25,7 @@ import AICommandBar from './workflow/AICommandBar'
 import ConfirmationModal from './workflow/ConfirmationModal'
 import { ConditionalNode } from './workflow/ConditionalNode'
 import { getUserId } from '../utils/userIdentity'
+import { WorkflowNamingService } from '../services/workflowNaming'
 
 const nodeTypes = {
   agent: AgentNode,
@@ -857,21 +858,53 @@ function WorkflowEditorInner({
           }
         }
       } else {
-        // Let backend handle all AI naming for better reliability
-        console.log('🏷️ Letting backend generate intelligent workflow identity...')
-        workflowDefinition = {
-          identity: null, // Backend will generate this using AI
-          nodes,
-          edges,
-          metadata: {
-            node_count: nodes.length,
-            edge_count: edges.length,
-            agent_count: nodes.filter(n => n.data?.type === 'agent').length,
-            tool_count: nodes.filter(n => n.data?.type === 'tool').length,
-            input_count: nodes.filter(n => n.data?.type === 'input').length,
-            output_count: nodes.filter(n => n.data?.type === 'output').length,
-            complexity_score: Math.min(nodes.length + edges.length, 10),
-            estimated_cost: 0
+        // Generate AI-powered workflow identity using frontend service
+        console.log('🤖 Generating AI-powered workflow identity...')
+        
+        try {
+          const namingResponse = await WorkflowNamingService.generateWorkflowIdentity({
+            nodes,
+            edges,
+            input_data: inputData
+          })
+          
+          console.log('✨ AI generated workflow identity:', namingResponse.identity)
+          
+          workflowDefinition = {
+            identity: namingResponse.identity,
+            nodes,
+            edges,
+            metadata: {
+              node_count: nodes.length,
+              edge_count: edges.length,
+              agent_count: nodes.filter(n => n.data?.type === 'agent').length,
+              tool_count: nodes.filter(n => n.data?.type === 'tool').length,
+              input_count: nodes.filter(n => n.data?.type === 'input').length,
+              output_count: nodes.filter(n => n.data?.type === 'output').length,
+              complexity_score: Math.min(nodes.length + edges.length, 10),
+              estimated_cost: 0
+            }
+          }
+          
+          // Store the generated identity for future use
+          setCurrentWorkflowIdentity(namingResponse.identity)
+        } catch (namingError) {
+          console.error('AI naming failed, falling back to backend:', namingError)
+          // Fallback to backend naming if AI service fails
+          workflowDefinition = {
+            identity: null,
+            nodes,
+            edges,
+            metadata: {
+              node_count: nodes.length,
+              edge_count: edges.length,
+              agent_count: nodes.filter(n => n.data?.type === 'agent').length,
+              tool_count: nodes.filter(n => n.data?.type === 'tool').length,
+              input_count: nodes.filter(n => n.data?.type === 'input').length,
+              output_count: nodes.filter(n => n.data?.type === 'output').length,
+              complexity_score: Math.min(nodes.length + edges.length, 10),
+              estimated_cost: 0
+            }
           }
         }
       }
