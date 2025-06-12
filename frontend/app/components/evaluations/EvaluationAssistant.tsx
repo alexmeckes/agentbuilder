@@ -124,6 +124,7 @@ What kind of workflow are you looking to evaluate today?`,
   const [isExpanded, setIsExpanded] = useState(false)
   const [recentWorkflows, setRecentWorkflows] = useState<RecentWorkflow[]>([])
   const [appliedSuggestions, setAppliedSuggestions] = useState<Set<string>>(new Set())
+  const [generatingPrompt, setGeneratingPrompt] = useState<string | null>(null)
 
   // Load recent workflows on component mount
   useEffect(() => {
@@ -287,25 +288,75 @@ What kind of workflow are you looking to evaluate today?`,
     return emojiMap[category] || '🔧'
   }
 
-  // Generate prompts using the LLM context from workflow execution
+  // Generate prompts using LLM to create insightful evaluation questions
   const generateWorkflowPrompt = async (workflow: RecentWorkflow): Promise<string> => {
-    // Use the AI-generated context from when the workflow was named
     const workflowName = workflow.name || 'Custom Workflow'
     const workflowCategory = workflow.category || 'general'
     const workflowDescription = workflow.description || ''
     
-    // Build a prompt that leverages the LLM's understanding from the naming phase
+    try {
+      // Call the workflow naming API with a special prompt to generate evaluation criteria prompt
+      console.log('🤖 Generating LLM-based evaluation prompt for:', workflowName)
+      
+      const response = await fetch('/api/workflow-naming', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert at creating specific, insightful prompts for workflow evaluation. Generate a detailed prompt that will be used to create evaluation criteria.'
+            },
+            {
+              role: 'user',
+              content: `Create a specific and insightful evaluation prompt for this workflow:
+              
+Name: ${workflowName}
+Category: ${workflowCategory}
+Description: ${workflowDescription || 'A workflow for ' + workflowCategory}
+Example Input: "${workflow.input_data || 'General user query'}"
+
+Generate a prompt that:
+1. Asks for evaluation criteria specific to this workflow's purpose
+2. Identifies unique edge cases based on the workflow name and description
+3. Focuses on domain-specific quality metrics
+4. Suggests testing scenarios that would reveal weaknesses
+
+The prompt should be conversational and specific, not generic. It should demonstrate deep understanding of what this workflow is trying to accomplish.`
+            }
+          ],
+          temperature: 0.8
+        })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const llmGeneratedPrompt = data.content
+        
+        // Parse the LLM response if it's JSON
+        try {
+          const parsed = JSON.parse(llmGeneratedPrompt)
+          return parsed.prompt || parsed.content || llmGeneratedPrompt
+        } catch {
+          // If not JSON, use as-is
+          return llmGeneratedPrompt
+        }
+      }
+    } catch (error) {
+      console.log('Failed to generate LLM prompt, using template:', error)
+    }
+    
+    // Fallback to template if LLM fails
     let prompt = `Generate comprehensive evaluation criteria for my "${workflowName}" workflow.`
     
-    // Add the LLM-generated description which contains the context
     if (workflowDescription && workflowDescription !== 'A workflow') {
       prompt += `\n\nContext: ${workflowDescription}`
     }
     
-    // Add the category context
     prompt += `\n\nThis is a ${workflowCategory} workflow.`
     
-    // Add the user's original input if available
     if (workflow.input_data) {
       const inputPreview = workflow.input_data.length > 150 
         ? workflow.input_data.substring(0, 150) + '...' 
@@ -313,7 +364,6 @@ What kind of workflow are you looking to evaluate today?`,
       prompt += `\n\nExample user query: "${inputPreview}"`
     }
     
-    // Request specific evaluation criteria based on the LLM's understanding
     prompt += `\n\nBased on the workflow's purpose and context, create evaluation criteria that:`
     prompt += `\n• Test the core functionality described in the context`
     prompt += `\n• Include edge cases specific to ${workflowName.split(' - ')[0]} scenarios`
@@ -862,15 +912,28 @@ I can suggest relevant criteria, test cases, and best practices based on your ne
             <button
               key={workflow.id}
               onClick={async () => {
+                setGeneratingPrompt(workflow.id)
                 const dynamicPrompt = await generateWorkflowPrompt(workflow)
                 setInput(dynamicPrompt)
+                setGeneratingPrompt(null)
               }}
-              className="px-2 py-1 text-xs bg-gradient-to-r from-blue-50 to-purple-50 text-blue-800 border border-blue-200 rounded hover:from-blue-100 hover:to-purple-100 transition-colors flex items-center gap-1"
+              disabled={generatingPrompt === workflow.id}
+              className={`px-2 py-1 text-xs border rounded transition-colors flex items-center gap-1 ${
+                generatingPrompt === workflow.id 
+                  ? 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-blue-50 to-purple-50 text-blue-800 border-blue-200 hover:from-blue-100 hover:to-purple-100'
+              }`}
               title={`Generate evaluation for: ${workflow.name}${workflow.description ? ' - ' + workflow.description : ''}`}
             >
-              {getCategoryEmoji(workflow.category)}
+              {generatingPrompt === workflow.id ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                getCategoryEmoji(workflow.category)
+              )}
               <span className="truncate max-w-[100px]">
-                {workflow.name === 'Unknown Workflow' 
+                {generatingPrompt === workflow.id 
+                  ? 'Generating...'
+                  : workflow.name === 'Unknown Workflow' 
                   ? workflow.category.charAt(0).toUpperCase() + workflow.category.slice(1)
                   : workflow.name.replace(/^(Multi-Agent |Workflow |The )/i, '').trim()
                 }
