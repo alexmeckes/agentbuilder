@@ -24,6 +24,7 @@ import { ExecutionProvider, useExecutionContext } from '../contexts/ExecutionCon
 import AICommandBar from './workflow/AICommandBar'
 import ConfirmationModal from './workflow/ConfirmationModal'
 import { ConditionalNode } from './workflow/ConditionalNode'
+import { getUserId } from '../utils/userIdentity'
 
 const nodeTypes = {
   agent: AgentNode,
@@ -798,21 +799,34 @@ function WorkflowEditorInner({
     // Get user context from localStorage
     let userContext = undefined
     try {
+      // First, ensure we have a user ID using the userIdentity utility
+      const userId = getUserId()
+      
+      // Then check for additional settings
       const userSettings = localStorage.getItem('userSettings')
       if (userSettings) {
         const settings = JSON.parse(userSettings)
         userContext = {
-          userId: settings.userId,
+          userId: userId, // Use the persistent user ID from userIdentity
           composioApiKey: settings.composioApiKey,
           enabledTools: settings.enabledTools || [],
           preferences: settings.preferences || {}
         }
-        console.log('👤 User context loaded:', {
-          userId: userContext.userId,
-          hasApiKey: !!userContext.composioApiKey,
-          enabledToolsCount: userContext.enabledTools.length
-        })
+      } else {
+        // Even if no settings, we still have a user ID
+        userContext = {
+          userId: userId,
+          composioApiKey: undefined,
+          enabledTools: [],
+          preferences: {}
+        }
       }
+      
+      console.log('👤 User context loaded:', {
+        userId: userContext.userId,
+        hasApiKey: !!userContext.composioApiKey,
+        enabledToolsCount: userContext.enabledTools.length
+      })
     } catch (error) {
       console.error('Failed to load user context:', error)
     }
