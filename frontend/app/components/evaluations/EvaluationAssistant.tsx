@@ -313,7 +313,8 @@ What kind of workflow are you looking to evaluate today?`,
       // Check if we can get workflow context from the current page or user input
       const workflowContext = await getWorkflowContext(userInput)
       
-      let apiEndpoint = 'http://localhost:8000/ai/evaluation-suggestions'
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+      let apiEndpoint = `${backendUrl}/ai/evaluation-suggestions`
       let requestBody: any = {
         input: userInput,
         context: {
@@ -325,7 +326,7 @@ What kind of workflow are you looking to evaluate today?`,
 
       // If we detected workflow context, use the workflow-aware endpoint
       if (workflowContext.hasWorkflow) {
-        apiEndpoint = 'http://localhost:8000/ai/workflow-evaluation-suggestions'
+        apiEndpoint = `${backendUrl}/ai/workflow-evaluation-suggestions`
         requestBody = {
           user_request: userInput,
           workflow: workflowContext.workflow,
@@ -411,14 +412,39 @@ What kind of workflow are you looking to evaluate today?`,
     } catch (error) {
       console.error('Failed to get AI suggestions:', error)
       
-      // Fallback to helpful error message
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        type: 'assistant',
-        content: `I'm having trouble connecting to the AI service right now. Here are some general evaluation tips:\n\n• Focus on measurable criteria\n• Test edge cases and failure modes\n• Evaluate both process and outcomes\n• Consider the specific domain of your workflow\n\nTry asking again in a moment, or describe your workflow type for more specific guidance.`,
-        timestamp: new Date()
+      // Provide intelligent fallback based on workflow context
+      const workflowContext = await getWorkflowContext(userInput)
+      
+      if (workflowContext.hasWorkflow && recentWorkflows.length > 0) {
+        // Find the workflow being referenced
+        const targetWorkflow = recentWorkflows.find(w => 
+          userInput.includes(`"${w.name}"`) || userInput.includes(w.name)
+        ) || recentWorkflows[0]
+        
+        // Generate context-aware fallback suggestions
+        const fallbackResponse = generateAIResponse(
+          `${targetWorkflow.category} workflow evaluation for ${targetWorkflow.name}`, 
+          evaluationCase
+        )
+        
+        const fallbackMessage: Message = {
+          id: Date.now().toString(),
+          type: 'assistant',
+          content: `I'm currently unable to connect to the AI service, but I can still help! Based on your "${targetWorkflow.name}" workflow (${targetWorkflow.category}), here are some evaluation suggestions:`,
+          timestamp: new Date(),
+          suggestions: fallbackResponse.suggestions
+        }
+        setMessages(prev => [...prev, fallbackMessage])
+      } else {
+        // Generic fallback
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          type: 'assistant',
+          content: `I'm having trouble connecting to the AI service right now. Here are some general evaluation tips:\n\n• Focus on measurable criteria\n• Test edge cases and failure modes\n• Evaluate both process and outcomes\n• Consider the specific domain of your workflow\n\nTry asking again in a moment, or describe your workflow type for more specific guidance.`,
+          timestamp: new Date()
+        }
+        setMessages(prev => [...prev, errorMessage])
       }
-      setMessages(prev => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
     }
