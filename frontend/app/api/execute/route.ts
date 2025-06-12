@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { addUserContext } from '../../utils/userIdentity'
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 interface UserContext {
   userId: string

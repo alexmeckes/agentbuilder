@@ -5,7 +5,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
     const { id } = params;
     
     const response = await fetch(`${backendUrl}/mcp/servers/${id}/test`, {
