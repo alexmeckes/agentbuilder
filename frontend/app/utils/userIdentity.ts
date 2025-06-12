@@ -47,15 +47,21 @@ export function addUserHeaders(headers: HeadersInit = {}): HeadersInit {
 export function addUserContext(request: any): any {
   const userId = getUserId()
   
-  // Add to user_context if it exists, otherwise create it
-  if (request.user_context) {
-    request.user_context.user_id = userId
-  } else if (request.userContext) {
-    request.userContext.userId = userId
-  } else {
-    // Create minimal user context
+  // Always ensure we have user_context (snake_case) for backend compatibility
+  if (!request.user_context) {
+    request.user_context = {}
+  }
+  
+  // Set the user_id in the expected format
+  request.user_context.user_id = userId
+  
+  // If there's a camelCase userContext, merge its data
+  if (request.userContext) {
+    // Don't override user_id if it was already set correctly
+    const { userId: camelCaseUserId, ...otherContext } = request.userContext
     request.user_context = {
-      user_id: userId
+      ...request.user_context,
+      ...otherContext
     }
   }
   
