@@ -298,20 +298,14 @@ What kind of workflow are you looking to evaluate today?`,
       // Call the workflow naming API with a special prompt to generate evaluation criteria prompt
       console.log('🤖 Generating LLM-based evaluation prompt for:', workflowName)
       
-      const response = await fetch('/api/workflow-naming', {
+      const response = await fetch('/api/llm', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert at creating evaluation prompts. Respond with ONLY the prompt text itself, no JSON, no formatting, just the evaluation prompt that will be sent to another AI.'
-            },
-            {
-              role: 'user',
-              content: `Write a conversational prompt asking for evaluation criteria for this workflow:
+          systemPrompt: 'You are an expert at creating evaluation prompts. Write a conversational, specific prompt that someone would use to ask for evaluation criteria. Make it sound natural and include specific details about the workflow.',
+          prompt: `Write a conversational prompt asking for evaluation criteria for this workflow:
 
 ${workflowName} - ${workflowCategory} workflow
 Purpose: ${workflowDescription || 'A ' + workflowCategory + ' workflow'}
@@ -324,48 +318,33 @@ The prompt should:
 - Request both functional tests and quality assessments
 - Sound like a human asking for help, not a template
 
-Write the prompt as if you're the user asking for help creating evaluation criteria.`
-            }
-          ],
-          temperature: 0.8
+Write the prompt as if you're the user asking for help creating evaluation criteria.`,
+          temperature: 0.8,
+          model: 'gpt-4o-mini'
         })
       })
       
       if (response.ok) {
         const data = await response.json()
-        let llmGeneratedPrompt = data.content
+        const llmGeneratedPrompt = data.response // Our new API returns 'response' field
         
         console.log('📝 Raw LLM response:', llmGeneratedPrompt)
         
-        // Check if it's JSON (which means the WorkflowNamer agent ignored our instructions)
-        try {
-          const parsed = JSON.parse(llmGeneratedPrompt)
-          // If it parsed as JSON, the agent gave us naming data instead of a prompt
-          console.log('❌ LLM returned JSON naming data instead of prompt text:', parsed)
-          throw new Error('Invalid format - got JSON instead of prompt')
-        } catch (jsonError) {
-          // Good! It's not JSON, so it should be the prompt text
-          if (jsonError.message === 'Invalid format - got JSON instead of prompt') {
-            throw jsonError
-          }
-          
-          // Clean up any potential formatting
-          llmGeneratedPrompt = llmGeneratedPrompt.trim()
-          
-          // If it's too short or seems wrong, use fallback
-          if (llmGeneratedPrompt.length < 50) {
-            console.log('❌ Prompt too short:', llmGeneratedPrompt.length, 'characters')
-            throw new Error('Prompt too short')
-          }
-          
-          if (llmGeneratedPrompt.includes('"name"') || llmGeneratedPrompt.includes('{')) {
-            console.log('❌ Prompt contains JSON markers')
-            throw new Error('Invalid prompt - contains JSON')
-          }
-          
-          console.log('✅ Valid LLM-generated prompt:', llmGeneratedPrompt.substring(0, 100) + '...')
-          return llmGeneratedPrompt
+        if (!llmGeneratedPrompt) {
+          console.log('❌ No response from LLM')
+          throw new Error('No response from LLM')
         }
+        
+        // Validate the prompt
+        const cleanPrompt = llmGeneratedPrompt.trim()
+        
+        if (cleanPrompt.length < 50) {
+          console.log('❌ Prompt too short:', cleanPrompt.length, 'characters')
+          throw new Error('Prompt too short')
+        }
+        
+        console.log('✅ Valid LLM-generated prompt:', cleanPrompt.substring(0, 100) + '...')
+        return cleanPrompt
       }
     } catch (error) {
       console.log('Failed to generate LLM prompt, using template:', error)

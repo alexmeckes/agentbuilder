@@ -39,14 +39,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if this is a custom prompt request (not workflow naming)
-    const systemMessage = messages.find(m => m.role === 'system')
-    const isCustomPrompt = systemMessage && !systemMessage.content.includes('analyzing AI workflows')
-    
-    // Create appropriate agent based on request type
-    const agentInstructions = isCustomPrompt 
-      ? systemMessage.content  // Use the custom system message
-      : `You are an expert at analyzing AI workflows and generating concise, descriptive names. 
+    // Create a specialized workflow naming agent
+    const namingWorkflow = {
+      nodes: [
+        {
+          id: 'workflow-namer',
+          type: 'agent',
+          data: {
+            name: 'WorkflowNamer',
+            instructions: `You are an expert at analyzing AI workflows and generating concise, descriptive names. 
 
 CRITICAL: You must respond with ONLY a valid JSON object - no markdown, no explanations, no additional text before or after the JSON.
 
@@ -55,16 +56,7 @@ Your response must be EXACTLY in this format:
 
 Categories to choose from: data-analysis, content-creation, automation, research, multi-agent, integration, system, general
 
-Analyze the workflow structure and user context to generate an appropriate name.`
-    
-    const namingWorkflow = {
-      nodes: [
-        {
-          id: 'workflow-namer',
-          type: 'agent',
-          data: {
-            name: isCustomPrompt ? 'Assistant' : 'WorkflowNamer',
-            instructions: agentInstructions,
+Analyze the workflow structure and user context to generate an appropriate name.`,
             model_id: selectedModel
           },
           position: { x: 0, y: 0 }
