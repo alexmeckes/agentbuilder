@@ -171,8 +171,10 @@ export class WorkflowNamingService {
       
       console.log('🎯 Calling workflow naming API...')
       console.log('📋 Request details:', {
-        nodeCount: analysis.total_nodes,
-        nodeTypes: Object.keys(analysis.node_types),
+        nodeCount: request.nodes.length,
+        structurePattern: analysis.structure_pattern,
+        toolTypes: analysis.tool_types,
+        agentRoles: analysis.agent_roles,
         promptLength: prompt.length,
         userContext: request.user_context ? request.user_context.substring(0, 50) + '...' : 'none'
       })
