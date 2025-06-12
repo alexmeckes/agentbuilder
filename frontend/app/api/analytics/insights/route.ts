@@ -5,14 +5,19 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
 export async function GET(request: NextRequest) {
   try {
     console.log('🔍 Proxying insights request to backend')
+    
+    // Extract user ID from request headers
+    const userId = request.headers.get('x-user-id') || 'anonymous'
+    console.log('📈 Insights request for user:', userId)
 
-    // Forward the request to the backend with cache-busting
+    // Forward the request to the backend with cache-busting and user ID
     const backendResponse = await fetch(`${BACKEND_URL}/analytics/insights?_t=${Date.now()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
+        'X-User-Id': userId,
       },
       cache: 'no-store'
     })

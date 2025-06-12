@@ -9,12 +9,17 @@ export async function GET(
   try {
     const { workflowId } = params
     console.log('🔍 Proxying workflow detail request to backend for workflow:', workflowId)
+    
+    // Extract user ID from request headers
+    const userId = request.headers.get('x-user-id') || 'anonymous'
+    console.log('📋 Workflow detail request for user:', userId)
 
-    // Forward the request to the backend
+    // Forward the request to the backend with user ID
     const backendResponse = await fetch(`${BACKEND_URL}/analytics/workflows/${workflowId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'X-User-Id': userId,
       }
     })
 
