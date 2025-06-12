@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { addUserContext } from '../../utils/userIdentity'
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000'
 
@@ -50,18 +51,16 @@ export async function POST(request: NextRequest) {
     })
 
     // Enhance the execution request with user context
+    const requestWithUser = addUserContext(executionRequest)
     const enhancedRequest = {
-      ...executionRequest,
+      ...requestWithUser,
       user_context: userContext ? {
-        user_id: userContext.userId,
+        ...requestWithUser.user_context,
+        user_id: userContext.userId || requestWithUser.user_context?.user_id,
         composio_api_key: userContext.composioApiKey,
         enabled_tools: userContext.enabledTools || [],
         preferences: userContext.preferences || {}
-      } : {
-        user_id: 'anonymous',
-        enabled_tools: [],
-        preferences: {}
-      }
+      } : requestWithUser.user_context
     }
 
     // Forward the enhanced request to the backend

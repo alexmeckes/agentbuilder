@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -89,6 +89,7 @@ class ExecutionRequest(BaseModel):
     workflow_identity: Optional[Dict[str, Any]] = None  # Frontend workflow identity
     workflow_name: Optional[str] = None  # Frontend workflow name
     workflow_id: Optional[str] = None  # Frontend workflow ID
+    user_context: Optional[Dict[str, Any]] = None  # User context with user_id
 
 
 class ExecutionResponse(BaseModel):
@@ -131,7 +132,8 @@ class WorkflowExecutor:
     """Execute workflows using any-agent's native multi-agent orchestration"""
     
     def __init__(self):
-        self.executions: Dict[str, Dict[str, Any]] = {}
+        # User-isolated executions: {user_id: {execution_id: execution_data}}
+        self.user_executions: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._generating_identity = False  # Protection against infinite loops
         self._validation_cache = {}  # Cache for validation results
         self._last_validation_time = {}  # Track validation timing
@@ -140,6 +142,94 @@ class WorkflowExecutor:
         self.websocket_connections: Dict[str, WebSocket] = {}  # execution_id -> websocket
         # New: Store for webhook triggers
         self.webhook_workflows: Dict[str, Dict[str, Any]] = {}
+        
+        # Memory management settings
+        self.max_executions_per_user = 100
+        self.execution_ttl_hours = 24
+
+    def _get_user_executions(self, user_id: str) -> Dict[str, Dict[str, Any]]:
+        """Get executions for a specific user, creating if needed"""
+        if user_id not in self.user_executions:
+            self.user_executions[user_id] = {}
+        return self.user_executions[user_id]
+    
+    def _add_execution(self, user_id: str, execution_id: str, data: dict):
+        """Add an execution for a user with automatic cleanup"""
+        user_execs = self._get_user_executions(user_id)
+        
+        # Add timestamp if not present
+        if "created_at" not in data:
+            data["created_at"] = time.time()
+        
+        # Store execution
+        user_execs[execution_id] = data
+        
+        # Cleanup old executions for this user
+        self._cleanup_user_executions(user_id)
+    
+    def _get_user_id_from_execution_id(self, execution_id: str) -> Optional[str]:
+        """Extract user_id from execution_id"""
+        if "_" in execution_id and execution_id.startswith("exec_"):
+            parts = execution_id.split("_", 2)
+            if len(parts) >= 3:
+                return parts[1]
+        # Fallback: search all users
+        for user_id, user_execs in self.user_executions.items():
+            if execution_id in user_execs:
+                return user_id
+        return None
+    
+    def _get_execution_by_id(self, execution_id: str) -> Optional[Dict[str, Any]]:
+        """Get an execution by ID from any user (used for backward compatibility)"""
+        # Extract user_id from execution_id if possible
+        if "_" in execution_id and execution_id.startswith("exec_"):
+            parts = execution_id.split("_", 2)
+            if len(parts) >= 3:
+                user_id = parts[1]
+                if user_id in self.user_executions:
+                    return self.user_executions[user_id].get(execution_id)
+        
+        # Fallback: search all users (for old execution IDs)
+        for user_id, user_execs in self.user_executions.items():
+            if execution_id in user_execs:
+                return user_execs[execution_id]
+        return None
+    
+    def _update_execution(self, execution_id: str, updates: dict):
+        """Update an execution by ID"""
+        execution = self._get_execution_by_id(execution_id)
+        if execution:
+            execution.update(updates)
+    
+    def _cleanup_user_executions(self, user_id: str):
+        """Remove expired executions and enforce max limit per user"""
+        user_execs = self.user_executions.get(user_id, {})
+        current_time = time.time()
+        ttl_seconds = self.execution_ttl_hours * 3600
+        
+        # Remove expired executions
+        expired = [
+            exec_id for exec_id, data in user_execs.items()
+            if current_time - data.get("created_at", 0) > ttl_seconds
+        ]
+        for exec_id in expired:
+            del user_execs[exec_id]
+            # Also cleanup related data
+            self.pending_inputs.pop(exec_id, None)
+            self.websocket_connections.pop(exec_id, None)
+        
+        # Keep only most recent N executions
+        if len(user_execs) > self.max_executions_per_user:
+            sorted_execs = sorted(
+                user_execs.items(),
+                key=lambda x: x[1].get("created_at", 0),
+                reverse=True
+            )
+            # Remove oldest executions
+            for exec_id, _ in sorted_execs[self.max_executions_per_user:]:
+                del user_execs[exec_id]
+                self.pending_inputs.pop(exec_id, None)
+                self.websocket_connections.pop(exec_id, None)
 
     async def register_webhook(self, workflow: WorkflowDefinition) -> Dict[str, str]:
         """Register a workflow to be triggered by a webhook."""
@@ -180,10 +270,12 @@ class WorkflowExecutor:
         execution_id = response.execution_id
         
         # Wait for the execution to complete
-        while self.executions[execution_id]["status"] in ["running", "waiting_for_input"]:
+        execution = self._get_execution_by_id(execution_id)
+        while execution and execution["status"] in ["running", "waiting_for_input"]:
             await asyncio.sleep(0.5)
+            execution = self._get_execution_by_id(execution_id)
             
-        final_state = self.executions[execution_id]
+        final_state = execution if execution else {"status": "failed", "error": "Execution not found"}
         
         if final_state["status"] == "failed":
             return {"success": False, "error": final_state.get("error", "Unknown error")}
@@ -192,19 +284,26 @@ class WorkflowExecutor:
 
     async def execute_workflow(self, request: ExecutionRequest) -> ExecutionResponse:
         """Execute a workflow definition using any-agent's native multi-agent capabilities with async progress tracking"""
-        execution_id = f"exec_{len(self.executions) + 1}"
+        # Extract user_id from request
+        user_id = "anonymous"
+        if request.user_context and request.user_context.get("user_id"):
+            user_id = request.user_context["user_id"]
+        
+        # Generate unique execution ID across all users
+        execution_id = f"exec_{user_id}_{int(time.time() * 1000)}"
         start_time = time.time()
         
         # Minimal debug - avoid excessive logging that might cause issues
-        print(f"🚀 Starting execution {execution_id} with {len(request.workflow.nodes)} nodes")
+        print(f"🚀 Starting execution {execution_id} for user {user_id} with {len(request.workflow.nodes)} nodes")
         
-        # Initialize execution record EARLY with progress tracking
-        self.executions[execution_id] = {
+        # Initialize execution record with user isolation
+        execution_data = {
             "status": "running",  # Changed from "initializing" to "running"
             "input": request.input_data,
             "created_at": start_time,
             "workflow": request.workflow,
             "framework": request.framework,
+            "user_id": user_id,
             "progress": {
                 "current_step": 0,
                 "total_steps": 0,
@@ -213,6 +312,9 @@ class WorkflowExecutor:
                 "node_status": {}  # Track individual node progress
             }
         }
+        
+        # Add execution with automatic cleanup
+        self._add_execution(user_id, execution_id, execution_data)
         
         try:
             # Convert workflow to format expected by translator
@@ -248,8 +350,10 @@ class WorkflowExecutor:
             if not validation_result["valid"]:
                 print(f"❌ Workflow validation failed: {validation_result['error']}")
                 print(f"🔍 Nodes received: {[{'id': n.get('id'), 'type': n.get('type'), 'data_type': n.get('data', {}).get('type')} for n in nodes]}")
-                self.executions[execution_id]["status"] = "failed"
-                self.executions[execution_id]["error"] = f"Invalid workflow structure: {validation_result['error']}"
+                self._update_execution(execution_id, {
+                    "status": "failed",
+                    "error": f"Invalid workflow structure: {validation_result['error']}"
+                })
                 return ExecutionResponse(
                     execution_id=execution_id,
                     status="failed",
@@ -274,7 +378,7 @@ class WorkflowExecutor:
                 print(f"✨ Generated workflow: {workflow_identity['name']} ({workflow_identity['category']})")
             
             # Update execution record with complete workflow information
-            self.executions[execution_id].update({
+            self._update_execution(execution_id, {
                 "workflow_identity": workflow_identity,
                 "workflow_name": workflow_identity["name"],
                 "workflow_category": workflow_identity["category"],
@@ -285,33 +389,36 @@ class WorkflowExecutor:
             executable_nodes = [n for n in nodes if n.get("type") in ["agent", "tool"]]
             total_steps = len(executable_nodes)
             
-            self.executions[execution_id]["progress"].update({
-                "total_steps": total_steps,
-                "current_activity": f"Preparing to execute {total_steps} nodes..."
-            })
-            
-            # Initialize node status tracking
-            for node in nodes:
-                node_id = node.get("id")
-                node_type = node.get("type")
-                if node_type in ["agent", "tool"]:
-                    self.executions[execution_id]["progress"]["node_status"][node_id] = {
-                        "status": "pending",
-                        "name": node.get("data", {}).get("name", node_id),
-                        "type": node_type
-                    }
-                else:
-                    # Input/output nodes are considered instantly completed
-                    self.executions[execution_id]["progress"]["node_status"][node_id] = {
-                        "status": "completed",
-                        "name": node.get("data", {}).get("name", node_id),
-                        "type": node_type
-                    }
+            # Get the execution to update progress
+            execution = self._get_execution_by_id(execution_id)
+            if execution:
+                execution["progress"].update({
+                    "total_steps": total_steps,
+                    "current_activity": f"Preparing to execute {total_steps} nodes..."
+                })
+                
+                # Initialize node status tracking
+                for node in nodes:
+                    node_id = node.get("id")
+                    node_type = node.get("type")
+                    if node_type in ["agent", "tool"]:
+                        execution["progress"]["node_status"][node_id] = {
+                            "status": "pending",
+                            "name": node.get("data", {}).get("name", node_id),
+                            "type": node_type
+                        }
+                    else:
+                        # Input/output nodes are considered instantly completed
+                        execution["progress"]["node_status"][node_id] = {
+                            "status": "completed",
+                            "name": node.get("data", {}).get("name", node_id),
+                            "type": node_type
+                        }
             
             # Start background execution task
             import asyncio
             asyncio.create_task(self._execute_workflow_async(
-                execution_id, nodes, edges, request.input_data, request.framework, workflow_identity
+                execution_id, nodes, edges, request.input_data, request.framework, workflow_identity, user_id
             ))
             
             # Return immediately with running status (workflow identity will be sent via WebSocket)
@@ -330,7 +437,7 @@ class WorkflowExecutor:
             
             print(f"❌ Critical workflow error: {error_details['error_type']}: {error_details['error_message']}")
             
-            self.executions[execution_id].update({
+            self._update_execution(execution_id, {
                 "status": "failed",
                 "error": str(e),
                 "error_details": error_details,
@@ -345,7 +452,7 @@ class WorkflowExecutor:
             )
 
     async def _execute_workflow_async(self, execution_id: str, nodes: List[Dict], edges: List[Dict], 
-                                     input_data: str, framework: str, workflow_identity: Dict[str, Any]):
+                                     input_data: str, framework: str, workflow_identity: Dict[str, Any], user_id: str):
         """Background execution method with progress tracking"""
         start_time = time.time()
         
@@ -418,11 +525,13 @@ class WorkflowExecutor:
                 # Mark any running nodes as failed
                 for node in executable_nodes:
                     node_id = node["id"]
-                    current_status = self.executions[execution_id]["progress"]["node_status"][node_id]["status"]
-                    if current_status in ["pending", "running"]:
-                        self._update_node_status(execution_id, node_id, "failed")
+                    execution = self._get_execution_by_id(execution_id)
+                    if execution:
+                        current_status = execution["progress"]["node_status"][node_id]["status"]
+                        if current_status in ["pending", "running"]:
+                            self._update_node_status(execution_id, node_id, "failed")
                 
-                self.executions[execution_id].update({
+                self._update_execution(execution_id, {
                     "status": "failed",
                     "result": workflow_result["final_output"],
                     "error": workflow_result["error"],
@@ -456,7 +565,7 @@ class WorkflowExecutor:
                 # Extract cost info for both trace and top-level storage
                 cost_info = self._extract_cost_info_from_trace(workflow_result.get("agent_trace"))
                 
-                self.executions[execution_id].update({
+                self._update_execution(execution_id, {
                     "status": "completed",
                     "result": final_output,
                     "completed_at": completion_time,
@@ -480,7 +589,7 @@ class WorkflowExecutor:
                 self._update_execution_progress(execution_id, 100, "Completed successfully!")
                 
                 # Debug: Check the final execution state
-                final_execution = self.executions[execution_id]
+                final_execution = self._get_execution_by_id(execution_id)
                 print(f"✅ Workflow {execution_id} completed successfully")
                 print(f"🔍 Final execution status: {final_execution.get('status')}")
                 print(f"🔍 Final progress: {final_execution.get('progress', {})}")
@@ -503,11 +612,13 @@ class WorkflowExecutor:
             for node in nodes:
                 if node.get("type") in ["agent", "tool"]:
                     node_id = node["id"]
-                    current_status = self.executions[execution_id]["progress"]["node_status"][node_id]["status"]
-                    if current_status in ["pending", "running"]:
-                        self._update_node_status(execution_id, node_id, "failed")
+                    execution = self._get_execution_by_id(execution_id)
+                    if execution:
+                        current_status = execution["progress"]["node_status"][node_id]["status"]
+                        if current_status in ["pending", "running"]:
+                            self._update_node_status(execution_id, node_id, "failed")
             
-            self.executions[execution_id].update({
+            self._update_execution(execution_id, {
                 "status": "failed",
                 "error": str(e),
                 "error_details": error_details,
@@ -526,21 +637,23 @@ class WorkflowExecutor:
 
     def _update_execution_progress(self, execution_id: str, percentage: float, activity: str):
         """Update execution progress"""
-        if execution_id in self.executions:
-            self.executions[execution_id]["progress"].update({
+        execution = self._get_execution_by_id(execution_id)
+        if execution:
+            execution["progress"].update({
                 "percentage": min(100, max(0, percentage)),
                 "current_activity": activity
             })
 
     def _update_node_status(self, execution_id: str, node_id: str, status: str):
         """Update individual node status"""
-        if execution_id in self.executions and node_id in self.executions[execution_id]["progress"]["node_status"]:
-            self.executions[execution_id]["progress"]["node_status"][node_id]["status"] = status
+        execution = self._get_execution_by_id(execution_id)
+        if execution and node_id in execution["progress"]["node_status"]:
+            execution["progress"]["node_status"][node_id]["status"] = status
             
             # Update current step count
-            completed_count = sum(1 for node_status in self.executions[execution_id]["progress"]["node_status"].values() 
+            completed_count = sum(1 for node_status in execution["progress"]["node_status"].values() 
                                 if node_status["status"] == "completed")
-            self.executions[execution_id]["progress"]["current_step"] = completed_count
+            execution["progress"]["current_step"] = completed_count
 
     async def _detect_user_input_request(self, execution_id: str, agent_output: str) -> Optional[Dict[str, Any]]:
         """Detect if agent is asking for user input based on output content"""
@@ -603,9 +716,10 @@ class WorkflowExecutor:
                 self.pending_inputs[execution_id] = input_request
                 
                 # Update execution status
-                if execution_id in self.executions:
-                    self.executions[execution_id]["status"] = "waiting_for_input"
-                    self.executions[execution_id]["progress"]["current_activity"] = f"Waiting for user input: {input_request['question']}"
+                execution = self._get_execution_by_id(execution_id)
+                if execution:
+                    execution["status"] = "waiting_for_input"
+                    execution["progress"]["current_activity"] = f"Waiting for user input: {input_request['question']}"
                     
                 print(f"📝 Sent input request to frontend for execution {execution_id}")
                 
@@ -617,7 +731,8 @@ class WorkflowExecutor:
         if execution_id not in self.pending_inputs:
             return {"success": False, "error": "No pending input request found"}
             
-        if execution_id not in self.executions:
+        execution = self._get_execution_by_id(execution_id)
+        if not execution:
             return {"success": False, "error": "Execution not found"}
             
         try:
@@ -625,9 +740,9 @@ class WorkflowExecutor:
             input_request = self.pending_inputs.pop(execution_id)
             
             # Update execution status
-            self.executions[execution_id]["status"] = "running"
-            self.executions[execution_id]["progress"]["current_activity"] = "Processing user input..."
-            self.executions[execution_id]["user_input"] = input_text
+            execution["status"] = "running"
+            execution["progress"]["current_activity"] = "Processing user input..."
+            execution["user_input"] = input_text
             
             # Send update to frontend
             if execution_id in self.websocket_connections:
@@ -647,10 +762,10 @@ class WorkflowExecutor:
             
             # TODO: In a full implementation, we would resume the agent execution here
             # For now, we'll just mark the execution as completed with the user input
-            self.executions[execution_id]["status"] = "completed"
-            self.executions[execution_id]["result"] = f"Workflow completed with user input: {input_text}"
-            self.executions[execution_id]["progress"]["current_activity"] = "Completed"
-            self.executions[execution_id]["progress"]["percentage"] = 100
+            execution["status"] = "completed"
+            execution["result"] = f"Workflow completed with user input: {input_text}"
+            execution["progress"]["current_activity"] = "Completed"
+            execution["progress"]["percentage"] = 100
             
             return {"success": True, "message": "User input processed successfully"}
             
@@ -1561,10 +1676,9 @@ async def submit_user_input(execution_id: str, input_request: UserInputRequest):
 @app.get("/executions/{execution_id}")
 async def get_execution(execution_id: str):
     """Get execution details by ID"""
-    if execution_id not in executor.executions:
+    execution = executor._get_execution_by_id(execution_id)
+    if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
-    
-    execution = executor.executions[execution_id]
     
     # Return the same JSON-safe structure as WebSocket for consistency
     return {
@@ -1596,10 +1710,9 @@ async def get_execution(execution_id: str):
 @app.get("/executions/{execution_id}/trace")
 async def get_execution_trace(execution_id: str):
     """Get detailed trace information for an execution"""
-    if execution_id not in executor.executions:
+    execution = executor._get_execution_by_id(execution_id)
+    if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
-    
-    execution = executor.executions[execution_id]
     if "trace" not in execution:
         raise HTTPException(status_code=404, detail="Trace not found for this execution")
     
@@ -1615,10 +1728,9 @@ async def get_execution_trace(execution_id: str):
 @app.get("/executions/{execution_id}/performance")
 async def get_execution_performance(execution_id: str):
     """Get performance metrics for an execution"""
-    if execution_id not in executor.executions:
+    execution = executor._get_execution_by_id(execution_id)
+    if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
-    
-    execution = executor.executions[execution_id]
     if "trace" not in execution:
         raise HTTPException(status_code=404, detail="Performance data not available")
     
@@ -1671,12 +1783,17 @@ async def get_execution_performance(execution_id: str):
 
 
 @app.get("/analytics/executions")
-async def get_execution_analytics():
+async def get_execution_analytics(request: Request):
     """Get aggregated analytics across all executions"""
-    if not executor.executions:
+    # Extract user_id from headers
+    user_id = request.headers.get("x-user-id", "anonymous")
+    
+    # Get user-specific executions
+    user_executions = executor._get_user_executions(user_id)
+    if not user_executions:
         return {"message": "No executions found", "analytics": {}}
     
-    executions = list(executor.executions.values())
+    executions = list(user_executions.values())
     completed_executions = [e for e in executions if e.get("status") == "completed" and "trace" in e]
     
     if not completed_executions:
@@ -1756,8 +1873,8 @@ async def websocket_execution_status(websocket: WebSocket, execution_id: str):
     
     try:
         while True:
-            if execution_id in executor.executions:
-                execution = executor.executions[execution_id]
+            execution = executor._get_execution_by_id(execution_id)
+            if execution:
                 
                 # Create JSON-safe version of execution data with all necessary fields
                 safe_execution = {
@@ -2979,9 +3096,14 @@ async def cancel_experiment(experiment_id: str):
 # ===== ANALYTICS ENDPOINTS =====
 
 @app.get("/analytics/workflows")
-async def get_workflow_analytics():
+async def get_workflow_analytics(request: Request):
     """Get workflow analytics data from real executions with intelligent naming"""
-    if not executor.executions:
+    # Extract user_id from headers
+    user_id = request.headers.get("x-user-id", "anonymous")
+    
+    # Get user-specific executions
+    user_executions = executor._get_user_executions(user_id)
+    if not user_executions:
         return {
             "total_workflows": 0,
             "total_executions": 0,
@@ -2997,7 +3119,7 @@ async def get_workflow_analytics():
             "recent_executions": []
         }
     
-    executions = list(executor.executions.values())
+    executions = list(user_executions.values())
     total_executions = len(executions)
     completed_executions = [e for e in executions if e.get("status") == "completed"]
     failed_executions = [e for e in executions if e.get("status") == "failed"]
@@ -3013,8 +3135,8 @@ async def get_workflow_analytics():
     print(f"📊 Analytics calculation: {len(completed_executions)} completed executions, total_cost=${total_cost:.6f}, total_tokens={total_tokens}")
     
     # DEBUG: Print execution details for workflow grouping investigation
-    print(f"🔍 DEBUG: Workflow grouping analysis:")
-    for exec_id, execution in executor.executions.items():
+    print(f"🔍 DEBUG: Workflow grouping analysis for user {user_id}:")
+    for exec_id, execution in user_executions.items():
         workflow_identity = execution.get("workflow_identity", {})
         structure_hash = workflow_identity.get("structure_hash", "no_hash")
         workflow_name = execution.get("workflow_name", "no_name")
@@ -3023,7 +3145,7 @@ async def get_workflow_analytics():
     
     # Group executions by workflow structure hash for intelligent grouping
     workflow_groups = {}
-    for exec_id, execution in executor.executions.items():
+    for exec_id, execution in user_executions.items():
         workflow_identity = execution.get("workflow_identity", {})
         structure_hash = workflow_identity.get("structure_hash", exec_id)
         
@@ -3091,7 +3213,7 @@ async def get_workflow_analytics():
     
     # Recent executions with intelligent step names
     recent_executions = []
-    for exec_id, execution in list(executor.executions.items())[-10:]:
+    for exec_id, execution in list(user_executions.items())[-10:]:
         # FIXED: cost_info is at top level, not in trace
         cost_info = execution.get("cost_info", {})
         
@@ -3151,15 +3273,20 @@ async def get_workflow_analytics():
 
 
 @app.get("/analytics/workflow-steps")
-async def get_workflow_steps_analytics():
+async def get_workflow_steps_analytics(request: Request):
     """Get step-by-step analytics showing individual workflow nodes"""
-    if not executor.executions:
+    # Extract user_id from headers
+    user_id = request.headers.get("x-user-id", "anonymous")
+    
+    # Get user-specific executions
+    user_executions = executor._get_user_executions(user_id)
+    if not user_executions:
         return {"steps": [], "total_steps": 0}
     
     all_steps = []
-    completed_executions = [e for e in executor.executions.values() if e.get("status") == "completed"]
+    completed_executions = [e for e in user_executions.values() if e.get("status") == "completed"]
     
-    for exec_id, execution in executor.executions.items():
+    for exec_id, execution in user_executions.items():
         trace = execution.get("trace", {})
         spans = trace.get("spans", [])
         workflow_name = execution.get("workflow_name", f"Workflow {exec_id}")

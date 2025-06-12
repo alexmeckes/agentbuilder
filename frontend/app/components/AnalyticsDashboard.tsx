@@ -19,6 +19,7 @@ import {
   Activity
 } from 'lucide-react'
 import { WorkflowDetailModal } from './WorkflowDetailModal'
+import { addUserHeaders } from '../utils/userIdentity'
 
 interface WorkflowExecutionSummary {
   workflow_id: string
@@ -104,14 +105,18 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
     setLoading(true)
     try {
       // Fetch workflow analytics via API route (proxies to correct backend)
-      const workflowResponse = await fetch('/api/analytics/workflows')
+      const workflowResponse = await fetch('/api/analytics/workflows', {
+        headers: addUserHeaders()
+      })
       if (workflowResponse.ok) {
         const workflowData = await workflowResponse.json()
         setWorkflowAnalytics(workflowData)
       }
 
       // Fetch insights via API route (proxies to correct backend)
-      const insightsResponse = await fetch('/api/analytics/insights')
+      const insightsResponse = await fetch('/api/analytics/insights', {
+        headers: addUserHeaders()
+      })
       if (insightsResponse.ok) {
         const insightsData = await insightsResponse.json()
         setInsights(insightsData)
