@@ -307,24 +307,24 @@ What kind of workflow are you looking to evaluate today?`,
           messages: [
             {
               role: 'system',
-              content: 'You are an expert at creating specific, insightful prompts for workflow evaluation. Generate a detailed prompt that will be used to create evaluation criteria.'
+              content: 'You are an expert at creating evaluation prompts. Respond with ONLY the prompt text itself, no JSON, no formatting, just the evaluation prompt that will be sent to another AI.'
             },
             {
               role: 'user',
-              content: `Create a specific and insightful evaluation prompt for this workflow:
-              
-Name: ${workflowName}
-Category: ${workflowCategory}
-Description: ${workflowDescription || 'A workflow for ' + workflowCategory}
-Example Input: "${workflow.input_data || 'General user query'}"
+              content: `Write a conversational prompt asking for evaluation criteria for this workflow:
 
-Generate a prompt that:
-1. Asks for evaluation criteria specific to this workflow's purpose
-2. Identifies unique edge cases based on the workflow name and description
-3. Focuses on domain-specific quality metrics
-4. Suggests testing scenarios that would reveal weaknesses
+${workflowName} - ${workflowCategory} workflow
+Purpose: ${workflowDescription || 'A ' + workflowCategory + ' workflow'}
+Example query: "${workflow.input_data || 'General user query'}"
 
-The prompt should be conversational and specific, not generic. It should demonstrate deep understanding of what this workflow is trying to accomplish.`
+The prompt should:
+- Be conversational and natural
+- Reference specific aspects of ${workflowName}
+- Ask for edge cases relevant to ${workflowName.includes('Moose') ? 'wildlife viewing' : workflowName.includes('Yellowstone') ? 'location-based queries' : 'this domain'}
+- Request both functional tests and quality assessments
+- Sound like a human asking for help, not a template
+
+Write the prompt as if you're the user asking for help creating evaluation criteria.`
             }
           ],
           temperature: 0.8
@@ -333,14 +333,24 @@ The prompt should be conversational and specific, not generic. It should demonst
       
       if (response.ok) {
         const data = await response.json()
-        const llmGeneratedPrompt = data.content
+        let llmGeneratedPrompt = data.content
         
-        // Parse the LLM response if it's JSON
+        // Clean up the response - remove any JSON if the LLM included it
         try {
           const parsed = JSON.parse(llmGeneratedPrompt)
-          return parsed.prompt || parsed.content || llmGeneratedPrompt
+          // If it parsed as JSON, it's the wrong format - use fallback
+          console.log('LLM returned JSON instead of prompt text, using fallback')
+          throw new Error('Invalid format')
         } catch {
-          // If not JSON, use as-is
+          // Good! It's not JSON, so it should be the prompt text
+          // Just clean up any potential formatting
+          llmGeneratedPrompt = llmGeneratedPrompt.trim()
+          
+          // If it's too short or seems wrong, use fallback
+          if (llmGeneratedPrompt.length < 50 || llmGeneratedPrompt.includes('"name"')) {
+            throw new Error('Invalid prompt generated')
+          }
+          
           return llmGeneratedPrompt
         }
       }
