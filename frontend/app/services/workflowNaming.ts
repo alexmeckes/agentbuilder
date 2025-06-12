@@ -169,6 +169,14 @@ export class WorkflowNamingService {
         headers['x-user-preferences'] = JSON.stringify(userPrefs)
       }
       
+      console.log('🎯 Calling workflow naming API...')
+      console.log('📋 Request details:', {
+        nodeCount: analysis.total_nodes,
+        nodeTypes: Object.keys(analysis.node_types),
+        promptLength: prompt.length,
+        userContext: request.user_context ? request.user_context.substring(0, 50) + '...' : 'none'
+      })
+      
       const response = await fetch('/api/workflow-naming', {
         method: 'POST',
         headers,
@@ -188,7 +196,7 @@ export class WorkflowNamingService {
         })
       })
 
-      console.log('Workflow naming API response status:', response.status)
+      console.log('📥 Workflow naming API response status:', response.status)
 
       if (!response.ok) {
         console.error('Workflow naming API failed with status:', response.status)
@@ -197,11 +205,14 @@ export class WorkflowNamingService {
 
       const data = await response.json()
       console.log('Workflow naming API response:', data)
+      console.log('Data.content:', data.content)
+      console.log('Data.content type:', typeof data.content)
       const aiResponse = data.content
 
       // Parse AI response
       try {
         const parsed = JSON.parse(aiResponse)
+        console.log('Parsed AI response:', parsed)
         return {
           name: parsed.name || this.generateIntelligentFallbackName(request.nodes, request.edges),
           description: parsed.description || `A workflow with ${request.nodes.length} nodes`,
