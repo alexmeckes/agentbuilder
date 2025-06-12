@@ -290,27 +290,6 @@ What kind of workflow are you looking to evaluate today?`,
   // Generate dynamic, insightful prompts based on workflow analysis
   const generateWorkflowPrompt = async (workflow: RecentWorkflow): Promise<string> => {
     try {
-      // First, try to use LLM to generate an even better prompt
-      try {
-        const promptGenerationRequest = {
-          nodes: workflow.workflow?.nodes || [],
-          edges: workflow.workflow?.edges || [],
-          user_context: `Generate a specific and insightful evaluation prompt for this ${workflow.category} workflow named "${workflow.name}". The prompt should identify unique testing scenarios and edge cases specific to this workflow's purpose.`
-        }
-        
-        const namingResponse = await WorkflowNamingService.generateWorkflowIdentity(promptGenerationRequest)
-        
-        // Check if we got a good description that can be used as a prompt base
-        if (namingResponse.identity?.description) {
-          const llmGeneratedPrompt = `I need sophisticated evaluation criteria for my "${workflow.name}" workflow. ${namingResponse.identity.description}\n\nBased on this workflow's specific purpose and structure, create evaluation criteria that:\n• Test unique edge cases for ${workflow.name.split(' ')[0].toLowerCase()} scenarios\n• Measure domain-specific quality metrics\n• Identify potential failure modes in the workflow's core functionality\n• Include both functional correctness and output quality assessments`
-          
-          return llmGeneratedPrompt
-        }
-      } catch (llmError) {
-        console.log('LLM prompt generation unavailable, using smart analysis:', llmError)
-      }
-      
-      // Fallback to smart structural analysis
       // Analyze the workflow structure to create a more specific prompt
       const nodes = workflow.workflow?.nodes || []
       const edges = workflow.workflow?.edges || []
@@ -340,6 +319,17 @@ What kind of workflow are you looking to evaluate today?`,
       if (toolTypes.includes('web_search')) {
         concerns.push("information accuracy and source reliability")
         capabilities.push("research thoroughness")
+        
+        // Add specific concerns for location-based searches
+        if (workflow.name.toLowerCase().includes('yellowstone') || workflow.name.toLowerCase().includes('park')) {
+          concerns.push("location-specific accuracy and seasonal variations")
+          capabilities.push("providing practical visitor information")
+        }
+        
+        if (workflow.name.toLowerCase().includes('moose') || workflow.name.toLowerCase().includes('wildlife')) {
+          concerns.push("wildlife safety information and ethical viewing practices")
+          capabilities.push("current wildlife activity patterns")
+        }
       }
       
       if (toolTypes.includes('file_write') || toolTypes.includes('database')) {
@@ -357,7 +347,12 @@ What kind of workflow are you looking to evaluate today?`,
       }
       
       // Build a context-rich prompt
-      let prompt = `I need evaluation criteria for my "${workflow.name}" workflow. `
+      let prompt = `I need evaluation criteria for my "${workflow.name}" workflow.`
+      
+      // Add workflow description if available
+      if (workflow.description && workflow.description !== 'A workflow') {
+        prompt += ` ${workflow.description}`
+      }
       
       // Add specific context based on the workflow
       if (workflow.input_data) {
