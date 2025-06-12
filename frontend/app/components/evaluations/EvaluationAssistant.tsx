@@ -287,114 +287,41 @@ What kind of workflow are you looking to evaluate today?`,
     return emojiMap[category] || '🔧'
   }
 
-  // Generate dynamic, insightful prompts based on workflow analysis
+  // Generate prompts using the LLM context from workflow execution
   const generateWorkflowPrompt = async (workflow: RecentWorkflow): Promise<string> => {
-    try {
-      // Analyze the workflow structure to create a more specific prompt
-      const nodes = workflow.workflow?.nodes || []
-      const edges = workflow.workflow?.edges || []
-      
-      // Extract key information about the workflow
-      const agentNodes = nodes.filter((n: any) => n.data?.type === 'agent')
-      const toolNodes = nodes.filter((n: any) => n.data?.type === 'tool')
-      const agentCount = agentNodes.length
-      const toolTypes = [...new Set(toolNodes.map((n: any) => n.data?.tool_type).filter(Boolean))]
-      
-      // Analyze agent instructions for key capabilities
-      const agentInstructions = agentNodes
-        .map((n: any) => n.data?.instructions || '')
-        .join(' ')
-        .toLowerCase()
-      
-      // Detect workflow patterns and concerns
-      const concerns = []
-      const capabilities = []
-      
-      // Analyze based on workflow structure
-      if (agentCount > 2) {
-        concerns.push("multi-agent coordination and handoffs")
-        capabilities.push("agent collaboration quality")
-      }
-      
-      if (toolTypes.includes('web_search')) {
-        concerns.push("information accuracy and source reliability")
-        capabilities.push("research thoroughness")
-        
-        // Add specific concerns for location-based searches
-        if (workflow.name.toLowerCase().includes('yellowstone') || workflow.name.toLowerCase().includes('park')) {
-          concerns.push("location-specific accuracy and seasonal variations")
-          capabilities.push("providing practical visitor information")
-        }
-        
-        if (workflow.name.toLowerCase().includes('moose') || workflow.name.toLowerCase().includes('wildlife')) {
-          concerns.push("wildlife safety information and ethical viewing practices")
-          capabilities.push("current wildlife activity patterns")
-        }
-      }
-      
-      if (toolTypes.includes('file_write') || toolTypes.includes('database')) {
-        concerns.push("data integrity and error handling")
-        capabilities.push("data processing accuracy")
-      }
-      
-      if (agentInstructions.includes('analyze') || agentInstructions.includes('analysis')) {
-        capabilities.push("analytical depth and insight quality")
-      }
-      
-      if (agentInstructions.includes('creative') || agentInstructions.includes('generate')) {
-        capabilities.push("creativity and originality")
-        concerns.push("maintaining consistency with requirements")
-      }
-      
-      // Build a context-rich prompt
-      let prompt = `I need evaluation criteria for my "${workflow.name}" workflow.`
-      
-      // Add workflow description if available
-      if (workflow.description && workflow.description !== 'A workflow') {
-        prompt += ` ${workflow.description}`
-      }
-      
-      // Add specific context based on the workflow
-      if (workflow.input_data) {
-        const inputPreview = workflow.input_data.substring(0, 100)
-        prompt += `\n\nTypical input: "${inputPreview}${workflow.input_data.length > 100 ? '...' : ''}" `
-      }
-      
-      prompt += `\n\nThis ${workflow.category} workflow has ${agentCount} agent${agentCount !== 1 ? 's' : ''}`
-      if (toolTypes.length > 0) {
-        prompt += ` using ${toolTypes.join(', ')} tools`
-      }
-      prompt += '.'
-      
-      if (capabilities.length > 0) {
-        prompt += `\n\nKey capabilities to evaluate: ${capabilities.join(', ')}.`
-      }
-      
-      if (concerns.length > 0) {
-        prompt += `\n\nPotential failure points: ${concerns.join(', ')}.`
-      }
-      
-      // Add specific evaluation focus
-      prompt += `\n\nPlease create evaluation criteria that:`
-      prompt += `\n• Test the specific ${workflow.category} capabilities of this workflow`
-      prompt += `\n• Include edge cases relevant to ${workflow.name.split(' ')[0].toLowerCase()} scenarios`
-      prompt += `\n• Measure both correctness and quality of outputs`
-      
-      if (agentCount > 1) {
-        prompt += `\n• Assess the coordination between the ${agentCount} agents`
-      }
-      
-      if (toolTypes.length > 0) {
-        prompt += `\n• Verify proper ${toolTypes[0]} usage and error handling`
-      }
-      
-      return prompt
-      
-    } catch (error) {
-      console.log('Error generating dynamic prompt, using fallback:', error)
-      // Fallback to template if analysis fails
-      return `Generate comprehensive evaluation criteria for my "${workflow.name}" workflow. This is a ${workflow.category} workflow${workflow.description ? `: ${workflow.description}` : ''}. Focus on domain-specific evaluation criteria that would test the key capabilities and potential failure modes of this particular workflow based on its actual structure and purpose.`
+    // Use the AI-generated context from when the workflow was named
+    const workflowName = workflow.name || 'Custom Workflow'
+    const workflowCategory = workflow.category || 'general'
+    const workflowDescription = workflow.description || ''
+    
+    // Build a prompt that leverages the LLM's understanding from the naming phase
+    let prompt = `Generate comprehensive evaluation criteria for my "${workflowName}" workflow.`
+    
+    // Add the LLM-generated description which contains the context
+    if (workflowDescription && workflowDescription !== 'A workflow') {
+      prompt += `\n\nContext: ${workflowDescription}`
     }
+    
+    // Add the category context
+    prompt += `\n\nThis is a ${workflowCategory} workflow.`
+    
+    // Add the user's original input if available
+    if (workflow.input_data) {
+      const inputPreview = workflow.input_data.length > 150 
+        ? workflow.input_data.substring(0, 150) + '...' 
+        : workflow.input_data
+      prompt += `\n\nExample user query: "${inputPreview}"`
+    }
+    
+    // Request specific evaluation criteria based on the LLM's understanding
+    prompt += `\n\nBased on the workflow's purpose and context, create evaluation criteria that:`
+    prompt += `\n• Test the core functionality described in the context`
+    prompt += `\n• Include edge cases specific to ${workflowName.split(' - ')[0]} scenarios`
+    prompt += `\n• Evaluate the quality and accuracy of the ${workflowCategory} outputs`
+    prompt += `\n• Test failure modes relevant to this specific use case`
+    prompt += `\n• Measure both correctness and usefulness of results`
+    
+    return prompt
   }
 
   const handleSendMessage = async () => {
