@@ -931,7 +931,7 @@ class WorkflowExecutor:
         return hashlib.md5(structure_str.encode()).hexdigest()[:16]
 
     async def _generate_workflow_identity(self, nodes: List[Dict], edges: List[Dict], input_data: str) -> Dict[str, Any]:
-        """Generate workflow identity using smart pattern matching"""
+        """Generate workflow identity using structural analysis"""
         # Enhanced protection against infinite loops
         if self._generating_identity:
             print("⚠️  Loop protection: Skipping nested workflow identity generation")
@@ -954,125 +954,64 @@ class WorkflowExecutor:
         if cache_key in self._last_validation_time:
             time_since_last = current_time - self._last_validation_time[cache_key]
             if time_since_last < 30.0:
-                print(f"🔄 Recent identity generation for structure {structure_hash[:8]}, using enhanced pattern matching")
-                # Use enhanced pattern matching for recent duplicates
+                print(f"🔄 Recent identity generation for structure {structure_hash[:8]}, using simple naming")
+                # Use simple naming for recent duplicates
                 return self._generate_simple_workflow_identity(nodes, edges, input_data, structure_hash)
         
         self._last_validation_time[cache_key] = current_time
         self._generating_identity = True
         try:
-            # Remove the duplicate print statement that was causing confusion
-            # The main print statement should come from the caller in execute_workflow
-            
-            # Smart pattern matching based on input content and node analysis
-            input_lower = input_data.lower()
+            # Analyze workflow structure
             workflow_name = "Custom Workflow"
             workflow_category = "general"
             workflow_description = "A custom workflow"
             confidence = 0.7
             
-            # Analyze agent names and instructions for context
-            agent_contexts = []
+            # Check for system workflows
             system_workflow_detected = False
             
             for node in nodes:
                 if node.get("type") == "agent":
                     agent_data = node.get("data", {})
                     agent_name = agent_data.get("name", "").lower()
-                    agent_instructions = agent_data.get("instructions", "").lower()
-                    agent_contexts.append(f"{agent_name} {agent_instructions}")
                     
                     # Detect system workflows
                     if agent_name in ["contextextractor", "contextgenerator"]:
                         system_workflow_detected = True
+                        break
             
-            combined_context = f"{input_data} {' '.join(agent_contexts)}".lower()
-            
-            # Handle system workflows first
+            # Handle system workflows
             if system_workflow_detected:
-                if "contextextractor" in combined_context:
-                    workflow_name = "Context Extraction"
-                    workflow_description = "Extract actionable context from user inputs"
-                    workflow_category = "system"
-                    confidence = 0.95
-                elif "contextgenerator" in combined_context:
-                    workflow_name = "Context Generation"
-                    workflow_description = "Generate workflow suggestions from user requests"
-                    workflow_category = "system"
-                    confidence = 0.95
-                else:
-                    workflow_name = "System Workflow"
-                    workflow_description = "Internal system processing"
-                    workflow_category = "system"
-                    confidence = 0.9
+                workflow_name = "System Workflow"
+                workflow_description = "Internal system processing"
+                workflow_category = "system"
+                confidence = 0.9
             else:
-                # Advanced pattern matching for specific use cases - improved logic
-                if "moose" in combined_context:
-                    if "yellowstone" in combined_context or "park" in combined_context:
-                        workflow_name = "Moose Viewing Guide"
-                        workflow_description = "Find the best locations for moose viewing in Yellowstone"
-                        confidence = 0.9
-                    else:
-                        workflow_name = "Moose Research Guide"
-                        workflow_description = "Research and information gathering about moose"
-                        confidence = 0.8
-                    workflow_category = "research"
-                elif "grizzly" in combined_context and "bear" in combined_context:
-                    if "yellowstone" in combined_context or "park" in combined_context:
-                        workflow_name = "Grizzly Bear Viewing Guide"
-                        workflow_description = "Find the best locations for grizzly bear viewing in Yellowstone"
-                        confidence = 0.9
-                    else:
-                        workflow_name = "Grizzly Bear Research Guide"
-                        workflow_description = "Research and information gathering about grizzly bears"
-                        confidence = 0.8
-                    workflow_category = "research"
-                elif "wildlife" in combined_context and ("viewing" in combined_context or "spotting" in combined_context):
-                    workflow_name = "Wildlife Viewing Guide"
-                    workflow_description = "Discover optimal wildlife viewing locations and tips"
-                    confidence = 0.85
-                    workflow_category = "research"
-                elif any(word in combined_context for word in ["animal", "wildlife"]) and "research" in combined_context:
-                    workflow_name = "Animal Research Guide"
-                    workflow_description = "Research and information gathering about animals"
-                    confidence = 0.8
-                    workflow_category = "research"
-                    
-                elif any(word in combined_context for word in ["customer", "onboard", "support", "service"]):
-                    workflow_name = "Customer Service Automation"
-                    workflow_description = "Streamline customer onboarding and support processes"
+                # Use structural naming based on node types and counts
+                agent_count = len([n for n in nodes if n.get("type") == "agent"])
+                tool_count = len([n for n in nodes if n.get("type") == "tool"])
+                
+                # Generate descriptive name based on structure
+                if agent_count > 1:
+                    workflow_name = f"{agent_count}-Agent Workflow"
+                    workflow_description = f"A workflow with {agent_count} AI agents"
+                elif agent_count == 1 and tool_count > 0:
+                    workflow_name = "Agent-Tool Workflow"
+                    workflow_description = f"A workflow with {tool_count} tool{'s' if tool_count > 1 else ''}"
+                elif agent_count == 1:
+                    workflow_name = "Single Agent Workflow"
+                    workflow_description = "A workflow with one AI agent"
+                else:
+                    workflow_name = "Custom Workflow"
+                    workflow_description = "A custom workflow"
+                
+                # Simple category assignment based on structure
+                if tool_count > agent_count:
                     workflow_category = "automation"
-                    confidence = 0.85
-                    
-                elif any(word in combined_context for word in ["content", "create", "generate", "write", "blog", "article"]):
-                    workflow_name = "Content Creation Assistant"
-                    workflow_description = "Generate and create various types of content"
-                    workflow_category = "content"
-                    confidence = 0.8
-                    
-                elif any(word in combined_context for word in ["research", "find", "search", "discover", "information", "data"]):
-                    workflow_name = "Research Assistant"
-                    workflow_description = "Gather and analyze information from various sources"
-                    workflow_category = "research"
-                    confidence = 0.8
-                    
-                elif any(word in combined_context for word in ["analyze", "analysis", "insight", "metric", "report"]):
-                    workflow_name = "Data Analysis Tool"
-                    workflow_description = "Analyze data and generate insights"
-                    workflow_category = "analysis"
-                    confidence = 0.8
-                    
-                elif any(word in combined_context for word in ["workflow", "builder", "assistant", "help", "guide"]):
-                    workflow_name = "Workflow Assistant"
-                    workflow_description = "Help users build and design workflows"
-                    workflow_category = "support"
-                    confidence = 0.85
-            
-            # Enhance based on node count and structure
-            agent_count = len([n for n in nodes if n.get("type") == "agent"])
-            if agent_count > 1:
-                workflow_name = f"Multi-Agent {workflow_name}"
-                workflow_description = f"{workflow_description} using {agent_count} AI agents"
+                elif agent_count >= 2:
+                    workflow_category = "multi-agent"
+                else:
+                    workflow_category = "general"
             
             return {
                 "name": workflow_name,
@@ -1099,75 +1038,53 @@ class WorkflowExecutor:
             self._generating_identity = False
 
     def _generate_simple_workflow_identity(self, nodes: List[Dict], edges: List[Dict], input_data: str, structure_hash: str) -> Dict[str, Any]:
-        """Generate workflow identity using simple pattern matching without AI calls"""
-        input_lower = input_data.lower()
+        """Generate workflow identity using simple structural analysis"""
         workflow_name = "Custom Workflow"
         workflow_category = "general"
         workflow_description = "A custom workflow"
-        confidence = 0.8
+        confidence = 0.6
         
-        # Analyze agent names and instructions for context
-        agent_contexts = []
+        # Check for system workflows first
+        system_workflow_detected = False
         for node in nodes:
             if node.get("type") == "agent":
                 agent_data = node.get("data", {})
                 agent_name = agent_data.get("name", "").lower()
-                agent_instructions = agent_data.get("instructions", "").lower()
-                agent_contexts.append(f"{agent_name} {agent_instructions}")
+                if agent_name in ["contextextractor", "contextgenerator"]:
+                    system_workflow_detected = True
+                    break
         
-        combined_context = f"{input_data} {' '.join(agent_contexts)}".lower()
-        
-        # Advanced pattern matching for specific use cases
-        if any(word in combined_context for word in ["grizzly", "bear", "wildlife", "animal", "yellowstone", "park"]):
-            if "grizzly" in combined_context and ("yellowstone" in combined_context or "park" in combined_context):
-                workflow_name = "Grizzly Bear Viewing Guide"
-                workflow_description = "Find the best locations for grizzly bear viewing in Yellowstone"
-                confidence = 0.9
-            elif "wildlife" in combined_context:
-                workflow_name = "Wildlife Viewing Guide"
-                workflow_description = "Discover optimal wildlife viewing locations and tips"
-                confidence = 0.85
+        if system_workflow_detected:
+            workflow_name = "System Workflow"
+            workflow_description = "Internal system processing"
+            workflow_category = "system"
+            confidence = 0.9
+        else:
+            # Use structural naming based on node types and counts
+            agent_count = len([n for n in nodes if n.get("type") == "agent"])
+            tool_count = len([n for n in nodes if n.get("type") == "tool"])
+            
+            # Generate descriptive name based on structure
+            if agent_count > 1:
+                workflow_name = f"{agent_count}-Agent Workflow"
+                workflow_description = f"A workflow with {agent_count} AI agents"
+            elif agent_count == 1 and tool_count > 0:
+                workflow_name = "Agent-Tool Workflow"
+                workflow_description = f"A workflow with {tool_count} tool{'s' if tool_count > 1 else ''}"
+            elif agent_count == 1:
+                workflow_name = "Single Agent Workflow"
+                workflow_description = "A workflow with one AI agent"
             else:
-                workflow_name = "Animal Research Guide"
-                workflow_description = "Research and information gathering about animals"
-                confidence = 0.8
-            workflow_category = "research"
+                workflow_name = "Custom Workflow"
+                workflow_description = "A custom workflow"
             
-        elif any(word in combined_context for word in ["customer", "onboard", "support", "service"]):
-            workflow_name = "Customer Service Automation"
-            workflow_description = "Streamline customer onboarding and support processes"
-            workflow_category = "automation"
-            confidence = 0.85
-            
-        elif any(word in combined_context for word in ["content", "create", "generate", "write", "blog", "article"]):
-            workflow_name = "Content Creation Assistant"
-            workflow_description = "Generate and create various types of content"
-            workflow_category = "content"
-            confidence = 0.8
-            
-        elif any(word in combined_context for word in ["research", "find", "search", "discover", "information", "data"]):
-            workflow_name = "Research Assistant"
-            workflow_description = "Gather and analyze information from various sources"
-            workflow_category = "research"
-            confidence = 0.8
-            
-        elif any(word in combined_context for word in ["analyze", "analysis", "insight", "metric", "report"]):
-            workflow_name = "Data Analysis Tool"
-            workflow_description = "Analyze data and generate insights"
-            workflow_category = "analysis"
-            confidence = 0.8
-            
-        elif any(word in combined_context for word in ["workflow", "builder", "assistant", "help", "guide"]):
-            workflow_name = "Workflow Assistant"
-            workflow_description = "Help users build and design workflows"
-            workflow_category = "support"
-            confidence = 0.85
-        
-        # Enhance based on node count and structure
-        agent_count = len([n for n in nodes if n.get("type") == "agent"])
-        if agent_count > 1:
-            workflow_name = f"Multi-Agent {workflow_name}"
-            workflow_description = f"{workflow_description} using {agent_count} AI agents"
+            # Simple category assignment based on structure
+            if tool_count > agent_count:
+                workflow_category = "automation"
+            elif agent_count >= 2:
+                workflow_category = "multi-agent"
+            else:
+                workflow_category = "general"
         
         return {
             "name": workflow_name,
