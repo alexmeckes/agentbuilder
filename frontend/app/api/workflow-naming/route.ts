@@ -158,12 +158,12 @@ Analyze the workflow structure and user context to generate an appropriate name.
       content: possibleResult || '{"name": "Unknown Workflow", "description": "A workflow", "category": "general", "confidence": 0.5, "alternatives": []}'
     })
     
-    } catch (error: any) {
-      clearTimeout(timeout)
-      if (error.name === 'AbortError') {
-        console.error('🚨 Backend workflow naming timed out after 30s')
-      }
-      console.error('🚨 Workflow naming API error:', error)
+  } catch (error: any) {
+    clearTimeout(timeout)
+    if (error.name === 'AbortError') {
+      console.error('🚨 Backend workflow naming timed out after 30s')
+    }
+    console.error('🚨 Workflow naming API error:', error)
     
     // Return a fallback response instead of error
     return NextResponse.json({
