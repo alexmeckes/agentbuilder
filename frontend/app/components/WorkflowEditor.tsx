@@ -865,7 +865,7 @@ function WorkflowEditorInner({
           const namingResponse = await WorkflowNamingService.generateWorkflowIdentity({
             nodes,
             edges,
-            input_data: inputData
+            user_context: inputData
           })
           
           console.log('✨ AI generated workflow identity:', namingResponse.identity)
