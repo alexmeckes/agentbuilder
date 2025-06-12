@@ -120,6 +120,9 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
       })
       if (workflowResponse.ok) {
         const workflowData = await workflowResponse.json()
+        console.log('📊 DEBUG - Analytics data received:', workflowData)
+        console.log('📊 DEBUG - Total executions:', workflowData.total_executions)
+        console.log('📊 DEBUG - Recent executions:', workflowData.recent_executions)
         setWorkflowAnalytics(workflowData)
       }
 
