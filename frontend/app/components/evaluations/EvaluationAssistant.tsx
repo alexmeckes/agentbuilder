@@ -335,22 +335,35 @@ Write the prompt as if you're the user asking for help creating evaluation crite
         const data = await response.json()
         let llmGeneratedPrompt = data.content
         
-        // Clean up the response - remove any JSON if the LLM included it
+        console.log('📝 Raw LLM response:', llmGeneratedPrompt)
+        
+        // Check if it's JSON (which means the WorkflowNamer agent ignored our instructions)
         try {
           const parsed = JSON.parse(llmGeneratedPrompt)
-          // If it parsed as JSON, it's the wrong format - use fallback
-          console.log('LLM returned JSON instead of prompt text, using fallback')
-          throw new Error('Invalid format')
-        } catch {
+          // If it parsed as JSON, the agent gave us naming data instead of a prompt
+          console.log('❌ LLM returned JSON naming data instead of prompt text:', parsed)
+          throw new Error('Invalid format - got JSON instead of prompt')
+        } catch (jsonError) {
           // Good! It's not JSON, so it should be the prompt text
-          // Just clean up any potential formatting
+          if (jsonError.message === 'Invalid format - got JSON instead of prompt') {
+            throw jsonError
+          }
+          
+          // Clean up any potential formatting
           llmGeneratedPrompt = llmGeneratedPrompt.trim()
           
           // If it's too short or seems wrong, use fallback
-          if (llmGeneratedPrompt.length < 50 || llmGeneratedPrompt.includes('"name"')) {
-            throw new Error('Invalid prompt generated')
+          if (llmGeneratedPrompt.length < 50) {
+            console.log('❌ Prompt too short:', llmGeneratedPrompt.length, 'characters')
+            throw new Error('Prompt too short')
           }
           
+          if (llmGeneratedPrompt.includes('"name"') || llmGeneratedPrompt.includes('{')) {
+            console.log('❌ Prompt contains JSON markers')
+            throw new Error('Invalid prompt - contains JSON')
+          }
+          
+          console.log('✅ Valid LLM-generated prompt:', llmGeneratedPrompt.substring(0, 100) + '...')
           return llmGeneratedPrompt
         }
       }
