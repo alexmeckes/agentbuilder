@@ -5032,6 +5032,59 @@ async def clear_test_executions():
         "note": "Only test executions were removed. Real workflow executions are preserved."
     }
 
+@app.get("/debug/user-executions")
+async def debug_user_executions():
+    """Debug endpoint to see what user IDs have executions"""
+    debug_info = {
+        "total_users": len(executor.user_executions),
+        "users": {}
+    }
+    
+    for user_id, user_execs in executor.user_executions.items():
+        debug_info["users"][user_id] = {
+            "execution_count": len(user_execs),
+            "execution_ids": list(user_execs.keys())[:5],  # Show first 5
+            "latest_execution": max(user_execs.values(), key=lambda x: x.get("created_at", 0)).get("created_at") if user_execs else None
+        }
+    
+    return debug_info
+
+@app.post("/debug/migrate-anonymous-executions")
+async def migrate_anonymous_executions(request: Request):
+    """Migrate executions from anonymous to a specific user ID"""
+    data = await request.json()
+    target_user_id = data.get("target_user_id")
+    
+    if not target_user_id:
+        raise HTTPException(status_code=400, detail="target_user_id is required")
+    
+    # Check if anonymous user has executions
+    anonymous_execs = executor._get_user_executions("anonymous")
+    if not anonymous_execs:
+        return {
+            "message": "No anonymous executions to migrate",
+            "migrated": 0
+        }
+    
+    # Get or create target user's executions
+    target_execs = executor._get_user_executions(target_user_id)
+    
+    # Migrate executions
+    migrated_count = 0
+    for exec_id, exec_data in anonymous_execs.items():
+        if exec_id not in target_execs:  # Don't overwrite existing
+            target_execs[exec_id] = exec_data
+            migrated_count += 1
+    
+    # Clear anonymous executions after migration
+    executor.user_executions["anonymous"] = {}
+    
+    return {
+        "message": f"Successfully migrated {migrated_count} executions to {target_user_id}",
+        "migrated": migrated_count,
+        "total_executions_for_user": len(target_execs)
+    }
+
 @app.get("/debug/analytics-cost-data")
 async def debug_analytics_cost_data():
     """Debug endpoint to inspect cost data in executions for analytics troubleshooting"""

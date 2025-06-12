@@ -5,6 +5,7 @@ import WorkflowEditor from './components/WorkflowEditor'
 import ChatInterface from './components/ChatInterface'
 import { TraceViewer } from './components/TraceViewer'
 import { AnalyticsDashboard } from './components/AnalyticsDashboard'
+import DebugUserMigration from './components/DebugUserMigration'
 import EvaluationsPage from './components/EvaluationsPage'
 import PreferencesModal from './components/settings/PreferencesModal'
 import UserSettingsModal from './components/settings/UserSettingsModal'
@@ -454,6 +455,10 @@ export default function Home() {
           </div>
         ) : activeTab === 'analytics' ? (
           <div className="h-full">
+            {/* Temporary debug component */}
+            <div className="mb-4">
+              <DebugUserMigration />
+            </div>
             <AnalyticsDashboard 
               onExecutionSelect={(executionId) => {
                 setSelectedExecutionId(executionId)
