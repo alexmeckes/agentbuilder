@@ -92,7 +92,9 @@ Analyze the workflow structure and user context to generate an appropriate name.
             type: 'workflow_naming',
             source: 'workflow_naming_api',
             user_prompt_length: userMessage.content?.length || 0
-          }
+          },
+          // Add a flag to help backend prioritize this small workflow
+          priority: 'high'
         }),
         signal: controller.signal
       })
