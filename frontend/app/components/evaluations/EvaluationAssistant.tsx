@@ -15,6 +15,8 @@ import {
   Minimize2
 } from 'lucide-react'
 import { EvaluationCase } from '../../types/evaluation'
+import { addUserHeaders } from '../../utils/userIdentity'
+import { WorkflowNamingService } from '../../services/workflowNaming'
 
 interface EvaluationAssistantProps {
   evaluationCase?: Partial<EvaluationCase>
@@ -135,7 +137,9 @@ What kind of workflow are you looking to evaluate today?`,
       
       try {
         console.log('🔍 Loading recent workflows from backend analytics...')
-        const response = await fetch(`${backendUrl}/analytics/workflows`)
+        const response = await fetch(`${backendUrl}/analytics/workflows`, {
+          headers: addUserHeaders()
+        })
         const analyticsData = await response.json()
         
         if (analyticsData.recent_executions && analyticsData.recent_executions.length > 0) {
@@ -151,7 +155,9 @@ What kind of workflow are you looking to evaluate today?`,
                 // Try to fetch the actual workflow structure from execution trace
                 try {
                   console.log(`🔍 Fetching workflow structure for ${exec.execution_id}...`)
-                  const traceResponse = await fetch(`${backendUrl}/executions/${exec.execution_id}/trace`)
+                  const traceResponse = await fetch(`${backendUrl}/executions/${exec.execution_id}/trace`, {
+                    headers: addUserHeaders()
+                  })
                   const traceData = await traceResponse.json()
                   
                   if (traceData.workflow && traceData.workflow.nodes) {
@@ -242,29 +248,21 @@ What kind of workflow are you looking to evaluate today?`,
     }
   }
 
-  // Helper function to generate intelligent workflow context using our backend naming
+  // Helper function to generate intelligent workflow context using our frontend naming service
   const generateIntelligentWorkflowContext = async (workflow: any, inputData: string) => {
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
-      
-      // Use the same workflow-aware endpoint that analyzes workflow structure
-      const response = await fetch(`${backendUrl}/ai/workflow-evaluation-suggestions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_request: "Generate workflow context", 
-          workflow: workflow,
-          sample_input: inputData,
-          context: {}
-        })
+      // Use the WorkflowNamingService which now has polling for completion
+      const namingResponse = await WorkflowNamingService.generateWorkflowIdentity({
+        nodes: workflow.nodes || [],
+        edges: workflow.edges || [],
+        user_context: inputData
       })
       
-      const data = await response.json()
-      if (data.success && data.workflow_identity) {
+      if (namingResponse.identity) {
         return {
-          name: data.workflow_identity.name,
-          category: data.workflow_identity.category,
-          description: data.workflow_identity.description
+          name: namingResponse.identity.name || 'Custom Workflow',
+          category: namingResponse.identity.category || 'general',
+          description: namingResponse.identity.description || ''
         }
       }
     } catch (error) {
