@@ -25,9 +25,10 @@ class WorkflowStore:
         self.executions = []
         self.workflows = {}
         
-        # File-based persistence for development
-        self.storage_file = "workflow_store.json"
-        self._load_from_file()
+        # File-based persistence disabled for production
+        # TODO: Replace with database storage (PostgreSQL, Redis, etc.)
+        # self.storage_file = "workflow_store.json"
+        # self._load_from_file()
     
     def _load_from_file(self):
         """Load stored data from file if it exists"""
@@ -55,13 +56,16 @@ class WorkflowStore:
     def add_execution(self, execution_data: Dict[str, Any]):
         """Add a new execution record"""
         self.executions.append(execution_data)
-        self._save_to_file()
+        print(f"📊 WorkflowStore: Added execution {execution_data.get('execution_id')} - Total executions in memory: {len(self.executions)}")
+        # Disabled file saving for production - data stays in memory only
+        # self._save_to_file()
     
     def get_workflow_analytics(self, user_id: Optional[str] = None, 
                               start_date: Optional[datetime] = None,
                               end_date: Optional[datetime] = None,
                               workflow_id: Optional[str] = None) -> Dict[str, Any]:
         """Get workflow analytics with optional filtering"""
+        print(f"📊 WorkflowStore: Getting analytics - Total executions in memory: {len(self.executions)}")
         filtered_executions = self.executions
         
         # Apply filters
