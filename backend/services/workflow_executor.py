@@ -622,6 +622,11 @@ class WorkflowExecutor:
                 "percentage": min(100, max(0, percentage)),
                 "current_activity": activity
             })
+            
+            # Send WebSocket update if connection exists
+            if execution_id in self.websocket_connections:
+                websocket = self.websocket_connections[execution_id]
+                asyncio.create_task(self._send_websocket_update(websocket, execution_id, execution))
 
     def _update_node_status(self, execution_id: str, node_id: str, status: str):
         """Update individual node status"""
@@ -633,6 +638,27 @@ class WorkflowExecutor:
             completed_count = sum(1 for node_status in execution["progress"]["node_status"].values() 
                                 if node_status["status"] == "completed")
             execution["progress"]["current_step"] = completed_count
+            
+            # Send WebSocket update for node status change
+            if execution_id in self.websocket_connections:
+                websocket = self.websocket_connections[execution_id]
+                asyncio.create_task(self._send_websocket_update(websocket, execution_id, execution))
+    
+    async def _send_websocket_update(self, websocket, execution_id: str, execution: Dict[str, Any]):
+        """Send execution update via WebSocket"""
+        try:
+            await websocket.send_json({
+                "type": "execution_update",
+                "execution_id": execution_id,
+                "status": execution.get("status", "unknown"),
+                "progress": execution.get("progress", {}),
+                "result": execution.get("result"),
+                "error": execution.get("error"),
+                "workflow_name": execution.get("workflow_name"),
+                "workflow_identity": execution.get("workflow_identity", {})
+            })
+        except Exception as e:
+            print(f"❌ Failed to send WebSocket update: {e}")
 
     async def _detect_user_input_request(self, execution_id: str, agent_output: str) -> Optional[Dict[str, Any]]:
         """Detect if agent is asking for user input based on output content"""
