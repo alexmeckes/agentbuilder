@@ -2402,33 +2402,36 @@ async def simulate_evaluation_completion(evaluation_id: str):
         llm_judge = run["evaluation_case"]["llm_judge"]
         trace_id = run.get("trace_id", "")
         
-        # For real evaluation, we need actual workflow output to evaluate
-        # In a production system, you'd fetch the actual trace/output from trace_id
-        # For now, we'll use a sample workflow output relevant to the context
-        sample_workflow_output = f"""
-Based on the request about grizzly bear spotting in Yellowstone, here are the best locations:
-
-1. **Lamar Valley** - Known as "America's Serengeti", this is one of the most reliable places to spot grizzly bears, especially during early morning and evening hours. Best viewing is from the road with binoculars or spotting scopes.
-
-2. **Hayden Valley** - Another excellent location for grizzly sightings, particularly in late spring when bears emerge from hibernation. The valley offers great visibility across open meadows.
-
-3. **Mount Washburn Area** - The slopes around Mount Washburn provide good habitat for grizzlies. Bears are often seen foraging for army moth larvae and whitebark pine nuts.
-
-4. **Swan Lake Flats** - This area near Mammoth Hot Springs occasionally offers grizzly sightings, especially bears moving between territories.
-
-**Safety Tips:**
-- Always maintain at least 100 yards distance from bears
-- Carry bear spray and know how to use it
-- Make noise while hiking to avoid surprising bears
-- Best viewing times are dawn and dusk
-- Use binoculars or spotting scopes for safe observation
-
-**Best Times to Visit:**
-- Late spring (May-June): Bears emerging from hibernation
-- Late summer (August-September): Bears feeding heavily before winter
-"""
+        # Fetch the actual workflow output from the trace_id
+        workflow_output = None
+        if trace_id:
+            # trace_id is actually the execution_id in this system
+            execution = executor._get_execution_by_id(trace_id)
+            if execution and "trace" in execution:
+                workflow_output = execution["trace"].get("final_output", "")
+            elif execution and "result" in execution:
+                workflow_output = execution["result"]
+            else:
+                print(f"⚠️ No trace found for trace_id: {trace_id}")
+        
+        if not workflow_output:
+            # If we couldn't fetch the real output, return early with an error
+            run["status"] = "completed"
+            run["completed_at"] = datetime.now(timezone.utc).isoformat()
+            run["result"] = {
+                "checkpoints": [],
+                "ground_truth": [],
+                "overall_score": 0,
+                "max_score": sum(c["points"] for c in checkpoints) + sum(g["points"] for g in ground_truth),
+                "pass_rate": 0,
+                "execution_time": 0,
+                "error": "Could not fetch workflow output for the given trace_id"
+            }
+            print(f"❌ Evaluation {evaluation_id} failed: No workflow output found for trace_id {trace_id}")
+            return
 
         print(f"🔍 Starting real evaluation for {evaluation_id} using {llm_judge}")
+        print(f"📝 Using actual workflow output from trace {trace_id}")
         
         # Perform real LLM evaluation for each checkpoint
         checkpoint_results = []
@@ -2443,7 +2446,7 @@ Based on the request about grizzly bear spotting in Yellowstone, here are the be
             try:
                 # Use our lightweight evaluation instead of complex any-agent workflow
                 eval_result = evaluate_workflow_output(
-                    workflow_output=sample_workflow_output,
+                    workflow_output=workflow_output,
                     criteria=checkpoint['criteria'],
                     points=checkpoint['points'],
                     model=llm_judge.split("/")[-1] if "/" in llm_judge else llm_judge
