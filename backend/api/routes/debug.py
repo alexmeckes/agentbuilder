@@ -9,12 +9,43 @@ router = APIRouter(prefix="/api/debug", tags=["debug"])
 
 # Dependencies
 executor = None
+workflow_store = None
 
 
 def set_executor(exec_instance):
     """Set the executor instance - called from main.py"""
     global executor
     executor = exec_instance
+
+
+def set_workflow_store(store_instance):
+    """Set the workflow store instance - called from main.py"""
+    global workflow_store
+    workflow_store = store_instance
+
+
+@router.get("/workflow-store-state")
+async def get_workflow_store_state():
+    """Get current state of the workflow store for debugging"""
+    if not workflow_store:
+        return {"error": "WorkflowStore not initialized"}
+    
+    return {
+        "total_executions": len(workflow_store.executions),
+        "executions": [
+            {
+                "execution_id": e.get("execution_id"),
+                "user_id": e.get("user_id"),
+                "status": e.get("status"),
+                "created_at": e.get("created_at"),
+                "workflow_name": e.get("workflow_name")
+            }
+            for e in workflow_store.executions[-10:]  # Last 10 executions
+        ],
+        "workflow_store_id": id(workflow_store),
+        "executor_store_id": id(executor.workflow_store) if executor and hasattr(executor, "workflow_store") else None,
+        "stores_match": id(workflow_store) == id(executor.workflow_store) if executor and hasattr(executor, "workflow_store") else False
+    }
 
 
 @router.post("/test-executions")
@@ -160,4 +191,27 @@ async def debug_analytics_cost_data():
     return {
         "users_with_costs": len(cost_summary),
         "cost_summary": cost_summary
+    }
+
+
+@router.get("/workflow-store-state")
+async def debug_workflow_store_state():
+    """Debug endpoint to inspect WorkflowStore state"""
+    if not workflow_store:
+        raise HTTPException(status_code=500, detail="WorkflowStore not initialized")
+    
+    # Get analytics to trigger the same query as the UI
+    analytics = workflow_store.get_workflow_analytics()
+    
+    return {
+        "workflow_store_instance": str(workflow_store),
+        "workflow_store_id": id(workflow_store),
+        "total_executions_in_memory": len(workflow_store.executions),
+        "sample_executions": workflow_store.executions[:5] if workflow_store.executions else [],
+        "analytics_result": analytics,
+        "executor_store_reference": {
+            "has_reference": executor.workflow_store is not None if executor else False,
+            "same_instance": executor.workflow_store is workflow_store if executor and executor.workflow_store else False,
+            "executor_store_id": id(executor.workflow_store) if executor and executor.workflow_store else None
+        }
     }
