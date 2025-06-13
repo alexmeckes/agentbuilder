@@ -66,16 +66,23 @@ class WorkflowStore:
                               workflow_id: Optional[str] = None) -> Dict[str, Any]:
         """Get workflow analytics with optional filtering"""
         print(f"📊 WorkflowStore: Getting analytics - Total executions in memory: {len(self.executions)}")
+        if self.executions:
+            print(f"📊 WorkflowStore: Sample execution: {self.executions[0].get('execution_id')} - user: {self.executions[0].get('user_id')}")
         filtered_executions = self.executions
         
         # Apply filters
         if user_id:
+            print(f"📊 WorkflowStore: Filtering by user_id={user_id}")
             filtered_executions = [e for e in filtered_executions if e.get('user_id') == user_id]
+            print(f"📊 WorkflowStore: After user filter: {len(filtered_executions)} executions")
         
         if start_date:
             start_timestamp = start_date.timestamp()
+            print(f"📊 WorkflowStore: Filtering by start_date={start_date} (timestamp={start_timestamp})")
+            before_count = len(filtered_executions)
             filtered_executions = [e for e in filtered_executions 
                                  if e.get('created_at', 0) >= start_timestamp]
+            print(f"📊 WorkflowStore: Date filter removed {before_count - len(filtered_executions)} executions")
         
         if end_date:
             end_timestamp = end_date.timestamp()
