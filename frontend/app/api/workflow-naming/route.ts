@@ -79,7 +79,7 @@ Analyze the workflow structure and user context to generate an appropriate name.
     const timeout = setTimeout(() => controller.abort(), 30000) // 30 second timeout
     
     try {
-      const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
+      const backendResponse = await fetch(`${BACKEND_URL}/api/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,7 +136,7 @@ Analyze the workflow structure and user context to generate an appropriate name.
           await new Promise(resolve => setTimeout(resolve, 500))
           
           // Poll the execution status
-          const pollResponse = await fetch(`${BACKEND_URL}/executions/${result.execution_id}`, {
+          const pollResponse = await fetch(`${BACKEND_URL}/api/executions/${result.execution_id}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',

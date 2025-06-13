@@ -71,7 +71,7 @@ export class WorkflowService {
    * Get available agent frameworks
    */
   static async getFrameworks(): Promise<FrameworkInfo> {
-    const response = await fetch(`${BACKEND_URL}/frameworks`)
+    const response = await fetch(`${BACKEND_URL}/api/frameworks`)
     if (!response.ok) {
       throw new Error('Failed to fetch frameworks')
     }
@@ -121,7 +121,7 @@ export class WorkflowService {
    * Get execution status by ID
    */
   static async getExecution(executionId: string): Promise<any> {
-    const response = await fetch(`${BACKEND_URL}/executions/${executionId}`)
+    const response = await fetch(`${BACKEND_URL}/api/executions/${executionId}`)
     if (!response.ok) {
       throw new Error('Failed to fetch execution details')
     }
@@ -132,7 +132,7 @@ export class WorkflowService {
    * Submit user input for a workflow execution that's waiting for input
    */
   static async submitUserInput(executionId: string, inputText: string): Promise<{ success: boolean; message?: string; error?: string }> {
-    const response = await fetch(`${BACKEND_URL}/executions/${executionId}/input`, {
+    const response = await fetch(`${BACKEND_URL}/api/executions/${executionId}/input`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -240,7 +240,7 @@ export class WorkflowService {
     onClose?: (event: CloseEvent) => void
   ): WebSocket | { close: () => void } {
     const wsUrl = BACKEND_URL.replace('http', 'ws').replace('https', 'wss')
-    const fullWsUrl = `${wsUrl}/ws/execution/${executionId}`
+    const fullWsUrl = `${wsUrl}/api/ws/execution/${executionId}`
     
     console.log('🔌 Attempting WebSocket connection to:', fullWsUrl)
     
@@ -309,7 +309,7 @@ export class WorkflowService {
       if (!isPolling) return
       
       try {
-        const url = `${BACKEND_URL}/executions/${executionId}`
+        const url = `${BACKEND_URL}/api/executions/${executionId}`
         console.log(`📡 Polling attempt ${pollCount + 1}: ${url}`)
         
         const response = await fetch(url)
@@ -383,7 +383,7 @@ export class WorkflowService {
     nodes: WorkflowNode[], 
     edges: WorkflowEdge[]
   ): Promise<{ actions: any[] }> {
-    const response = await fetch(`${BACKEND_URL}/ai/refine-workflow`, {
+    const response = await fetch(`${BACKEND_URL}/api/ai/refine-workflow`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

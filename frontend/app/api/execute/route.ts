@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward the enhanced request to the backend
-    const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/execute`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

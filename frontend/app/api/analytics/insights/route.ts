@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     console.log('📈 Insights request for user:', userId)
 
     // Forward the request to the backend with cache-busting and user ID
-    const backendResponse = await fetch(`${BACKEND_URL}/analytics/insights?_t=${Date.now()}`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/analytics/insights?_t=${Date.now()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

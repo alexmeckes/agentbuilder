@@ -11,7 +11,7 @@ export async function GET(
     console.log('🔍 Proxying workflow topology request for execution:', executionId)
 
     // Forward the request to the backend
-    const backendResponse = await fetch(`${BACKEND_URL}/analytics/workflow-topology/${executionId}`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/analytics/workflow-topology/${executionId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

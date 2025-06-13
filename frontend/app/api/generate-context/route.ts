@@ -50,7 +50,7 @@ Respond with ONLY the suggestion text, nothing else. If no clear suggestion can 
       edges: []
     }
 
-    const response = await fetch(`${BACKEND_URL}/execute`, {
+    const response = await fetch(`${BACKEND_URL}/api/execute`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -85,7 +85,7 @@ Respond with ONLY the suggestion text, nothing else. If no clear suggestion can 
         await new Promise(resolve => setTimeout(resolve, pollInterval))
         
         try {
-          const pollResponse = await fetch(`${BACKEND_URL}/executions/${result.execution_id}`, {
+          const pollResponse = await fetch(`${BACKEND_URL}/api/executions/${result.execution_id}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',

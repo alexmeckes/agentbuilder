@@ -15,7 +15,7 @@ export async function GET(
     console.log('📋 Workflow detail request for user:', userId)
 
     // Forward the request to the backend with user ID
-    const backendResponse = await fetch(`${BACKEND_URL}/analytics/workflows/${workflowId}`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/analytics/workflows/${workflowId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

@@ -47,15 +47,15 @@ export default function EvaluationsPage() {
     setLoading(true)
     try {
       // Fetch evaluation cases
-      const casesResponse = await fetch(`${BACKEND_URL}/evaluations/cases`)
+      const casesResponse = await fetch(`${BACKEND_URL}/api/evaluations/cases`)
       const casesData = casesResponse.ok ? await casesResponse.json() : { cases: [] }
       
       // Fetch evaluation runs
-      const runsResponse = await fetch(`${BACKEND_URL}/evaluations/runs`)
+      const runsResponse = await fetch(`${BACKEND_URL}/api/evaluations/runs`)
       const runsData = runsResponse.ok ? await runsResponse.json() : { runs: [] }
       
       // Fetch metrics
-      const metricsResponse = await fetch(`${BACKEND_URL}/evaluations/metrics`)
+      const metricsResponse = await fetch(`${BACKEND_URL}/api/evaluations/metrics`)
       const metricsData = metricsResponse.ok ? await metricsResponse.json() : null
 
       // Transform the data to match our types
@@ -145,7 +145,7 @@ export default function EvaluationsPage() {
         final_output_criteria: runConfig.evaluationCase.final_output_criteria || []
       }
 
-      const response = await fetch(`${BACKEND_URL}/evaluations/run`, {
+      const response = await fetch(`${BACKEND_URL}/api/evaluations/run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -222,7 +222,7 @@ export default function EvaluationsPage() {
       if (!isPolling) return // Stop if polling was cancelled
       
       try {
-        const response = await fetch(`${BACKEND_URL}/evaluations/runs/${evaluationId}/progress`)
+        const response = await fetch(`${BACKEND_URL}/api/evaluations/runs/${evaluationId}/progress`)
         if (response.ok) {
           const progressData = await response.json()
           setRunProgress(prev => ({
@@ -350,7 +350,7 @@ export default function EvaluationsPage() {
     setSaveStatus({ type: 'saving', message: 'Saving evaluation case...' })
     
     try {
-      const response = await fetch(`${BACKEND_URL}/evaluations/cases`, {
+      const response = await fetch(`${BACKEND_URL}/api/evaluations/cases`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

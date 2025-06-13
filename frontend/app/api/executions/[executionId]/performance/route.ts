@@ -11,7 +11,7 @@ export async function GET(
     console.log('🔍 Proxying execution performance request to backend for execution:', executionId)
 
     // Forward the request to the backend
-    const backendResponse = await fetch(`${BACKEND_URL}/executions/${executionId}/performance`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/executions/${executionId}/performance`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

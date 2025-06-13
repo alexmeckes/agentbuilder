@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const timeout = setTimeout(() => controller.abort(), 30000) // 30 second timeout
     
     try {
-      const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
+      const backendResponse = await fetch(`${BACKEND_URL}/api/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         while (attempts < maxAttempts && result.status === 'running') {
           await new Promise(resolve => setTimeout(resolve, 500))
           
-          const pollResponse = await fetch(`${BACKEND_URL}/executions/${result.execution_id}`, {
+          const pollResponse = await fetch(`${BACKEND_URL}/api/executions/${result.execution_id}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',

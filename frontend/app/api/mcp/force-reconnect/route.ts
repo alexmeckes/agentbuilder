@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       const controller = new AbortController()
       setTimeout(() => controller.abort(), 5000)
       
-      const removeResponse = await fetch(`${BACKEND_URL}/mcp/servers/composio-tools`, {
+      const removeResponse = await fetch(`${BACKEND_URL}/api/mcp/servers/composio-tools`, {
         method: 'DELETE',
         signal: controller.signal
       })
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     
     try {
       // Set environment variables for direct integration
-      const configResponse = await fetch(`${BACKEND_URL}/composio/update-config`, {
+      const configResponse = await fetch(`${BACKEND_URL}/api/composio/update-config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
         
         // Test the connection
         console.log(`📊 Step 4: Testing Composio connection...`)
-        const testResponse = await fetch(`${BACKEND_URL}/composio/test-connection`, {
+        const testResponse = await fetch(`${BACKEND_URL}/api/composio/test-connection`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

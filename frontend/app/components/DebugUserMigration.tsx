@@ -35,7 +35,7 @@ export default function DebugUserMigration() {
   const migrateExecutions = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/debug/migrate-anonymous-executions`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/debug/migrate-anonymous-executions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

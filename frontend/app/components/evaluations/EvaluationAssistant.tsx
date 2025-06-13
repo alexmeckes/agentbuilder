@@ -396,7 +396,7 @@ Write the prompt as if you're the user asking for help creating evaluation crite
       const workflowContext = await getWorkflowContext(userInput)
       
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
-      let apiEndpoint = `${backendUrl}/ai/evaluation-suggestions`
+      let apiEndpoint = `${backendUrl}/api/ai/evaluation-suggestions`
       let requestBody: any = {
         input: userInput,
         context: {

@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     console.log('🐛 Debug request - current user ID:', userId)
 
     // Call the debug endpoint
-    const backendResponse = await fetch(`${BACKEND_URL}/debug/user-executions`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/debug/user-executions`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

@@ -11,7 +11,7 @@ export async function GET(
     console.log('🔍 Proxying execution trace request to backend for execution:', executionId)
 
     // Forward the request to the backend
-    const backendResponse = await fetch(`${BACKEND_URL}/executions/${executionId}/trace`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/executions/${executionId}/trace`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

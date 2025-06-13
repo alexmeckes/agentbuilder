@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout (increased since backend is now non-blocking)
     
     try {
-      const updateResponse = await fetch(`${BACKEND_URL}/mcp/servers/composio-tools`, {
+      const updateResponse = await fetch(`${BACKEND_URL}/api/mcp/servers/composio-tools`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'

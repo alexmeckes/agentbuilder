@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     console.log(`🔗 Backend URL: ${BACKEND_URL}`)
     
     // Get current MCP server status
-    const statusResponse = await fetch(`${BACKEND_URL}/mcp/servers`, {
+    const statusResponse = await fetch(`${BACKEND_URL}/api/mcp/servers`, {
       method: 'GET',
       headers: {
         'Cache-Control': 'no-cache'

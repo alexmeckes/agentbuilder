@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Forward the request to the backend
-    const backendResponse = await fetch(`${BACKEND_URL}/evaluations/path-comparison`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/evaluations/path-comparison`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Forward the request to the backend
-    const backendResponse = await fetch(`${BACKEND_URL}/analytics/decision-paths`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/analytics/decision-paths`, {
       method: 'GET',
       headers,
     })
