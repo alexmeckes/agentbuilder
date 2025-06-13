@@ -3160,6 +3160,58 @@ async def cancel_experiment(experiment_id: str):
 
 # ===== ANALYTICS ENDPOINTS =====
 
+def extract_node_metrics_for_workflow(executions: List[tuple]) -> Dict[str, Any]:
+    """Extract aggregated node-level metrics for a workflow"""
+    node_stats = {}
+    
+    for exec_id, execution in executions:
+        if execution.get("status") != "completed":
+            continue
+            
+        trace = execution.get("trace", {})
+        spans = trace.get("spans", [])
+        
+        for span in spans:
+            span_name = span.get("name", "")
+            if not span_name.startswith("Node:"):
+                continue
+                
+            attributes = span.get("attributes", {})
+            node_id = attributes.get("node.id", "unknown")
+            node_type = attributes.get("node.type", "unknown")
+            node_name = attributes.get("node.name", "Unknown")
+            
+            if node_id not in node_stats:
+                node_stats[node_id] = {
+                    "node_name": node_name,
+                    "node_type": node_type,
+                    "total_duration_ms": 0,
+                    "total_cost": 0,
+                    "execution_count": 0,
+                    "failure_count": 0
+                }
+            
+            # Calculate duration
+            duration_ms = 0
+            if span.get("start_time") and span.get("end_time"):
+                duration_ms = (span.get("end_time") - span.get("start_time")) / 1_000_000
+            
+            node_stats[node_id]["total_duration_ms"] += duration_ms
+            node_stats[node_id]["execution_count"] += 1
+            
+            # Track failures
+            if span.get("status", {}).get("status_code") != "OK":
+                node_stats[node_id]["failure_count"] += 1
+    
+    # Calculate averages
+    for node_id, stats in node_stats.items():
+        count = stats["execution_count"]
+        if count > 0:
+            stats["avg_duration_ms"] = stats["total_duration_ms"] / count
+            stats["failure_rate"] = (stats["failure_count"] / count) * 100
+    
+    return node_stats
+
 @app.get("/analytics/workflows")
 async def get_workflow_analytics(request: Request):
     """Get workflow analytics data from real executions with intelligent naming"""
@@ -3269,7 +3321,7 @@ async def get_workflow_analytics(request: Request):
             "performance_trend": "stable",  # Could be enhanced with trend analysis
             "success_rate": (len(completed_in_group) / len(executions_in_group) * 100) if executions_in_group else 0,
             # Add node-level metrics for workflows
-            "node_metrics": self._extract_node_metrics_for_workflow(executions_in_group)
+            "node_metrics": extract_node_metrics_for_workflow(executions_in_group)
         }
         
         workflow_summaries.append(workflow_summary)
