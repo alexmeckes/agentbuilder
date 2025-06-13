@@ -565,16 +565,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
     This function is designed to be called via multiprocessing.Process.
     """
     try:
-        # Ensure the any_agent module is available in the subprocess
-        import sys
-        import os
-        
-        # Add the src directory to Python path for this subprocess
-        src_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src')
-        if src_path not in sys.path:
-            sys.path.insert(0, src_path)
-        
-        # Now import any_agent
+        # Import any_agent from the installed package
         from any_agent import AgentConfig, AgentFramework, AnyAgent
         from typing import Any
         
