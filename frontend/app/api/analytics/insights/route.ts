@@ -38,8 +38,18 @@ export async function GET(request: NextRequest) {
 
     // Transform backend response to match frontend expectations
     const transformedResult = {
-      insights: [],
-      recommendations: [],
+      insights: [] as Array<{
+        type: string
+        title: string
+        description: string
+        severity: 'info' | 'warning' | 'error'
+      }>,
+      recommendations: [] as Array<{
+        type: string
+        title: string
+        description: string
+        action: string
+      }>,
       generated_at: new Date().toISOString()
     }
 
