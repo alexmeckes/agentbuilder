@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-User-Id': userContext?.userId || enhancedRequest.user_context?.user_id || 'anonymous'
       },
       body: JSON.stringify(enhancedRequest)
     })

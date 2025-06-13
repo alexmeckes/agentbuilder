@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
     const userId = request.headers.get('x-user-id') || 'anonymous'
     console.log('📊 Analytics request for user:', userId)
 
-    // Forward the request to the backend with cache-busting and user ID
-    const backendResponse = await fetch(`${BACKEND_URL}/api/analytics/workflows?userId=${userId}&_t=${Date.now()}`, {
+    // Try with the user's ID first, then fall back to anonymous if needed
+    let backendResponse = await fetch(`${BACKEND_URL}/api/analytics/workflows?userId=${userId}&_t=${Date.now()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -21,6 +21,30 @@ export async function GET(request: NextRequest) {
       },
       cache: 'no-store'
     })
+    
+    // If we got a successful response but no executions, try anonymous
+    if (backendResponse.ok) {
+      const tempResult = await backendResponse.json()
+      if (tempResult.total_executions === 0 && userId !== 'anonymous') {
+        console.log('📊 No executions found for user, trying anonymous...')
+        backendResponse = await fetch(`${BACKEND_URL}/api/analytics/workflows?userId=anonymous&_t=${Date.now()}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'X-User-Id': 'anonymous',
+          },
+          cache: 'no-store'
+        })
+      } else {
+        // Recreate response since we already consumed it
+        backendResponse = new Response(JSON.stringify(tempResult), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+    }
 
     console.log('Backend analytics response status:', backendResponse.status)
 
