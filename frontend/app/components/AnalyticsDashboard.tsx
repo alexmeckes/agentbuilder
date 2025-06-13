@@ -16,9 +16,12 @@ import {
   Zap,
   RefreshCw,
   Minus,
-  Activity
+  Activity,
+  GitBranch
 } from 'lucide-react'
 import { WorkflowDetailModal } from './WorkflowDetailModal'
+import { WorkflowTopology } from './WorkflowTopology'
+import { DecisionPathAnalysis } from './DecisionPathAnalysis'
 import { addUserHeaders } from '../utils/userIdentity'
 
 interface WorkflowExecutionSummary {
@@ -89,10 +92,11 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
   const [workflowAnalytics, setWorkflowAnalytics] = useState<WorkflowAnalyticsData | null>(null)
   const [insights, setInsights] = useState<InsightsData | null>(null)
   const [loading, setLoading] = useState(false)
-  const [activeView, setActiveView] = useState<'overview' | 'workflows' | 'insights'>('overview')
+  const [activeView, setActiveView] = useState<'overview' | 'workflows' | 'insights' | 'topology' | 'paths'>('overview')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null)
   const [showWorkflowModal, setShowWorkflowModal] = useState(false)
+  const [selectedExecution, setSelectedExecution] = useState<string | null>(null)
   
   useEffect(() => {
     fetchAnalytics()
@@ -206,6 +210,8 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
           {[
             { id: 'overview', label: 'Overview', icon: BarChart3 },
             { id: 'workflows', label: 'Workflows', icon: Workflow },
+            { id: 'topology', label: 'Flow', icon: Activity },
+            { id: 'paths', label: 'Paths', icon: GitBranch },
             { id: 'insights', label: 'Insights', icon: Lightbulb }
           ].map(({ id, label, icon: Icon }) => (
             <button
@@ -504,6 +510,59 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
               </div>
             </div>
           </div>
+        )}
+
+        {/* Topology Tab */}
+        {activeView === 'topology' && (
+          <div className="space-y-6">
+            {workflowAnalytics?.recent_executions && workflowAnalytics.recent_executions.length > 0 ? (
+              <>
+                <div className="bg-white rounded-lg p-6 shadow border">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Select an Execution to View Flow</h3>
+                  <div className="space-y-2">
+                    {workflowAnalytics.recent_executions.slice(0, 5).map((execution) => (
+                      <button
+                        key={execution.execution_id}
+                        onClick={() => setSelectedExecution(execution.execution_id)}
+                        className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                          selectedExecution === execution.execution_id
+                            ? 'bg-blue-50 border-blue-300'
+                            : 'bg-white border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium text-gray-900">{execution.workflow_name}</p>
+                            <p className="text-sm text-gray-600">
+                              {new Date(execution.created_at * 1000).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-gray-900">${execution.cost.toFixed(4)}</p>
+                            <p className="text-sm text-gray-600">{(execution.duration_ms / 1000).toFixed(2)}s</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {selectedExecution && (
+                  <WorkflowTopology executionId={selectedExecution} />
+                )}
+              </>
+            ) : (
+              <div className="bg-white rounded-lg p-12 shadow border text-center text-gray-500">
+                <Activity className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                <p>No executions available to visualize.</p>
+                <p className="text-sm mt-2">Run some workflows to see their execution flow here.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Paths Tab */}
+        {activeView === 'paths' && (
+          <DecisionPathAnalysis />
         )}
 
         {/* Insights Tab */}

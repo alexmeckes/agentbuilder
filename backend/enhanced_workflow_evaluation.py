@@ -77,9 +77,9 @@ def evaluate_workflow_step(
     """
     attributes = span.get("attributes", {})
     
-    # Extract step information
-    step_name = attributes.get("workflow_node", "Unknown Step")
-    node_id = attributes.get("workflow_node_id", "unknown")
+    # Extract step information - support both old and new span formats
+    step_name = attributes.get("node.name") or attributes.get("workflow_node", "Unknown Step")
+    node_id = attributes.get("node.id") or attributes.get("workflow_node_id", "unknown")
     
     # Get input/output from span events or attributes
     step_input = _extract_step_input(span)
@@ -260,9 +260,22 @@ def evaluate_end_to_end_workflow(
     
     step_evaluations = []
     for span in spans:
+        # Filter for Node spans only
+        span_name = span.get("name", "")
+        if not span_name.startswith("Node:"):
+            continue
+            
         # Get criteria for this step type
-        step_type = span.get("attributes", {}).get("workflow_node", "generic")
-        criteria_for_step = step_criteria.get(step_type, step_criteria.get("generic", []))
+        attributes = span.get("attributes", {})
+        step_type = attributes.get("node.type") or attributes.get("workflow_node", "generic")
+        node_name = attributes.get("node.name") or attributes.get("workflow_node", "")
+        
+        # Try to match criteria by node type or name
+        criteria_for_step = (
+            step_criteria.get(step_type, []) or 
+            step_criteria.get(node_name, []) or
+            step_criteria.get("generic", [])
+        )
         
         if criteria_for_step:
             step_eval = evaluate_workflow_step(span, criteria_for_step, model)
@@ -309,6 +322,10 @@ def _extract_step_input(span: Dict[str, Any]) -> str:
     """Extract input for this step from span data"""
     events = span.get("events", [])
     for event in events:
+        # Check for new node.input event format
+        if event.get("name") == "node.input":
+            return event.get("attributes", {}).get("data", "")
+        # Fallback to older format
         if "input" in event.get("name", "").lower():
             return event.get("attributes", {}).get("input", "")
     return span.get("attributes", {}).get("input", "Unknown input")
@@ -318,6 +335,10 @@ def _extract_step_output(span: Dict[str, Any]) -> str:
     """Extract output for this step from span data"""
     events = span.get("events", [])
     for event in events:
+        # Check for new node.output event format
+        if event.get("name") == "node.output":
+            return event.get("attributes", {}).get("data", "")
+        # Fallback to older format
         if "output" in event.get("name", "").lower():
             return event.get("attributes", {}).get("output", "")
     return span.get("attributes", {}).get("output", "Unknown output")

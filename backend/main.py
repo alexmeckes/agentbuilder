@@ -120,12 +120,19 @@ class GroundTruthAnswer(BaseModel):
     points: int
 
 
+class NodeCriteria(BaseModel):
+    """Evaluation criteria for specific node types"""
+    node_type: str  # 'agent', 'tool', 'decision', 'input', 'output', or specific node name
+    criteria: List[CheckpointCriteria]
+
+
 class EvaluationCaseRequest(BaseModel):
     """Request model for creating evaluation cases"""
     llm_judge: str
     checkpoints: List[CheckpointCriteria]
     ground_truth: List[GroundTruthAnswer]
     final_output_criteria: List[CheckpointCriteria] = []
+    node_criteria: List[NodeCriteria] = []  # NEW: Node-level evaluation criteria
 
 
 class WorkflowExecutor:
@@ -1031,6 +1038,58 @@ class WorkflowExecutor:
         except Exception as e:
             return []
 
+    def _extract_node_metrics_for_workflow(self, executions: List[tuple]) -> Dict[str, Any]:
+        """Extract aggregated node-level metrics for a workflow"""
+        node_stats = {}
+        
+        for exec_id, execution in executions:
+            if execution.get("status") != "completed":
+                continue
+                
+            trace = execution.get("trace", {})
+            spans = trace.get("spans", [])
+            
+            for span in spans:
+                span_name = span.get("name", "")
+                if not span_name.startswith("Node:"):
+                    continue
+                    
+                attributes = span.get("attributes", {})
+                node_id = attributes.get("node.id", "unknown")
+                node_type = attributes.get("node.type", "unknown")
+                node_name = attributes.get("node.name", "Unknown")
+                
+                if node_id not in node_stats:
+                    node_stats[node_id] = {
+                        "node_name": node_name,
+                        "node_type": node_type,
+                        "total_duration_ms": 0,
+                        "total_cost": 0,
+                        "execution_count": 0,
+                        "failure_count": 0
+                    }
+                
+                # Calculate duration
+                duration_ms = 0
+                if span.get("start_time") and span.get("end_time"):
+                    duration_ms = (span.get("end_time") - span.get("start_time")) / 1_000_000
+                
+                node_stats[node_id]["total_duration_ms"] += duration_ms
+                node_stats[node_id]["execution_count"] += 1
+                
+                # Track failures
+                if span.get("status", {}).get("status_code") != "OK":
+                    node_stats[node_id]["failure_count"] += 1
+        
+        # Calculate averages
+        for node_id, stats in node_stats.items():
+            count = stats["execution_count"]
+            if count > 0:
+                stats["avg_duration_ms"] = stats["total_duration_ms"] / count
+                stats["failure_rate"] = (stats["failure_count"] / count) * 100
+        
+        return node_stats
+    
     def _generate_structure_hash(self, nodes: List[Dict], edges: List[Dict]) -> str:
         """Generate a hash representing the workflow structure for grouping"""
         import hashlib
@@ -1980,7 +2039,14 @@ async def save_evaluation_case(evaluation_case: EvaluationCaseRequest):
             "llm_judge": evaluation_case.llm_judge,
             "checkpoints": [{"points": cp.points, "criteria": cp.criteria} for cp in evaluation_case.checkpoints],
             "ground_truth": [{"name": gt.name, "value": gt.value, "points": gt.points} for gt in evaluation_case.ground_truth],
-            "final_output_criteria": [{"points": fc.points, "criteria": fc.criteria} for fc in evaluation_case.final_output_criteria]
+            "final_output_criteria": [{"points": fc.points, "criteria": fc.criteria} for fc in evaluation_case.final_output_criteria],
+            "node_criteria": [
+                {
+                    "node_type": nc.node_type,
+                    "criteria": [{"points": c.points, "criteria": c.criteria} for c in nc.criteria]
+                }
+                for nc in evaluation_case.node_criteria
+            ]
         }
         
         # Store the evaluation case in memory
@@ -3201,7 +3267,9 @@ async def get_workflow_analytics(request: Request):
             "total_cost": group_cost,
             "last_executed": most_recent[1].get("created_at", 0),
             "performance_trend": "stable",  # Could be enhanced with trend analysis
-            "success_rate": (len(completed_in_group) / len(executions_in_group) * 100) if executions_in_group else 0
+            "success_rate": (len(completed_in_group) / len(executions_in_group) * 100) if executions_in_group else 0,
+            # Add node-level metrics for workflows
+            "node_metrics": self._extract_node_metrics_for_workflow(executions_in_group)
         }
         
         workflow_summaries.append(workflow_summary)
@@ -3268,6 +3336,136 @@ async def get_workflow_analytics(request: Request):
             "average_duration_per_execution": avg_duration
         },
         "recent_executions": recent_executions
+    }
+
+
+@app.get("/analytics/workflow-topology/{execution_id}")
+async def get_workflow_topology(execution_id: str):
+    """Get workflow topology data for visualization including node-level spans"""
+    execution = executor._get_execution_by_id(execution_id)
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    trace = execution.get("trace", {})
+    spans = trace.get("spans", [])
+    
+    # Build node hierarchy from spans
+    nodes = []
+    edges = []
+    node_metrics = {}
+    
+    # First, identify workflow and node spans
+    workflow_span = None
+    node_spans = []
+    
+    for span in spans:
+        span_name = span.get("name", "")
+        attributes = span.get("attributes", {})
+        
+        if span_name.startswith("Workflow:"):
+            workflow_span = span
+        elif span_name.startswith("Node:"):
+            node_spans.append(span)
+    
+    # Extract node information
+    for span in node_spans:
+        attributes = span.get("attributes", {})
+        node_id = attributes.get("node.id", "unknown")
+        node_type = attributes.get("node.type", "unknown")
+        node_name = attributes.get("node.name", "Unknown Node")
+        
+        # Calculate node metrics
+        duration_ms = 0
+        if span.get("start_time") and span.get("end_time"):
+            duration_ms = (span.get("end_time") - span.get("start_time")) / 1_000_000
+        
+        # Get node position
+        position_x = attributes.get("node.position.x", 0)
+        position_y = attributes.get("node.position.y", 0)
+        
+        # Extract events for inputs/outputs
+        events = span.get("events", [])
+        node_input = ""
+        node_output = ""
+        
+        for event in events:
+            if event.get("name") == "node.input":
+                node_input = event.get("attributes", {}).get("data", "")
+            elif event.get("name") == "node.output":
+                node_output = event.get("attributes", {}).get("data", "")
+        
+        # Check for LLM spans within this node's timeframe
+        llm_cost = 0
+        llm_tokens = 0
+        
+        node_start = span.get("start_time", 0)
+        node_end = span.get("end_time", 0)
+        
+        for other_span in spans:
+            other_start = other_span.get("start_time", 0)
+            other_end = other_span.get("end_time", 0)
+            
+            # Check if this span is within the node's timeframe
+            if (other_start >= node_start and other_end <= node_end and 
+                other_span.get("name", "").startswith("llm")):
+                other_attrs = other_span.get("attributes", {})
+                input_cost = other_attrs.get("gen_ai.usage.input_cost", other_attrs.get("cost_prompt", 0))
+                output_cost = other_attrs.get("gen_ai.usage.output_cost", other_attrs.get("cost_completion", 0))
+                llm_cost += float(input_cost) + float(output_cost)
+                
+                input_tokens = other_attrs.get("gen_ai.usage.input_tokens", other_attrs.get("llm.token_count.prompt", 0))
+                output_tokens = other_attrs.get("gen_ai.usage.output_tokens", other_attrs.get("llm.token_count.completion", 0))
+                llm_tokens += int(input_tokens) + int(output_tokens)
+        
+        node_info = {
+            "id": node_id,
+            "type": node_type,
+            "name": node_name,
+            "position": {"x": position_x, "y": position_y},
+            "metrics": {
+                "duration_ms": duration_ms,
+                "cost": llm_cost,
+                "tokens": llm_tokens,
+                "status": "completed" if span.get("status", {}).get("status_code") == "OK" else "failed"
+            },
+            "data": {
+                "input_preview": node_input[:100] + "..." if len(node_input) > 100 else node_input,
+                "output_preview": node_output[:100] + "..." if len(node_output) > 100 else node_output
+            }
+        }
+        
+        nodes.append(node_info)
+        node_metrics[node_id] = node_info["metrics"]
+    
+    # Extract edges from workflow definition
+    workflow_def = execution.get("workflow", {})
+    if workflow_def:
+        for edge in workflow_def.edges:
+            edges.append({
+                "id": edge.id,
+                "source": edge.source,
+                "target": edge.target
+            })
+    
+    # Calculate critical path (nodes with longest cumulative duration)
+    critical_path = []
+    if nodes:
+        # Simple critical path: order by duration
+        sorted_nodes = sorted(nodes, key=lambda n: n["metrics"]["duration_ms"], reverse=True)
+        critical_path = [n["id"] for n in sorted_nodes[:3]]  # Top 3 slowest nodes
+    
+    return {
+        "execution_id": execution_id,
+        "workflow_name": execution.get("workflow_name", "Unknown Workflow"),
+        "nodes": nodes,
+        "edges": edges,
+        "metrics": {
+            "total_duration_ms": workflow_span.get("attributes", {}).get("workflow.total_execution_time", 0) if workflow_span else 0,
+            "total_cost": execution.get("cost_info", {}).get("total_cost", 0),
+            "node_count": len(nodes),
+            "critical_path": critical_path
+        },
+        "execution_status": execution.get("status", "unknown")
     }
 
 
@@ -3367,6 +3565,280 @@ async def get_workflow_steps_analytics(request: Request):
             "total_duration_ms": sum(step["step_duration_ms"] for step in all_steps),
             "total_tokens": sum(step["step_tokens"] for step in all_steps),
             "unique_step_types": len(step_analytics)
+        }
+    }
+
+
+@app.post("/evaluations/path-comparison")
+async def compare_execution_paths(request: dict):
+    """Compare different execution paths for the same workflow and input"""
+    try:
+        workflow_id = request.get("workflow_id")
+        input_data = request.get("input_data")
+        
+        if not workflow_id or not input_data:
+            raise HTTPException(status_code=400, detail="workflow_id and input_data are required")
+        
+        # Get all executions for this workflow
+        all_executions = []
+        for user_executions in executor.user_executions.values():
+            for exec_id, execution in user_executions.items():
+                # Match by workflow structure hash and similar input
+                if (execution.get("workflow_identity", {}).get("structure_hash") == workflow_id and
+                    execution.get("status") == "completed"):
+                    all_executions.append((exec_id, execution))
+        
+        # Group executions by their execution path
+        path_groups = {}
+        common_nodes = set()
+        all_nodes = set()
+        
+        for exec_id, execution in all_executions:
+            trace = execution.get("trace", {})
+            spans = trace.get("spans", [])
+            
+            # Extract execution path from Node spans
+            path = []
+            node_metrics = {}
+            
+            for span in spans:
+                if span.get("name", "").startswith("Node:"):
+                    attributes = span.get("attributes", {})
+                    node_id = attributes.get("node.id", "")
+                    node_name = attributes.get("node.name", "")
+                    
+                    if node_id:
+                        path.append(node_name or node_id)
+                        all_nodes.add(node_id)
+                        
+                        # Calculate node metrics
+                        duration_ms = 0
+                        if span.get("start_time") and span.get("end_time"):
+                            duration_ms = (span.get("end_time") - span.get("start_time")) / 1_000_000
+                        
+                        # Get cost from LLM spans within this node
+                        node_cost = 0
+                        node_start = span.get("start_time", 0)
+                        node_end = span.get("end_time", 0)
+                        
+                        for other_span in spans:
+                            if (other_span.get("name", "").startswith("llm") and
+                                other_span.get("start_time", 0) >= node_start and
+                                other_span.get("end_time", 0) <= node_end):
+                                attrs = other_span.get("attributes", {})
+                                input_cost = attrs.get("gen_ai.usage.input_cost", attrs.get("cost_prompt", 0))
+                                output_cost = attrs.get("gen_ai.usage.output_cost", attrs.get("cost_completion", 0))
+                                node_cost += float(input_cost) + float(output_cost)
+                        
+                        node_metrics[node_id] = {
+                            "duration_ms": duration_ms,
+                            "cost": node_cost,
+                            "status": "completed" if span.get("status", {}).get("status_code") == "OK" else "failed"
+                        }
+            
+            # Group by path
+            path_key = " -> ".join(path)
+            if path_key not in path_groups:
+                path_groups[path_key] = {
+                    "executions": [],
+                    "node_sequence": path
+                }
+            
+            path_groups[path_key]["executions"].append({
+                "execution_id": exec_id,
+                "path": path,
+                "total_duration_ms": execution.get("execution_time", 0) * 1000,
+                "total_cost": execution.get("cost_info", {}).get("total_cost", 0),
+                "success": execution.get("status") == "completed",
+                "final_output": trace.get("final_output", ""),
+                "node_metrics": node_metrics
+            })
+        
+        # Calculate statistics for each path
+        for path_key, group in path_groups.items():
+            executions = group["executions"]
+            if executions:
+                group["avg_duration_ms"] = sum(e["total_duration_ms"] for e in executions) / len(executions)
+                group["avg_cost"] = sum(e["total_cost"] for e in executions) / len(executions)
+                group["success_rate"] = (sum(1 for e in executions if e["success"]) / len(executions)) * 100
+        
+        # Find common nodes (nodes that appear in all paths)
+        if path_groups:
+            path_node_sets = []
+            for group in path_groups.values():
+                if group["executions"]:
+                    first_exec = group["executions"][0]
+                    path_node_sets.append(set(first_exec["node_metrics"].keys()))
+            
+            if path_node_sets:
+                common_nodes = set.intersection(*path_node_sets)
+        
+        # Find divergence points
+        divergence_points = []
+        if len(path_groups) > 1:
+            paths = [group["node_sequence"] for group in path_groups.values()]
+            min_length = min(len(p) for p in paths)
+            
+            for i in range(min_length):
+                if len(set(p[i] if i < len(p) else None for p in paths)) > 1:
+                    divergence_points.append(f"Step {i+1}")
+                    break
+        
+        return {
+            "paths": path_groups,
+            "common_nodes": list(common_nodes),
+            "divergence_points": divergence_points
+        }
+        
+    except Exception as e:
+        print(f"Error in path comparison: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/analytics/decision-paths")
+async def get_decision_path_analytics(request: Request):
+    """Analyze decision node paths and their outcomes"""
+    # Extract user_id from headers
+    user_id = request.headers.get("x-user-id", "anonymous")
+    
+    # Get user-specific executions
+    user_executions = executor._get_user_executions(user_id)
+    if not user_executions:
+        return {"decision_nodes": [], "path_analysis": {}}
+    
+    # Track decision paths
+    decision_paths = {}  # decision_node_id -> {branch_taken -> count}
+    path_outcomes = {}   # full_path -> {success_count, fail_count, avg_duration, avg_cost}
+    
+    for exec_id, execution in user_executions.items():
+        if execution.get("status") != "completed":
+            continue
+            
+        trace = execution.get("trace", {})
+        spans = trace.get("spans", [])
+        
+        # Extract decision nodes and paths
+        decision_nodes = []
+        execution_path = []
+        
+        for span in spans:
+            span_name = span.get("name", "")
+            attributes = span.get("attributes", {})
+            
+            if span_name.startswith("Node:"):
+                node_type = attributes.get("node.type", "")
+                node_id = attributes.get("node.id", "")
+                node_name = attributes.get("node.name", "")
+                
+                execution_path.append(node_id)
+                
+                if node_type == "decision":
+                    # Track decision node
+                    branch_taken = attributes.get("node.decision.branch_taken", "unknown")
+                    condition = attributes.get("node.decision.condition", "unknown")
+                    
+                    if node_id not in decision_paths:
+                        decision_paths[node_id] = {
+                            "node_name": node_name,
+                            "condition": condition,
+                            "branches": {}
+                        }
+                    
+                    if branch_taken not in decision_paths[node_id]["branches"]:
+                        decision_paths[node_id]["branches"][branch_taken] = {
+                            "count": 0,
+                            "total_duration_ms": 0,
+                            "total_cost": 0,
+                            "success_count": 0,
+                            "fail_count": 0
+                        }
+                    
+                    branch_data = decision_paths[node_id]["branches"][branch_taken]
+                    branch_data["count"] += 1
+                    
+                    # Add execution metrics
+                    duration_ms = execution.get("execution_time", 0) * 1000
+                    cost = execution.get("cost_info", {}).get("total_cost", 0)
+                    
+                    branch_data["total_duration_ms"] += duration_ms
+                    branch_data["total_cost"] += cost
+                    
+                    if execution.get("status") == "completed":
+                        branch_data["success_count"] += 1
+                    else:
+                        branch_data["fail_count"] += 1
+        
+        # Track full execution paths
+        path_key = " -> ".join(execution_path)
+        if path_key not in path_outcomes:
+            path_outcomes[path_key] = {
+                "count": 0,
+                "total_duration_ms": 0,
+                "total_cost": 0,
+                "success_count": 0,
+                "fail_count": 0,
+                "node_sequence": execution_path
+            }
+        
+        path_data = path_outcomes[path_key]
+        path_data["count"] += 1
+        path_data["total_duration_ms"] += execution.get("execution_time", 0) * 1000
+        path_data["total_cost"] += execution.get("cost_info", {}).get("total_cost", 0)
+        
+        if execution.get("status") == "completed":
+            path_data["success_count"] += 1
+        else:
+            path_data["fail_count"] += 1
+    
+    # Calculate averages and success rates
+    for node_id, node_data in decision_paths.items():
+        for branch_name, branch_data in node_data["branches"].items():
+            count = branch_data["count"]
+            if count > 0:
+                branch_data["avg_duration_ms"] = branch_data["total_duration_ms"] / count
+                branch_data["avg_cost"] = branch_data["total_cost"] / count
+                branch_data["success_rate"] = (branch_data["success_count"] / count) * 100
+    
+    for path_key, path_data in path_outcomes.items():
+        count = path_data["count"]
+        if count > 0:
+            path_data["avg_duration_ms"] = path_data["total_duration_ms"] / count
+            path_data["avg_cost"] = path_data["total_cost"] / count
+            path_data["success_rate"] = (path_data["success_count"] / count) * 100
+    
+    # Sort paths by frequency
+    sorted_paths = sorted(path_outcomes.items(), key=lambda x: x[1]["count"], reverse=True)
+    
+    return {
+        "decision_nodes": [
+            {
+                "node_id": node_id,
+                "node_name": data["node_name"],
+                "condition": data["condition"],
+                "branches": [
+                    {
+                        "branch_name": branch_name,
+                        "metrics": branch_data
+                    }
+                    for branch_name, branch_data in data["branches"].items()
+                ]
+            }
+            for node_id, data in decision_paths.items()
+        ],
+        "path_analysis": {
+            "most_common_paths": [
+                {
+                    "path": path_key,
+                    "metrics": path_data
+                }
+                for path_key, path_data in sorted_paths[:10]  # Top 10 paths
+            ],
+            "total_unique_paths": len(path_outcomes),
+            "path_efficiency": {
+                "fastest_path": min(path_outcomes.items(), key=lambda x: x[1].get("avg_duration_ms", float('inf'))) if path_outcomes else None,
+                "most_cost_effective": min(path_outcomes.items(), key=lambda x: x[1].get("avg_cost", float('inf'))) if path_outcomes else None,
+                "highest_success_rate": max(path_outcomes.items(), key=lambda x: x[1].get("success_rate", 0)) if path_outcomes else None
+            }
         }
     }
 
