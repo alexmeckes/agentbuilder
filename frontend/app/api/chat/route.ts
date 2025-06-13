@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
       const latestMessage = messages[messages.length - 1]
       
       // Call our any-agent backend for extraction
+      console.log('Chat API - Backend URL:', BACKEND_URL)
+      console.log('Chat API - Full URL:', `${BACKEND_URL}/api/execute`)
       const backendResponse = await fetch(`${BACKEND_URL}/api/execute`, {
         method: 'POST',
         headers: {
@@ -161,7 +163,7 @@ Always respond with helpful explanations and actionable workflow suggestions. Fo
     }
 
     // Call our any-agent backend for the main response
-    const backendResponse = await fetch(`${BACKEND_URL}/execute`, {
+    const backendResponse = await fetch(`${BACKEND_URL}/api/execute`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
