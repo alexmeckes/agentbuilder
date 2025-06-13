@@ -13,6 +13,7 @@ Welcome to the Any-Agent Workflow Composer documentation.
 - **[AI Assistant](features/ai-assistant.md)** - Natural language workflow creation
 - **[Composio Integration](features/composio.md)** - 100+ real-world tools
 - **[Analytics Dashboard](features/analytics.md)** - Monitoring and insights
+- **[Workflow Evaluation](features/evaluation.md)** - LLM-as-a-Judge testing system
 - **[A/B Testing](features/ab-testing.md)** - Optimize your workflows
 
 ### Development

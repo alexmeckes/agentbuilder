@@ -9,6 +9,7 @@ A visual, drag-and-drop interface for building AI agent workflows with real-worl
 - 🔧 **100+ Real Tools** - Integration with Google Docs, GitHub, Slack via Composio
 - 📊 **Analytics & Monitoring** - Track costs, performance, and execution history
 - 🧪 **A/B Testing** - Compare different models and approaches
+- 🎯 **LLM Evaluation** - Built-in LLM-as-a-Judge evaluation system
 - ⚡ **Real-time Execution** - Live updates as workflows run
 
 ## Quick Start
@@ -58,6 +59,9 @@ Connect to 100+ real-world tools including Google Workspace, GitHub, Slack, CRM 
 
 ### Analytics Dashboard
 Monitor workflow performance with real-time metrics, cost tracking, and execution history.
+
+### Workflow Evaluation
+Comprehensive evaluation system with LLM-as-a-Judge capabilities, custom criteria, test case management, and detailed performance analysis.
 
 ## Requirements
 

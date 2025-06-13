@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from enum import Enum
 import asyncio
 import json
+import time
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 from any_agent import AnyAgent, AgentConfig, AgentFramework
 from any_agent.tools import search_web
 
@@ -80,12 +83,14 @@ class WorkflowExecutionEngine:
             NodeType.OUTPUT: self._handle_output_node,
             NodeType.DECISION: self._handle_decision_node,
         }
+        self.tracer = trace.get_tracer(__name__)
     
     async def execute_workflow(self, 
                              nodes: List[Dict], 
                              edges: List[Dict], 
                              input_data: str,
-                             framework: str = "openai") -> Dict[str, Any]:
+                             framework: str = "openai",
+                             workflow_name: Optional[str] = None) -> Dict[str, Any]:
         """Execute a complete workflow"""
         
         # Convert to internal representation
@@ -119,101 +124,139 @@ class WorkflowExecutionEngine:
             framework=AgentFramework.from_string(framework.upper())
         )
         
-        # Plan execution order (topological sort)
-        execution_order = self._plan_execution_order(context)
-        context.execution_order = execution_order
-        
-        # Execute nodes in order
-        final_outputs = {}
-        execution_trace = []
-        
-        for node_id in execution_order:
-            node = context.nodes[node_id]
-            
-            try:
-                # Prepare inputs for this node
-                inputs = self._prepare_node_inputs(node_id, context)
-                node.inputs = inputs
-                node.status = NodeStatus.RUNNING
-                
-                # Execute the node
-                import time
-                start_time = time.time()
-                
-                outputs = await self.node_handlers[node.type](node, context)
-                
-                end_time = time.time()
-                node.execution_time = end_time - start_time
-                
-                # Store outputs
-                node.outputs = outputs
-                context.node_outputs[node_id] = outputs
-                node.status = NodeStatus.COMPLETED
-                context.completed_nodes.add(node_id)
-                
-                # Add to trace
-                execution_trace.append({
-                    "node_id": node_id,
-                    "node_type": node.type.value,
-                    "node_name": node.data.get("label", node_id),
-                    "inputs": inputs,
-                    "outputs": outputs,
-                    "execution_time": node.execution_time,
-                    "status": "completed"
-                })
-                
-                # Collect final outputs from output nodes
-                if node.type == NodeType.OUTPUT:
-                    final_outputs[node_id] = outputs
-                    
-            except Exception as e:
-                node.status = NodeStatus.FAILED
-                node.error = str(e)
-                context.failed_nodes.add(node_id)
-                
-                execution_trace.append({
-                    "node_id": node_id,
-                    "node_type": node.type.value,
-                    "node_name": node.data.get("label", node_id),
-                    "inputs": node.inputs,
-                    "outputs": None,
-                    "execution_time": node.execution_time,
-                    "status": "failed",
-                    "error": str(e)
-                })
-                
-                # For now, stop on first failure (could implement retry logic)
-                break
-        
-        # Determine final result
-        if final_outputs:
-            # Use output from output nodes
-            final_result = "\n\n".join([
-                f"**{context.nodes[node_id].data.get('label', node_id)}:**\n{outputs.get('result', outputs)}"
-                for node_id, outputs in final_outputs.items()
-            ])
-        else:
-            # Use output from last completed node
-            last_completed = None
-            for node_id in reversed(execution_order):
-                if node_id in context.completed_nodes:
-                    last_completed = node_id
-                    break
-            
-            if last_completed:
-                final_result = context.node_outputs[last_completed].get('result', 
-                              str(context.node_outputs[last_completed]))
+        # Derive workflow name if not provided
+        if not workflow_name:
+            # Try to get name from first agent node or use generic name
+            agent_nodes = [n for n in workflow_nodes.values() if n.type == NodeType.AGENT]
+            if agent_nodes:
+                workflow_name = agent_nodes[0].data.get("label", f"Workflow {context.workflow_id}")
             else:
-                final_result = "Workflow execution failed - no nodes completed successfully"
+                workflow_name = f"Workflow {context.workflow_id}"
         
-        return {
-            "final_output": final_result,
-            "execution_trace": execution_trace,
-            "workflow_status": "completed" if not context.failed_nodes else "failed",
-            "nodes_completed": len(context.completed_nodes),
-            "nodes_failed": len(context.failed_nodes),
-            "total_nodes": len(workflow_nodes)
-        }
+        # Start root workflow span
+        with self.tracer.start_as_current_span(
+            f"Workflow: {workflow_name}",
+            attributes={
+                "workflow.id": context.workflow_id,
+                "workflow.name": workflow_name,
+                "workflow.node_count": len(workflow_nodes),
+                "workflow.edge_count": len(workflow_edges),
+                "workflow.framework": framework,
+                "workflow.input_length": len(input_data)
+            }
+        ) as workflow_span:
+            try:
+                # Plan execution order (topological sort)
+                execution_order = self._plan_execution_order(context)
+                context.execution_order = execution_order
+                workflow_span.set_attribute("workflow.execution_order", ",".join(execution_order))
+                
+                # Execute nodes in order
+                final_outputs = {}
+                execution_trace = []
+                
+                for node_id in execution_order:
+                    node = context.nodes[node_id]
+                    
+                    try:
+                        # Prepare inputs for this node
+                        inputs = self._prepare_node_inputs(node_id, context)
+                        node.inputs = inputs
+                        node.status = NodeStatus.RUNNING
+                        
+                        # Execute the node
+                        start_time = time.time()
+                        
+                        outputs = await self._execute_node_with_span(node, context)
+                        
+                        end_time = time.time()
+                        node.execution_time = end_time - start_time
+                        
+                        # Store outputs
+                        node.outputs = outputs
+                        context.node_outputs[node_id] = outputs
+                        node.status = NodeStatus.COMPLETED
+                        context.completed_nodes.add(node_id)
+                        
+                        # Add to trace
+                        execution_trace.append({
+                            "node_id": node_id,
+                            "node_type": node.type.value,
+                            "node_name": node.data.get("label", node_id),
+                            "inputs": inputs,
+                            "outputs": outputs,
+                            "execution_time": node.execution_time,
+                            "status": "completed"
+                        })
+                        
+                        # Collect final outputs from output nodes
+                        if node.type == NodeType.OUTPUT:
+                            final_outputs[node_id] = outputs
+                            
+                    except Exception as e:
+                        node.status = NodeStatus.FAILED
+                        node.error = str(e)
+                        context.failed_nodes.add(node_id)
+                        
+                        execution_trace.append({
+                            "node_id": node_id,
+                            "node_type": node.type.value,
+                            "node_name": node.data.get("label", node_id),
+                            "inputs": node.inputs,
+                            "outputs": None,
+                            "execution_time": node.execution_time,
+                            "status": "failed",
+                            "error": str(e)
+                        })
+                        
+                        # For now, stop on first failure (could implement retry logic)
+                        break
+                
+                # Set workflow span status based on execution result
+                if context.failed_nodes:
+                    workflow_span.set_status(Status(StatusCode.ERROR, "Workflow execution failed"))
+                    workflow_span.set_attribute("workflow.failed_nodes", len(context.failed_nodes))
+                else:
+                    workflow_span.set_status(Status(StatusCode.OK))
+                
+                workflow_span.set_attribute("workflow.completed_nodes", len(context.completed_nodes))
+                workflow_span.set_attribute("workflow.total_execution_time", 
+                                          sum(node.execution_time or 0 for node in context.nodes.values()))
+                
+                # Determine final result
+                if final_outputs:
+                    # Use output from output nodes
+                    final_result = "\n\n".join([
+                        f"**{context.nodes[node_id].data.get('label', node_id)}:**\n{outputs.get('result', outputs)}"
+                        for node_id, outputs in final_outputs.items()
+                    ])
+                else:
+                    # Use output from last completed node
+                    last_completed = None
+                    for node_id in reversed(execution_order):
+                        if node_id in context.completed_nodes:
+                            last_completed = node_id
+                            break
+                    
+                    if last_completed:
+                        final_result = context.node_outputs[last_completed].get('result', 
+                                      str(context.node_outputs[last_completed]))
+                    else:
+                        final_result = "Workflow execution failed - no nodes completed successfully"
+                
+                return {
+                    "final_output": final_result,
+                    "execution_trace": execution_trace,
+                    "workflow_status": "completed" if not context.failed_nodes else "failed",
+                    "nodes_completed": len(context.completed_nodes),
+                    "nodes_failed": len(context.failed_nodes),
+                    "total_nodes": len(workflow_nodes)
+                }
+                
+            except Exception as e:
+                workflow_span.set_status(Status(StatusCode.ERROR, str(e)))
+                workflow_span.record_exception(e)
+                raise
     
     def _plan_execution_order(self, context: WorkflowExecutionContext) -> List[str]:
         """Determine execution order using topological sort"""
@@ -285,6 +328,53 @@ class WorkflowExecutionEngine:
                 ])
         
         return inputs
+    
+    async def _execute_node_with_span(self, node: WorkflowNode, context: WorkflowExecutionContext) -> Dict[str, Any]:
+        """Execute a node within its own span"""
+        node_name = node.data.get("label", node.id)
+        span_name = f"Node: {node_name}"
+        
+        with self.tracer.start_as_current_span(
+            span_name,
+            attributes={
+                "node.id": node.id,
+                "node.type": node.type.value,
+                "node.name": node_name,
+                "workflow.id": context.workflow_id,
+                "node.position.x": node.position.get("x", 0),
+                "node.position.y": node.position.get("y", 0)
+            }
+        ) as span:
+            try:
+                # Add input information to span
+                if node.inputs:
+                    span.add_event("node.input", {"data": str(node.inputs)[:1000]})  # Truncate large inputs
+                
+                # Execute the appropriate handler
+                result = await self.node_handlers[node.type](node, context)
+                
+                # Add output information to span
+                if result:
+                    span.add_event("node.output", {"data": str(result)[:1000]})  # Truncate large outputs
+                    span.set_attribute("node.output_size", len(str(result)))
+                
+                # Set node-specific attributes based on type
+                if node.type == NodeType.AGENT:
+                    span.set_attribute("node.model_id", node.data.get("model_id", "unknown"))
+                    span.set_attribute("node.agent_name", node.data.get("name", "unnamed"))
+                elif node.type == NodeType.DECISION:
+                    # Track which branch was taken (to be implemented in decision logic)
+                    span.set_attribute("node.decision.condition", node.data.get("condition", "unknown"))
+                elif node.type == NodeType.TOOL:
+                    span.set_attribute("node.tool_type", node.data.get("tool_type", "unknown"))
+                
+                span.set_status(Status(StatusCode.OK))
+                return result
+                
+            except Exception as e:
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+                span.record_exception(e)
+                raise
     
     async def _handle_input_node(self, node: WorkflowNode, context: WorkflowExecutionContext) -> Dict[str, Any]:
         """Handle input node - just passes through the initial input"""
