@@ -9,7 +9,6 @@ import sys
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from any_agent import AgentConfig, AgentFramework, AnyAgent
-import multiprocessing
 import json
 import traceback
 import os
@@ -624,7 +623,7 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
                                 params["text"] = text
                             
                             # Execute the tool
-                            manager = UserComposioManager()
+                            manager = ComposioHttpClient()
                             result = asyncio.run(
                                 manager.execute_tool_for_user(tool_name, params, user_context)
                             )
