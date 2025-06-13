@@ -26,6 +26,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+# Import model definitions
+from models import (
+    WorkflowNode, WorkflowEdge, WorkflowDefinition,
+    ExecutionRequest, ExecutionResponse, UserInputRequest,
+    CheckpointCriteria, GroundTruthAnswer, NodeCriteria, EvaluationCaseRequest
+)
+
 # Load environment variables from .env file
 from setup_env import setup_environment
 
@@ -58,81 +65,6 @@ except ImportError:
 
 # Import AI workflow refiner
 from ai_workflow_refiner import generate_workflow_actions, apply_actions
-
-
-class WorkflowNode(BaseModel):
-    """Represents a node in the visual workflow"""
-    id: str
-    type: str  # 'agent', 'tool', 'input', 'output'
-    data: Dict[str, Any]
-    position: Dict[str, float]
-
-
-class WorkflowEdge(BaseModel):
-    """Represents an edge (connection) between nodes"""
-    id: str
-    source: str
-    target: str
-
-
-class WorkflowDefinition(BaseModel):
-    """Complete workflow definition from the frontend"""
-    nodes: List[WorkflowNode]
-    edges: List[WorkflowEdge]
-
-
-class ExecutionRequest(BaseModel):
-    """Request to execute a workflow"""
-    workflow: WorkflowDefinition
-    input_data: str
-    framework: str = "openai"  # Default to OpenAI
-    workflow_identity: Optional[Dict[str, Any]] = None  # Frontend workflow identity
-    workflow_name: Optional[str] = None  # Frontend workflow name
-    workflow_id: Optional[str] = None  # Frontend workflow ID
-    user_context: Optional[Dict[str, Any]] = None  # User context with user_id
-
-
-class ExecutionResponse(BaseModel):
-    """Response from workflow execution"""
-    execution_id: str
-    status: str
-    result: Optional[str] = None
-    trace: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-
-
-class UserInputRequest(BaseModel):
-    """Request model for user input during workflow execution"""
-    execution_id: str
-    input_text: str
-
-
-class CheckpointCriteria(BaseModel):
-    """Evaluation checkpoint criteria"""
-    points: int
-    criteria: str
-
-
-class GroundTruthAnswer(BaseModel):
-    """Ground truth answer for evaluation"""
-    name: str
-    value: str
-    points: int
-
-
-class NodeCriteria(BaseModel):
-    """Evaluation criteria for specific node types"""
-    node_type: str  # 'agent', 'tool', 'decision', 'input', 'output', or specific node name
-    criteria: List[CheckpointCriteria]
-
-
-class EvaluationCaseRequest(BaseModel):
-    """Request model for creating evaluation cases"""
-    llm_judge: str
-    checkpoints: List[CheckpointCriteria]
-    ground_truth: List[GroundTruthAnswer]
-    final_output_criteria: List[CheckpointCriteria] = []
-    node_criteria: List[NodeCriteria] = []  # NEW: Node-level evaluation criteria
 
 
 class WorkflowExecutor:
