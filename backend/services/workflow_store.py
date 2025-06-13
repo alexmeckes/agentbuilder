@@ -66,6 +66,8 @@ class WorkflowStore:
                               workflow_id: Optional[str] = None) -> Dict[str, Any]:
         """Get workflow analytics with optional filtering"""
         print(f"📊 WorkflowStore: Getting analytics - Total executions in memory: {len(self.executions)}")
+        print(f"📊 WorkflowStore: Instance ID: {id(self)}")
+        print(f"📊 WorkflowStore: Called with user_id={user_id}, start_date={start_date}, end_date={end_date}, workflow_id={workflow_id}")
         if self.executions:
             print(f"📊 WorkflowStore: Sample execution: {self.executions[0].get('execution_id')} - user: {self.executions[0].get('user_id')}")
         filtered_executions = self.executions

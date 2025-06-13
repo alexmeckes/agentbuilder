@@ -157,8 +157,8 @@ function WorkflowEditorInner({
       
       // We need to fetch the final execution data to get the result
       if (executionState.id) {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
-        fetch(`${backendUrl}/api/executions/${executionState.id}`)
+        // Use frontend API route to avoid CORS issues
+        fetch(`/api/executions/${executionState.id}`)
           .then(response => response.json())
           .then(data => {
             console.log('📦 Fetched final execution data:', data)

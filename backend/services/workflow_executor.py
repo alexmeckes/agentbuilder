@@ -464,6 +464,7 @@ class WorkflowExecutor:
                 print(f"❌ Workflow {execution_id} failed: {workflow_result['error']}")
                 
                 # Store failed execution data in WorkflowStore for analytics
+                print(f"📊 DEBUG: workflow_store exists? {self.workflow_store is not None}, id={id(self.workflow_store) if self.workflow_store else 'None'}")
                 if self.workflow_store:
                     execution_data_for_store = {
                         "execution_id": execution_id,
@@ -534,6 +535,7 @@ class WorkflowExecutor:
                 print(f"🔍 Result length: {len(final_output) if final_output else 0} characters")
                 
                 # Store execution data in WorkflowStore for analytics
+                print(f"📊 DEBUG: workflow_store exists? {self.workflow_store is not None}, id={id(self.workflow_store) if self.workflow_store else 'None'}")
                 if self.workflow_store:
                     execution_data_for_store = {
                         "execution_id": execution_id,
@@ -601,6 +603,7 @@ class WorkflowExecutor:
             self._update_execution_progress(execution_id, 100, f"Failed: {str(e)}")
             
             # Store exception execution data in WorkflowStore for analytics
+            print(f"📊 DEBUG: workflow_store exists? {self.workflow_store is not None}, id={id(self.workflow_store) if self.workflow_store else 'None'}")
             if self.workflow_store:
                 execution_data_for_store = {
                     "execution_id": execution_id,

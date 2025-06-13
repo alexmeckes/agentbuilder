@@ -30,6 +30,11 @@ async def get_workflow_analytics(request: Request):
     days = int(request.query_params.get("days", 7))
     workflow_id = request.query_params.get("workflowId")
     
+    # Also check headers for user_id (frontend sends it there)
+    if not user_id:
+        user_id = request.headers.get('x-user-id')
+        print(f"📊 Analytics: Got user_id from header: {user_id}")
+    
     # Calculate date range
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)

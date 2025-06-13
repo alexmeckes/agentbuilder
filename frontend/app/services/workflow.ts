@@ -71,7 +71,8 @@ export class WorkflowService {
    * Get available agent frameworks
    */
   static async getFrameworks(): Promise<FrameworkInfo> {
-    const response = await fetch(`${BACKEND_URL}/api/frameworks`)
+    // Use frontend API route to avoid CORS issues
+    const response = await fetch(`/api/frameworks`)
     if (!response.ok) {
       throw new Error('Failed to fetch frameworks')
     }
@@ -121,7 +122,8 @@ export class WorkflowService {
    * Get execution status by ID
    */
   static async getExecution(executionId: string): Promise<any> {
-    const response = await fetch(`${BACKEND_URL}/api/executions/${executionId}`)
+    // Use frontend API route to avoid CORS issues
+    const response = await fetch(`/api/executions/${executionId}`)
     if (!response.ok) {
       throw new Error('Failed to fetch execution details')
     }
@@ -132,7 +134,8 @@ export class WorkflowService {
    * Submit user input for a workflow execution that's waiting for input
    */
   static async submitUserInput(executionId: string, inputText: string): Promise<{ success: boolean; message?: string; error?: string }> {
-    const response = await fetch(`${BACKEND_URL}/api/executions/${executionId}/input`, {
+    // Use frontend API route to avoid CORS issues
+    const response = await fetch(`/api/executions/${executionId}/input`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -309,7 +312,8 @@ export class WorkflowService {
       if (!isPolling) return
       
       try {
-        const url = `${BACKEND_URL}/api/executions/${executionId}`
+        // Use frontend API route to avoid CORS issues
+        const url = `/api/executions/${executionId}`
         console.log(`📡 Polling attempt ${pollCount + 1}: ${url}`)
         
         const response = await fetch(url)

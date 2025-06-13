@@ -164,6 +164,7 @@ mcp.set_mcp_dependencies(
 webhook.set_executor(executor)
 
 debug.set_executor(executor)
+debug.set_workflow_store(workflow_store)
 
 composio.set_composio_dependencies(
     COMPOSIO_AVAILABLE,
