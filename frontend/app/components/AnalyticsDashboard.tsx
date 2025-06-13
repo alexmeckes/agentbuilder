@@ -534,7 +534,7 @@ export function AnalyticsDashboard({ onExecutionSelect }: AnalyticsDashboardProp
                           <div>
                             <p className="font-medium text-gray-900">{execution.workflow_name}</p>
                             <p className="text-sm text-gray-600">
-                              {new Date(execution.created_at * 1000).toLocaleString()}
+                              {new Date(Number(execution.created_at) * 1000).toLocaleString()}
                             </p>
                           </div>
                           <div className="text-right">
