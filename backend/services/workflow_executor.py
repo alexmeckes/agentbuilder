@@ -25,7 +25,7 @@ from visual_to_anyagent_translator import execute_visual_workflow_with_anyagent
 class WorkflowExecutor:
     """Execute workflows using any-agent's native multi-agent orchestration"""
     
-    def __init__(self):
+    def __init__(self, workflow_store=None):
         # User-isolated executions: {user_id: {execution_id: execution_data}}
         self.user_executions: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._generating_identity = False  # Protection against infinite loops
@@ -40,7 +40,15 @@ class WorkflowExecutor:
         # Memory management settings
         self.max_executions_per_user = 100
         self.execution_ttl_hours = 24
+        
+        # Store reference to WorkflowStore
+        self.workflow_store = workflow_store
 
+    def set_workflow_store(self, workflow_store):
+        """Set the workflow store instance for analytics"""
+        self.workflow_store = workflow_store
+        print(f"✅ WorkflowStore connected to WorkflowExecutor")
+    
     def _get_user_executions(self, user_id: str) -> Dict[str, Dict[str, Any]]:
         """Get executions for a specific user, creating if needed"""
         if user_id not in self.user_executions:
@@ -444,6 +452,31 @@ class WorkflowExecutor:
                 self._update_execution_progress(execution_id, 100, f"Failed: {workflow_result['error']}")
                 print(f"❌ Workflow {execution_id} failed: {workflow_result['error']}")
                 
+                # Store failed execution data in WorkflowStore for analytics
+                if self.workflow_store:
+                    execution_data_for_store = {
+                        "execution_id": execution_id,
+                        "user_id": user_id,
+                        "workflow_id": workflow_identity.get("id", workflow_identity.get("structure_hash", execution_id)),
+                        "workflow_name": workflow_identity.get("name", "Unknown Workflow"),
+                        "workflow_category": workflow_identity.get("category", "general"),
+                        "status": "failed",
+                        "created_at": start_time,
+                        "completed_at": completion_time,
+                        "execution_time": completion_time - start_time,
+                        "cost_info": {"total_cost": 0, "total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
+                        "error": workflow_result["error"],
+                        "error_details": error_details,
+                        "trace": {
+                            "error": workflow_result["error"],
+                            "error_details": error_details,
+                            "framework_used": framework,
+                            "workflow_identity": workflow_identity
+                        }
+                    }
+                    self.workflow_store.add_execution(execution_data_for_store)
+                    print(f"📊 Stored failed execution data in WorkflowStore for analytics")
+                
             else:
                 # Success case
                 final_output = workflow_result.get("final_output")
@@ -489,6 +522,33 @@ class WorkflowExecutor:
                 print(f"🔍 Final progress: {final_execution.get('progress', {})}")
                 print(f"🔍 Result length: {len(final_output) if final_output else 0} characters")
                 
+                # Store execution data in WorkflowStore for analytics
+                if self.workflow_store:
+                    execution_data_for_store = {
+                        "execution_id": execution_id,
+                        "user_id": user_id,
+                        "workflow_id": workflow_identity.get("id", workflow_identity.get("structure_hash", execution_id)),
+                        "workflow_name": workflow_identity.get("name", "Unknown Workflow"),
+                        "workflow_category": workflow_identity.get("category", "general"),
+                        "status": "completed",
+                        "created_at": start_time,
+                        "completed_at": completion_time,
+                        "execution_time": completion_time - start_time,
+                        "cost_info": cost_info,
+                        "trace": {
+                            "final_output": final_output,
+                            "execution_pattern": workflow_result.get("execution_pattern", "unknown"),
+                            "main_agent": workflow_result.get("main_agent", "unknown"),
+                            "managed_agents": workflow_result.get("managed_agents", []),
+                            "framework_used": workflow_result.get("framework_used", framework),
+                            "performance": self._extract_performance_metrics(workflow_result.get("agent_trace"), completion_time - start_time),
+                            "spans": self._extract_spans_from_trace(workflow_result.get("agent_trace")),
+                            "workflow_identity": workflow_identity
+                        }
+                    }
+                    self.workflow_store.add_execution(execution_data_for_store)
+                    print(f"📊 Stored execution data in WorkflowStore for analytics")
+                
         except Exception as e:
             # Handle execution exceptions
             completion_time = time.time()
@@ -528,6 +588,31 @@ class WorkflowExecutor:
             })
             
             self._update_execution_progress(execution_id, 100, f"Failed: {str(e)}")
+            
+            # Store exception execution data in WorkflowStore for analytics
+            if self.workflow_store:
+                execution_data_for_store = {
+                    "execution_id": execution_id,
+                    "user_id": user_id,
+                    "workflow_id": workflow_identity.get("id", workflow_identity.get("structure_hash", execution_id)),
+                    "workflow_name": workflow_identity.get("name", "Unknown Workflow"),
+                    "workflow_category": workflow_identity.get("category", "general"),
+                    "status": "failed",
+                    "created_at": start_time,
+                    "completed_at": completion_time,
+                    "execution_time": completion_time - start_time,
+                    "cost_info": {"total_cost": 0, "total_tokens": 0, "input_tokens": 0, "output_tokens": 0},
+                    "error": str(e),
+                    "error_details": error_details,
+                    "trace": {
+                        "error": str(e),
+                        "error_details": error_details,
+                        "framework_used": framework,
+                        "workflow_identity": workflow_identity
+                    }
+                }
+                self.workflow_store.add_execution(execution_data_for_store)
+                print(f"📊 Stored exception execution data in WorkflowStore for analytics")
 
     def _update_execution_progress(self, execution_id: str, percentage: float, activity: str):
         """Update execution progress"""

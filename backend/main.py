@@ -72,8 +72,8 @@ from services import WorkflowExecutor, WorkflowStore
 
 
 # Initialize services
-executor = WorkflowExecutor()
 workflow_store = WorkflowStore()
+executor = WorkflowExecutor(workflow_store)
 
 # Global dictionaries to store state
 stored_experiments = {}
