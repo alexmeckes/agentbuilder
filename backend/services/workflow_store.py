@@ -141,6 +141,20 @@ class WorkflowStore:
                 summary['avg_execution_time'] = sum(summary['execution_times']) / len(summary['execution_times'])
             del summary['execution_times']  # Remove raw data
         
+        # Get recent executions for the response
+        recent_executions = []
+        sorted_executions = sorted(filtered_executions, key=lambda x: x.get('created_at', 0), reverse=True)
+        for execution in sorted_executions[:10]:  # Get last 10 executions
+            recent_executions.append({
+                'execution_id': execution.get('execution_id', ''),
+                'workflow_id': execution.get('workflow_id', ''),
+                'workflow_name': execution.get('workflow_name', 'Unknown'),
+                'status': execution.get('status', 'unknown'),
+                'cost': execution.get('cost_info', {}).get('total_cost', 0),
+                'duration_ms': execution.get('execution_time', 0),
+                'created_at': execution.get('created_at', 0)
+            })
+        
         return {
             'total_executions': total_executions,
             'successful_executions': successful_executions,
@@ -149,6 +163,7 @@ class WorkflowStore:
             'avg_execution_time': avg_execution_time,
             'total_cost': total_cost,
             'workflows': workflows_summary,
+            'recent_executions': recent_executions,
             'time_range': {
                 'start': start_date.isoformat() if start_date else None,
                 'end': end_date.isoformat() if end_date else None

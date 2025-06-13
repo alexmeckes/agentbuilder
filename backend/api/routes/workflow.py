@@ -2,7 +2,7 @@
 Workflow execution and management routes.
 """
 from typing import Dict, Any
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import StreamingResponse
 
 from models import ExecutionRequest, ExecutionResponse, UserInputRequest
@@ -28,10 +28,19 @@ def set_workflow_store(store_instance):
 
 
 @router.post("/execute", response_model=ExecutionResponse)
-async def execute_workflow(request: ExecutionRequest):
+async def execute_workflow(request: ExecutionRequest, http_request: Request):
     """Execute a workflow using any-agent"""
     if not executor:
         raise HTTPException(status_code=500, detail="Executor not initialized")
+    
+    # Extract user ID from headers and add to request
+    user_id = http_request.headers.get("x-user-id", "anonymous")
+    if not request.user_context:
+        request.user_context = {}
+    request.user_context["user_id"] = user_id
+    
+    print(f"📊 Execute workflow request from user: {user_id}")
+    
     return await executor.execute_workflow(request)
 
 
