@@ -102,6 +102,12 @@ class WorkflowExecutor:
         execution = self._get_execution_by_id(execution_id)
         if execution:
             execution.update(updates)
+            
+            # Send WebSocket update if status changed or final result/error
+            if any(key in updates for key in ['status', 'result', 'error', 'completed_at']):
+                if execution_id in self.websocket_connections:
+                    websocket = self.websocket_connections[execution_id]
+                    asyncio.create_task(self._send_websocket_update(websocket, execution_id, execution))
     
     def _cleanup_user_executions(self, user_id: str):
         """Remove expired executions and enforce max limit per user"""
@@ -322,6 +328,11 @@ class WorkflowExecutor:
             asyncio.create_task(self._execute_workflow_async(
                 execution_id, nodes, edges, request.input_data, request.framework, workflow_identity, user_id
             ))
+            
+            # Send initial WebSocket update if connection exists
+            if execution_id in self.websocket_connections:
+                websocket = self.websocket_connections[execution_id]
+                asyncio.create_task(self._send_websocket_update(websocket, execution_id, execution_data))
             
             # Return immediately with running status (workflow identity will be sent via WebSocket)
             return ExecutionResponse(
@@ -771,6 +782,11 @@ class WorkflowExecutor:
             execution["result"] = f"Workflow completed with user input: {input_text}"
             execution["progress"]["current_activity"] = "Completed"
             execution["progress"]["percentage"] = 100
+            
+            # Send WebSocket update for completion
+            if execution_id in self.websocket_connections:
+                websocket = self.websocket_connections[execution_id]
+                await self._send_websocket_update(websocket, execution_id, execution)
             
             return {"success": True, "message": "User input processed successfully"}
             
