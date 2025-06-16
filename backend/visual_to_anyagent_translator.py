@@ -394,17 +394,27 @@ class VisualToAnyAgentTranslator:
         # Collect all available tools
         available_tools = []
         for tool_node in tool_nodes:
-            tool_type = tool_node.data.get("type", "search_web")
+            # Extract tool type from various possible locations
+            tool_type = (
+                tool_node.data.get("tool_type") or 
+                tool_node.data.get("type") or
+                "search_web"  # Default fallback
+            )
             
-            # Handle Composio tool naming conversion (hyphens to underscores)
+            logging.info(f"🔧 SEQUENTIAL: Processing tool node {tool_node.id} with tool_type='{tool_type}'")
+            
+            # Handle tool naming conversion (hyphens to underscores)
             normalized_type = tool_type.replace("-", "_")
             
+            # Try to find the tool
             if normalized_type in self.available_tools:
                 available_tools.append(self.available_tools[normalized_type])
-                logging.info(f"🔧 SEQUENTIAL: Added tool '{normalized_type}' (from '{tool_type}')")
+                logging.info(f"✅ SEQUENTIAL: Added tool '{normalized_type}' (from '{tool_type}')")
             elif tool_type in self.available_tools:
                 available_tools.append(self.available_tools[tool_type])
-                logging.info(f"🔧 SEQUENTIAL: Added tool '{tool_type}' (exact match)")
+                logging.info(f"✅ SEQUENTIAL: Added tool '{tool_type}' (exact match)")
+            else:
+                logging.warning(f"❌ SEQUENTIAL: Tool '{tool_type}' not found in available_tools")
         
         # Create managed agents (specialized agents)
         managed_agents = []
@@ -449,17 +459,27 @@ class VisualToAnyAgentTranslator:
         # Collect tools
         available_tools = []
         for tool_node in tool_nodes:
-            tool_type = tool_node.data.get("type", "search_web")
+            # Extract tool type from various possible locations
+            tool_type = (
+                tool_node.data.get("tool_type") or 
+                tool_node.data.get("type") or
+                "search_web"  # Default fallback
+            )
             
-            # Handle Composio tool naming conversion (hyphens to underscores)
+            logging.info(f"🔧 COLLABORATIVE: Processing tool node {tool_node.id} with tool_type='{tool_type}'")
+            
+            # Handle tool naming conversion (hyphens to underscores)
             normalized_type = tool_type.replace("-", "_")
             
+            # Try to find the tool
             if normalized_type in self.available_tools:
                 available_tools.append(self.available_tools[normalized_type])
-                logging.info(f"🔧 COLLABORATIVE: Added tool '{normalized_type}' (from '{tool_type}')")
+                logging.info(f"✅ COLLABORATIVE: Added tool '{normalized_type}' (from '{tool_type}')")
             elif tool_type in self.available_tools:
                 available_tools.append(self.available_tools[tool_type])
-                logging.info(f"🔧 COLLABORATIVE: Added tool '{tool_type}' (exact match)")
+                logging.info(f"✅ COLLABORATIVE: Added tool '{tool_type}' (exact match)")
+            else:
+                logging.warning(f"❌ COLLABORATIVE: Tool '{tool_type}' not found in available_tools")
         
         # Create specialist agents
         managed_agents = []
@@ -505,9 +525,32 @@ class VisualToAnyAgentTranslator:
         # Create a mapping of tool node IDs to their functions
         tool_functions = {}
         for tool_node in tool_nodes:
-            tool_type = tool_node.data.get("tool_type") or tool_node.data.get("type")
-            if tool_type and tool_type in self.available_tools:
-                tool_functions[tool_node.id] = self.available_tools[tool_type]
+            # Extract tool type from various possible locations
+            tool_type = (
+                tool_node.data.get("tool_type") or 
+                tool_node.data.get("type") or
+                tool_node.type  # Fallback to node.type if needed
+            )
+            
+            # Log tool resolution for debugging
+            logging.info(f"🔧 Resolving tool node {tool_node.id}: raw tool_type='{tool_type}'")
+            
+            # Normalize tool type (handle underscores vs hyphens)
+            normalized_type = tool_type.replace("-", "_") if tool_type else None
+            
+            # Try to find the tool function
+            tool_func = None
+            if normalized_type and normalized_type in self.available_tools:
+                tool_func = self.available_tools[normalized_type]
+                logging.info(f"✅ Found tool '{normalized_type}' (normalized from '{tool_type}')")
+            elif tool_type and tool_type in self.available_tools:
+                tool_func = self.available_tools[tool_type]
+                logging.info(f"✅ Found tool '{tool_type}' (exact match)")
+            else:
+                logging.warning(f"❌ Tool '{tool_type}' not found in available_tools. Available: {list(self.available_tools.keys())}")
+            
+            if tool_func:
+                tool_functions[tool_node.id] = tool_func
 
         # Create a mapping of agent IDs to their assigned tools based on connections
         agent_tools_map = {agent.id: [] for agent in agent_nodes}
@@ -556,6 +599,19 @@ class VisualToAnyAgentTranslator:
             assigned_tools = available_tools
         
         return assigned_tools
+    
+    def debug_available_tools(self):
+        """Debug method to log all available tools"""
+        logging.info("=" * 60)
+        logging.info("🔧 AVAILABLE TOOLS INVENTORY:")
+        logging.info("=" * 60)
+        for tool_name, tool_func in self.available_tools.items():
+            func_name = getattr(tool_func, '__name__', 'unknown')
+            func_module = getattr(tool_func, '__module__', 'unknown')
+            logging.info(f"  - {tool_name}: {func_module}.{func_name}")
+        logging.info("=" * 60)
+        logging.info(f"Total tools available: {len(self.available_tools)}")
+        logging.info("=" * 60)
 
 
 def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_config_dict: List[Dict], input_data: str, framework: str) -> Dict[str, Any]:
@@ -579,11 +635,18 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
         
         # Helper function to map tool names to actual tool functions
         def get_actual_tools(tool_names):
-            # Basic tools
+            # Basic tools with all possible aliases
             tool_map = {
                 "search_web": search_web,
-                "visit_webpage": visit_webpage
+                "visit_webpage": visit_webpage,
+                # Add aliases for frontend compatibility
+                "web_search": search_web,  # Frontend sends this!
+                "WebSearch": search_web,   # UI display name
+                "webpage_visit": visit_webpage,
+                "visit_page": visit_webpage
             }
+            
+            logger.info(f"🔧 Subprocess tool map initialized with {len(tool_map)} base tools")
             
             # Add Composio tools by recreating the tool wrappers in subprocess
             try:
@@ -663,12 +726,15 @@ def _run_any_agent_in_process(main_agent_config_dict: Dict, managed_agents_confi
             
             # Map tool names to functions
             mapped_tools = []
+            logger.info(f"🔍 Subprocess: Attempting to map {len(tool_names)} tools: {tool_names}")
+            logger.info(f"🔍 Subprocess: Available tools in map: {list(tool_map.keys())}")
+            
             for name in tool_names:
                 if name in tool_map:
                     mapped_tools.append(tool_map[name])
-                    logger.info(f"✅ Subprocess: Mapped tool '{name}' successfully")
+                    logger.info(f"✅ Subprocess: Mapped tool '{name}' successfully to {tool_map[name].__name__}")
                 else:
-                    logger.warning(f"❌ Subprocess: Tool '{name}' not found in tool map")
+                    logger.warning(f"❌ Subprocess: Tool '{name}' not found in tool map. Available: {list(tool_map.keys())}")
             
             return mapped_tools
         
@@ -1240,6 +1306,9 @@ async def execute_visual_workflow_with_anyagent(nodes: List[Dict], edges: List[D
     Execute a visual workflow using any-agent's native multi-agent orchestration
     """
     translator = VisualToAnyAgentTranslator()
+    
+    # Debug: Log available tools at execution time
+    translator.debug_available_tools()
     
     if execution_id and websocket:
         return await _execute_graph_step_by_step(nodes, edges, input_data, framework, translator, execution_id, websocket)
