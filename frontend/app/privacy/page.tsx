@@ -7,8 +7,10 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <article className="prose mx-auto my-8 max-w-3xl px-4">
+    <article className="prose prose-slate lg:prose-lg mx-auto my-12 max-w-3xl px-4 space-y-6">
       <h1>Any-Agent Composer Prototype Privacy Notice</h1>
+      <p className="text-sm text-gray-500">Last updated: June 2025</p>
+      <hr className="my-4" />
 
       <p>
         This privacy notice applies to the Any-Agent Composer Prototype, owned by MZL.AI, PBC (referred to herein as
