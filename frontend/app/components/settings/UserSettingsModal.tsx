@@ -924,50 +924,60 @@ export default function UserSettingsModal({ isOpen, onClose, onSave }: UserSetti
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+        <div className="flex items-center justify-between space-x-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-gray-500 hover:underline"
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={
-              isLoading || 
-              (encryptionSupported && 
-               Boolean(settings.composioApiKey) && 
-               !settings.encryptedComposioKey && 
-               Boolean(masterPassword) && // Only require confirmation if user actually set a custom password
-               (!confirmMasterPassword || masterPassword !== confirmMasterPassword))
-            }
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-          >
-            {isLoading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>
-                  {encryptionSupported && Boolean(settings.composioApiKey) && !settings.encryptedComposioKey 
-                    ? (masterPassword ? 'Encrypting & Saving...' : 'Auto-Encrypting & Saving...') 
-                    : 'Saving...'}
-                </span>
-              </>
-            ) : (
-              <>
-                {encryptionSupported && Boolean(settings.composioApiKey) && !settings.encryptedComposioKey ? (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    <span>{masterPassword ? 'Encrypt & Save Settings' : 'Auto-Encrypt & Save Settings'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    <span>Save Settings</span>
-                  </>
-                )}
-              </>
-            )}
-          </button>
+            Privacy Notice
+          </a>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={
+                isLoading || 
+                (encryptionSupported && 
+                 Boolean(settings.composioApiKey) && 
+                 !settings.encryptedComposioKey && 
+                 Boolean(masterPassword) && // Only require confirmation if user actually set a custom password
+                 (!confirmMasterPassword || masterPassword !== confirmMasterPassword))
+              }
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+            >
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>
+                    {encryptionSupported && Boolean(settings.composioApiKey) && !settings.encryptedComposioKey 
+                      ? (masterPassword ? 'Encrypting & Saving...' : 'Auto-Encrypting & Saving...') 
+                      : 'Saving...'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {encryptionSupported && Boolean(settings.composioApiKey) && !settings.encryptedComposioKey ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>{masterPassword ? 'Encrypt & Save Settings' : 'Auto-Encrypt & Save Settings'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save Settings</span>
+                    </>
+                  )}
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
