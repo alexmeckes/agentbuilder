@@ -53,8 +53,7 @@ interface WorkflowEditorProps {
   executionInput?: string
   onExecutionInputChange?: (input: string) => void
   workflowIdentity?: any
-  initialManualMode?: boolean
-  onManualModeChange?: (manualMode: boolean) => void
+
   receivedWorkflowIdentity?: any
 }
 
@@ -67,8 +66,6 @@ function WorkflowEditorInner({
   executionInput: externalExecutionInput,
   onExecutionInputChange,
   workflowIdentity: externalWorkflowIdentity,
-  initialManualMode = false,
-  onManualModeChange,
   receivedWorkflowIdentity
 }: WorkflowEditorProps) {
   // Get execution context
@@ -81,7 +78,7 @@ function WorkflowEditorInner({
     resetExecution,
   } = useExecutionContext()
   // DRAG SYSTEM ARCHITECTURE:
-  // 1. HTML5 Drag & Drop: Sidebar → Canvas (onDrop, onDragOver)
+  // 1. HTML5 Drag & Drop: Node Palette → Canvas (onDrop, onDragOver)
   // 2. ReactFlow Drag: Move nodes within canvas (onNodeDrag*, nodesDraggable)
   // Use external state if provided, otherwise use internal state
   const [internalNodes, setInternalNodes, onInternalNodesChange] = useNodesState(externalNodes || initialNodes)
@@ -187,21 +184,7 @@ function WorkflowEditorInner({
     }
       }, [executionState?.status, executionState?.id, executionResult?.result])
 
-  // Manual node creation mode state
-  const [useManualMode, setUseManualMode] = useState(initialManualMode)
-  
-  // Sync external manual mode changes to internal state
-  useEffect(() => {
-    setUseManualMode(initialManualMode)
-  }, [initialManualMode])
-  
-  // Sync manual mode changes to parent
-  const handleManualModeChange = useCallback((newMode: boolean) => {
-    setUseManualMode(newMode)
-    if (onManualModeChange) {
-      onManualModeChange(newMode)
-    }
-  }, [onManualModeChange])
+  // Manual mode removed - canvas is always visible now
 
   // Sync external state changes to internal state
   useEffect(() => {
@@ -578,11 +561,11 @@ function WorkflowEditorInner({
     }
   }, [])
 
-  // HTML5 Drag & Drop: Handle dropping nodes FROM sidebar TO canvas
+  // HTML5 Drag & Drop: Handle dropping nodes FROM node palette TO canvas
   const onDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault()
-      console.log('🟡 HTML5: Drop event on canvas (from sidebar)')
+      console.log('🟡 HTML5: Drop event on canvas (from node palette)')
 
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect()
       const type = event.dataTransfer.getData('application/reactflow')
@@ -690,8 +673,8 @@ function WorkflowEditorInner({
           nodeData = getNodeDefaults(composioToolData ? 'tool' : type)
         }
       } else {
-        // Fallback to old behavior for legacy sidebar
-        nodeData = getNodeDefaults(composioToolData ? 'tool' : type)
+                  // Fallback to default node behavior
+          nodeData = getNodeDefaults(composioToolData ? 'tool' : type)
       }
 
       // Enhanced node data based on type (fallback function)
@@ -1372,8 +1355,8 @@ function WorkflowEditorInner({
 
   return (
     <div className="h-full w-full bg-slate-50 flex">
-      {/* Left Sidebar - Unified Node Palette for both AI and Manual modes */}
-      <NodePalette isManualMode={useManualMode} />
+      {/* Node Palette - Unified tool library */}
+      <NodePalette />
       
       <div className="flex-1 h-full" ref={reactFlowWrapper}>
         <ReactFlow

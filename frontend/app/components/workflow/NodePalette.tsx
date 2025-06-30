@@ -7,7 +7,6 @@ import { useMCPTools, MCPTool } from '../../hooks/useMCPTools'
 
 interface NodePaletteProps {
   className?: string
-  isManualMode?: boolean // Add support for mode indication
 }
 
 interface UserSettings {
@@ -92,7 +91,7 @@ const nodeTemplates = [
   },
 ]
 
-export default function NodePalette({ className = '', isManualMode = true }: NodePaletteProps) {
+export default function NodePalette({ className = '' }: NodePaletteProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     [categories.CORE]: true,
@@ -224,12 +223,9 @@ export default function NodePalette({ className = '', isManualMode = true }: Nod
             <Plus className="w-5 h-5 text-gray-700" />
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-gray-900">Node Palette</h2>
-              <div className="flex items-center gap-1 mt-0.5">
-                <div className={`w-2 h-2 rounded-full ${isManualMode ? 'bg-green-500' : 'bg-blue-500'}`} />
-                <span className="text-xs text-gray-500">
-                  {isManualMode ? 'Manual Design Mode' : 'AI Assistant Mode'}
-                </span>
-              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Drag nodes to canvas or use AI Assistant
+              </p>
             </div>
             <button
               onClick={refreshTools}

@@ -83,7 +83,7 @@ Open your browser and go to http://localhost:3000. You'll see the any-agent Work
 #### **Method B: Using the Visual Designer (For Advanced Users)**
 
 1. Click on the **"Visual Designer"** tab
-2. Drag nodes from the sidebar onto the canvas:
+2. Drag nodes from the node palette onto the canvas:
    - **Agent Nodes**: AI agents with specific instructions
    - **Tool Nodes**: Functions like web search, file processing
    - **Logic Nodes**: Conditional branching, loops

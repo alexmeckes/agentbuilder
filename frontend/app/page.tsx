@@ -10,6 +10,7 @@ import PreferencesModal from './components/settings/PreferencesModal'
 import UserSettingsModal from './components/settings/UserSettingsModal'
 import type { Node, Edge } from 'reactflow'
 import { Workflow, MessageSquare, Settings, BarChart3, FlaskConical, User } from 'lucide-react'
+import { detectComposioToolFromName } from './config/composio-tools'
 
 export default function Home() {
   const [nodes, setNodes] = useState<Node[]>([])
@@ -20,7 +21,7 @@ export default function Home() {
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null)
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false)
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false)
-  const [isManualMode, setIsManualMode] = useState(false)
+  // Manual mode state removed - canvas is always visible now
   const [userSettings, setUserSettings] = useState<any>(null)
 
   // Page-level node deletion handler
@@ -173,6 +174,12 @@ export default function Home() {
   const handleUseWorkflow = useCallback(async (actions: any[], smartContext?: string) => {
     console.log('🎯 Using workflow from chat:', actions)
     
+    // Load user settings to check enabled tools
+    const userSettings = localStorage.getItem('userSettings') 
+      ? JSON.parse(localStorage.getItem('userSettings')!) 
+      : null;
+    const enabledTools = userSettings?.enabledTools || [];
+    
     // Create the visual nodes using existing logic
     const newNodes: Node[] = []
     const newEdges: Edge[] = []
@@ -235,6 +242,32 @@ export default function Home() {
         const allExistingNodes = [...nodes, ...newNodes]
         const position = findAvailablePosition(allExistingNodes, 100, 100)
         
+        // Detect tool type - check for Composio tools first
+        let toolType = null;
+        if (action.nodeType === 'tool' && action.name) {
+          // Try to detect Composio tool
+          const composioTool = detectComposioToolFromName(action.name, enabledTools);
+          if (composioTool) {
+            toolType = composioTool;
+            console.log(`✨ Detected Composio tool: ${composioTool} from name: ${action.name}`);
+          } else {
+            // Fall back to built-in tool detection
+            toolType = action.name?.toLowerCase().includes('search') || action.name?.toLowerCase().includes('web') 
+              ? 'web_search'
+              : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('read')
+              ? 'file_read'
+              : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('write')
+              ? 'file_write'
+              : action.name?.toLowerCase().includes('api')
+              ? 'api_call'
+              : action.name?.toLowerCase().includes('database')
+              ? 'database_query'
+              : action.name?.toLowerCase().includes('image')
+              ? 'image_generation'
+              : 'web_search'; // default to web_search for tool nodes
+          }
+        }
+        
         const newNode: Node = {
           id: nodeId,
           type: 'agent',
@@ -247,20 +280,9 @@ export default function Home() {
             model_id: action.model || 'gpt-4.1',
             description: `AI-generated ${action.nodeType} node`,
             // Auto-detect tool_type for tool nodes
-            ...(action.nodeType === 'tool' && {
-              tool_type: action.name?.toLowerCase().includes('search') || action.name?.toLowerCase().includes('web') 
-                ? 'web_search'
-                : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('read')
-                ? 'file_read'
-                : action.name?.toLowerCase().includes('file') && action.name?.toLowerCase().includes('write')
-                ? 'file_write'
-                : action.name?.toLowerCase().includes('api')
-                ? 'api_call'
-                : action.name?.toLowerCase().includes('database')
-                ? 'database_query'
-                : action.name?.toLowerCase().includes('image')
-                ? 'image_generation'
-                : 'web_search' // default to web_search for tool nodes
+            ...(action.nodeType === 'tool' && toolType && {
+              tool_type: toolType,
+              isComposio: toolType.startsWith('composio_')
             }),
             // Use page-level callbacks consistently
             onNodeUpdate: handleNodeUpdate,
@@ -480,73 +502,44 @@ export default function Home() {
           </div>
         ) : (
           <div className="h-full relative">
-            {/* Conditionally render WorkflowEditor OR the welcome overlay */}
-            {nodes.length > 0 || isManualMode ? (
-              <WorkflowEditor 
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={handleNodesChange}
-                onEdgesChange={setEdges}
-                onWorkflowChange={handleWorkflowChange}
-                executionInput={workflowExecutionInput}
-                onExecutionInputChange={setWorkflowExecutionInput}
-                initialManualMode={isManualMode}
-                onManualModeChange={setIsManualMode}
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 backdrop-blur-sm pointer-events-none">
-                <div className="text-center max-w-lg pointer-events-auto">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Workflow className="w-10 h-10 text-blue-600" />
+            {/* Always show WorkflowEditor */}
+            <WorkflowEditor 
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={setEdges}
+              onWorkflowChange={handleWorkflowChange}
+              executionInput={workflowExecutionInput}
+              onExecutionInputChange={setWorkflowExecutionInput}
+            />
+            
+            {/* Show welcome overlay only when canvas is empty */}
+            {nodes.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center max-w-lg pointer-events-auto bg-white/95 backdrop-blur-sm p-8 rounded-xl shadow-lg border border-slate-200">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Workflow className="w-8 h-8 text-blue-600" />
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">Ready to build your workflow</h3>
+                  <h3 className="text-xl font-semibold text-slate-900 mb-3">Welcome to any-agent Composer</h3>
                   <p className="text-slate-600 mb-6">
-                    Use the <strong>mode toggle</strong> (top-left) to switch to Manual Design, then drag nodes from the sidebar. Or try the AI Assistant for automatic workflow creation.
+                    Start building your AI workflow by dragging nodes from the palette on the left, or describe what you want to the AI Assistant.
                   </p>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
-                    <h4 className="text-sm font-semibold text-blue-900 mb-2">💡 Quick Tips:</h4>
+                    <h4 className="text-sm font-semibold text-blue-900 mb-2">💡 Quick Start:</h4>
                     <ul className="text-sm text-blue-800 space-y-1">
-                      <li>• <strong>Delete nodes:</strong> Click the 🗑️ button on any node or select and press Delete key</li>
-                      <li>• <strong>Move nodes:</strong> Drag them around the canvas</li>
-                      <li>• <strong>Edit nodes:</strong> Click the ⚙️ settings icon or double-click labels</li>
-                      <li>• <strong>Connect nodes:</strong> Drag from one node's output to another's input</li>
+                      <li>• <strong>Drag & Drop:</strong> Pull nodes from the left palette onto the canvas</li>
+                      <li>• <strong>Connect:</strong> Drag from output to input handles</li>
+                      <li>• <strong>Configure:</strong> Click nodes to edit their settings</li>
+                      <li>• <strong>AI Help:</strong> Use the chat tab to describe your workflow</li>
                     </ul>
                   </div>
-                  <div className="flex items-center justify-center gap-6">
-                    <div className="text-center">
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                        <Settings className="w-6 h-6 text-green-600" />
-                      </div>
-                      <h4 className="text-sm font-medium text-slate-900 mb-1">Manual Design</h4>
-                      <p className="text-xs text-slate-600">Toggle mode & drag nodes</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-2">
-                        <MessageSquare className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <h4 className="text-sm font-medium text-slate-900 mb-1">AI Assistant</h4>
-                      <p className="text-xs text-slate-600">Describe your workflow</p>
-                    </div>
-                  </div>
-                  <div className="mt-6 flex items-center gap-3">
-                    <button
-                      onClick={() => {
-                        setIsManualMode(true)
-                      }}
-                      className="bg-green-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
-                    >
-                      <Settings className="w-4 h-4" />
-                      Try Manual Mode
-                    </button>
-                    <span className="text-slate-400">or</span>
-                    <button
-                      onClick={() => setActiveTab('chat')}
-                      className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      Try AI Assistant
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setActiveTab('chat')}
+                    className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Try AI Assistant
+                  </button>
                 </div>
               </div>
             )}
